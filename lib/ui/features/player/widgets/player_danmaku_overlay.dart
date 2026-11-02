@@ -1,7 +1,6 @@
 import 'package:canvas_danmaku/canvas_danmaku.dart' as canvas;
 import 'package:flutter/material.dart';
 
-import '../../../../core/utils/app_fonts.dart';
 import '../../../../data/models/fly_narwhal/index.dart';
 import '../../../../providers/danmaku_controller.dart';
 
@@ -25,6 +24,7 @@ class PlayerDanmakuRenderItem {
 
 class PlayerDanmakuRenderOptions {
   final double fontSize;
+  final String fontFamily;
   final double area;
   final double durationSeconds;
   final double staticDurationSeconds;
@@ -32,6 +32,7 @@ class PlayerDanmakuRenderOptions {
 
   const PlayerDanmakuRenderOptions({
     required this.fontSize,
+    this.fontFamily = 'SourceHanSansSC',
     required this.area,
     required this.durationSeconds,
     required this.staticDurationSeconds,
@@ -61,6 +62,7 @@ class PlayerDanmakuOverlay extends StatefulWidget {
   final DanmakuSettings settings;
   final DanmakuLoadStatus loadStatus;
   final int resetGeneration;
+  final String fontFamily;
   final PlayerDanmakuRenderControllerFactory? renderControllerFactory;
 
   const PlayerDanmakuOverlay({
@@ -73,6 +75,7 @@ class PlayerDanmakuOverlay extends StatefulWidget {
     required this.settings,
     required this.loadStatus,
     required this.resetGeneration,
+    this.fontFamily = 'SourceHanSansSC',
     this.renderControllerFactory,
   });
 
@@ -111,7 +114,8 @@ class _PlayerDanmakuOverlayState extends State<PlayerDanmakuOverlay> {
     }
 
     if (oldWidget.settings != widget.settings ||
-        oldWidget.playbackRate != widget.playbackRate) {
+        oldWidget.playbackRate != widget.playbackRate ||
+        oldWidget.fontFamily != widget.fontFamily) {
       _renderController.updateOptions(_buildOptions());
     }
 
@@ -252,6 +256,7 @@ class _PlayerDanmakuOverlayState extends State<PlayerDanmakuOverlay> {
         widget.settings.syncPlaybackSpeed ? 5.0 / effectivePlaybackRate : 5.0;
     return PlayerDanmakuRenderOptions(
       fontSize: 20.0 * widget.settings.fontSizeScale,
+      fontFamily: widget.fontFamily,
       area: widget.settings.area,
       durationSeconds: durationSeconds,
       staticDurationSeconds: staticDurationSeconds,
@@ -384,7 +389,7 @@ class CanvasPlayerDanmakuRenderController
     return canvas.DanmakuOption(
       fontSize: options.fontSize,
       fontWeight: 5,
-      fontFamily: AppFonts.primary,
+      fontFamily: options.fontFamily,
       area: options.area,
       duration: options.durationSeconds,
       staticDuration: options.staticDurationSeconds,

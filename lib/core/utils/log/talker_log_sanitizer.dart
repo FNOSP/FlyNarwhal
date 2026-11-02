@@ -51,6 +51,19 @@ class TalkerLogSanitizer {
       RegExp(r'(cookie\s*[=:]\s*)[^;\s,)]+', caseSensitive: false),
       r'$1******',
     );
+    // The fnOS access code travels Base64-encoded in the `x-access-code`
+    // request header; never persist it (it is trivially decodable). Covers
+    // both the raw header form and the quoted JSON form.
+    masked = _replaceWithGroups(
+      masked,
+      RegExp(r'("x-access-code"\s*:\s*")[^"]*(")', caseSensitive: false),
+      r'$1******$2',
+    );
+    masked = _replaceWithGroups(
+      masked,
+      RegExp(r'(x-access-code\s*[=:]\s*)\S+', caseSensitive: false),
+      r'$1******',
+    );
 
     // Mask sensitive host fragments and local user folders.
     masked = _replaceWithGroups(

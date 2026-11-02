@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../providers/danmaku_controller.dart';
 import 'player_action_button.dart';
 import 'player_settings_components.dart';
@@ -359,6 +360,7 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return MouseRegion(
       cursor: _isDanmakuSettingsDisabled
           ? SystemMouseCursors.basic
@@ -386,7 +388,7 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout>
             key: const ValueKey('player-danmaku-settings'),
             svgAssetPath: 'assets/images/danmu_setting.svg',
             onPressed: _isDanmakuSettingsDisabled ? null : _toggleFlyout,
-            tooltip: '弹幕设置',
+            tooltip: l10n.playerDanmakuSettingsTooltip,
             size: 34,
             iconSize: 24,
             color: _isDanmakuSettingsDisabled
@@ -466,7 +468,6 @@ class _DanmakuSettingsFlyoutContentState
     extends State<_DanmakuSettingsFlyoutContent> {
   static const List<double> _areaSteps = [0.1, 0.25, 0.5, 0.75, 1.0];
   static const List<double> _speedSteps = [0.5, 0.75, 1.0, 1.5, 2.0];
-  static const List<String> _speedLabels = ['极慢', '较慢', '适中', '较快', '极快'];
 
   DanmakuSettingsPage _page = DanmakuSettingsPage.main;
   late double _area;
@@ -502,6 +503,7 @@ class _DanmakuSettingsFlyoutContentState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       key: const ValueKey('player-danmaku-settings-flyout'),
       width: _flyoutWidth,
@@ -513,19 +515,19 @@ class _DanmakuSettingsFlyoutContentState
         border: Border.all(color: _flyoutBorderColor),
       ),
       child: _page == DanmakuSettingsPage.main
-          ? _buildMainPage()
-          : _buildAdvancedPage(),
+          ? _buildMainPage(l10n)
+          : _buildAdvancedPage(l10n),
     );
   }
 
-  Widget _buildMainPage() {
+  Widget _buildMainPage(AppLocalizations l10n) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         PlayerSettingsHeader(
-          title: '弹幕设置',
-          actionLabel: '高级设置',
+          title: l10n.playerDanmakuSettingsTitle,
+          actionLabel: l10n.playerDanmakuAdvancedSettings,
           onAction: () {
             setState(() => _page = DanmakuSettingsPage.advanced);
             widget.onPageChanged(DanmakuSettingsPage.advanced);
@@ -534,7 +536,7 @@ class _DanmakuSettingsFlyoutContentState
         const SizedBox(height: 18),
         _buildSlider(
           key: const ValueKey('player-danmaku-area-control'),
-          label: '显示区域 ${(_area * 100).round()}%',
+          label: l10n.playerDanmakuDisplayArea('${(_area * 100).round()}'),
           value: _area,
           minimum: DanmakuSettings.minimumArea,
           maximum: DanmakuSettings.maximumArea,
@@ -551,7 +553,7 @@ class _DanmakuSettingsFlyoutContentState
         ),
         _buildSlider(
           key: const ValueKey('player-danmaku-opacity-slider'),
-          label: '不透明度 ${(_opacity * 100).round()}%',
+          label: l10n.playerDanmakuOpacity('${(_opacity * 100).round()}'),
           value: _opacity,
           minimum: 0,
           maximum: 1,
@@ -562,7 +564,8 @@ class _DanmakuSettingsFlyoutContentState
         ),
         _buildSlider(
           key: const ValueKey('player-danmaku-font-size-slider'),
-          label: '字号 ${(_fontSizeScale * 100).round()}%',
+          label:
+              l10n.playerDanmakuFontSize('${(_fontSizeScale * 100).round()}'),
           value: _fontSizeScale,
           minimum: 0.5,
           maximum: 1.7,
@@ -573,7 +576,7 @@ class _DanmakuSettingsFlyoutContentState
         ),
         _buildSlider(
           key: const ValueKey('player-danmaku-speed-slider'),
-          label: '速度 ${_speedLabel(_speed)}',
+          label: l10n.playerDanmakuSpeed(_speedLabel(l10n, _speed)),
           value: _nearestSpeedIndex(_speed).toDouble(),
           minimum: 0,
           maximum: (_speedSteps.length - 1).toDouble(),
@@ -590,13 +593,13 @@ class _DanmakuSettingsFlyoutContentState
     );
   }
 
-  Widget _buildAdvancedPage() {
+  Widget _buildAdvancedPage(AppLocalizations l10n) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         PlayerSettingsHeader(
-          title: '高级设置',
+          title: l10n.playerDanmakuAdvancedSettings,
           onBack: () {
             setState(() => _page = DanmakuSettingsPage.main);
             widget.onPageChanged(DanmakuSettingsPage.main);
@@ -610,7 +613,7 @@ class _DanmakuSettingsFlyoutContentState
             setState(() => _syncPlaybackSpeed = value);
             widget.onSyncPlaybackSpeedChanged(value);
           },
-          title: '弹幕速度同步播放倍速',
+          title: l10n.playerDanmakuSyncPlaybackSpeed,
           padding: EdgeInsets.zero,
         ),
         const SizedBox(height: 8),
@@ -621,7 +624,7 @@ class _DanmakuSettingsFlyoutContentState
             setState(() => _debugEnabled = value);
             widget.onDebugEnabledChanged(value);
           },
-          title: '显示弹幕调试信息',
+          title: l10n.playerDanmakuShowDebugInfo,
           padding: EdgeInsets.zero,
         ),
       ],
@@ -660,7 +663,18 @@ class _DanmakuSettingsFlyoutContentState
     return nearestIndex;
   }
 
-  String _speedLabel(double speed) {
-    return _speedLabels[_nearestSpeedIndex(speed)];
+  String _speedLabel(AppLocalizations l10n, double speed) {
+    switch (_nearestSpeedIndex(speed)) {
+      case 0:
+        return l10n.playerDanmakuSpeedVerySlow;
+      case 1:
+        return l10n.playerDanmakuSpeedSlow;
+      case 2:
+        return l10n.playerDanmakuSpeedNormal;
+      case 3:
+        return l10n.playerDanmakuSpeedFast;
+      default:
+        return l10n.playerDanmakuSpeedVeryFast;
+    }
   }
 }

@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../shared/dialogs/app_dialog.dart';
 import 'card_expander_item.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
@@ -13,6 +14,7 @@ class SupportAuthorItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return CardExpanderItem(
       key: const ValueKey('settings-support-author'),
       icon: Builder(
@@ -33,23 +35,22 @@ class SupportAuthorItem extends StatelessWidget {
       trailing: AppButton(
         key: const ValueKey('settings-support-author-button'),
         onPressed: () => _showSupportAuthorDialog(context),
-        child: const Text('支持作者'),
+        child: Text(l10n.supportAuthorTitle),
       ),
     );
   }
 }
 
 void _showSupportAuthorDialog(BuildContext context) {
+  final l10n = AppLocalizations.of(context);
   showAppDialog<void>(
     context: context,
-    title: '支持作者',
-    content: const Text(
-      '您的支持就是我持续更新的动力，如果觉得好用的话，请给项目点一个 Star ⭐，谢谢！(^_−)☆'
-      '\n\n'
-      '项目诚然还有很多地方需要完善，如果遇到软件问题或者 Bug 欢迎提交 Issue 或者 PR。',
+    title: l10n.supportAuthorTitle,
+    content: Text(
+      '${l10n.supportAuthorBody}\n\n${l10n.supportAuthorIssues}',
     ),
-    secondaryButtonText: '稍后再说',
-    primaryButtonText: '打开 Github 仓库',
+    secondaryButtonText: l10n.supportAuthorLater,
+    primaryButtonText: l10n.supportAuthorOpenRepo,
     onPrimaryPressed: () {
       // showDialog 默认挂在根 Navigator 上,必须从根 Navigator 弹出,
       // 否则会误弹 GoRouter 内部 Navigator 上的设置页路由。

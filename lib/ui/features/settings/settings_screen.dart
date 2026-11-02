@@ -4,6 +4,9 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../data/storage/update_settings_store.dart';
+import '../../../l10n/generated/app_localizations.dart';
+import '../../../providers/fly_narwhal_server_capabilities.dart';
+import '../../../providers/fly_narwhal_server_update_available_notifier.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/update_providers.dart';
 import '../../../providers/update_settings_provider.dart';
@@ -11,13 +14,19 @@ import '../update/update_badge.dart';
 import '../update/update_dialog.dart';
 import '../update/update_state.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
+import '../../settings/app_language.dart';
+import '../../settings/ui_font_scale.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
 import '../../shared/hover_tip.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
+import 'widgets/danmu_dandan_source_dialog.dart';
+import 'widgets/danmu_fallback_servers_dialog.dart';
+import 'widgets/segmented_slider.dart';
 import 'widgets/shortcut_settings_dialog.dart';
+import 'widgets/smart_skip_config_dialog.dart';
 import 'widgets/ssl_whitelist_dialog.dart';
 import 'widgets/support_author_item.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
@@ -39,11 +48,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       TextEditingController();
   final TextEditingController _updateProxyUrlController =
       TextEditingController();
+  bool _danmuSourceConfigLoadRequested = false;
+  bool _capabilitiesProbeRequested = false;
+  String? _lastProbedFlyNarwhalServerUrl;
   bool _isFlyNarwhalAuthCodeVisible = false;
   List<String> _availableLogDates = const <String>[];
   String? _selectedLogDate;
   bool _isExportingLogs = false;
   String? _logExportErrorMessage;
+  bool _isResettingImageCache = false;
+
+  /// 「字体大小」所在的行。改字号会让它上方所有行重新排版，用这个 key
+  /// 量出该行的位置，把滚动偏移补偿回去，避免它从指针下方跑掉。
+  ///
+  /// 这里刻意用 [ValueKey] 而不是 [GlobalKey]：切换字号时 [MediaQuery] 的
+  /// textScaler 会整段换掉，列表子树随之重建。GlobalKey 会驱动框架去
+  /// inactive 队列里「认领」旧 element（[Element._retakeInactiveElement]），
+  /// 而这一步一旦与布局中的 LayoutBuilder 重入交错，就会命中
+  /// `_InactiveElements.remove` 的断言并把整页打进错误屏。同类型的 key
+  /// 既能让框架就地更新这一行，又不牵动 element 的跨父级迁移。
+  final Key _fontScaleRowKey = const ValueKey('settings-ui-font-scale-row');
+
+  /// 待补偿的字号切换：切换前该行在内容坐标中的位置和目标字号。
+  /// 等 build 观察到新字号真正排版生效后才消费。
+  ({double baselineOffsetInContent, String target})? _pendingFontScaleAnchor;
+
+  /// 已解除钉住的补偿基准：等 release 那一帧真正按新字号排完版，再用它
+  /// 和 [baselineOffsetInContent] 的差值去改滚动偏移。
+  ///
+  /// 必须分成「记录基准 / 解除钉住 / 事后测量」三步，不能揉进一帧：
+  /// `setState` 只是把 element 标脏，并不当场重排；在同一帧紧接着量到的
+  /// 仍是旧字号的几何，差值恒为 0，补偿就成了空操作。
+  double? _fontScaleAnchorBaselineToSettle;
+
+  /// 补偿进行中：列表暂时沿用的缩放系数。
+  ///
+  /// 行高与字号不是线性关系（实测 0.85/1.0/1.25 对应 74/77/87px），位移
+  /// 只能等新排版量出来才知道；而 Flutter 的度量都在排版之后，所以
+  /// 「先量后补」必然晚一帧。让列表在补偿落地前保持旧字号排版，就根本
+  /// 不会产生那一帧的位移，也就没有可感知的跳动或闪烁。
+  double? _listFontScaleFactorForLayout;
 
   @override
   void initState() {
@@ -59,21 +103,110 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (_availableLogDates.isNotEmpty) {
       _selectedLogDate = _availableLogDates.first;
     }
+
+    // Ask the server for its version on entry, so the cards that only exist on
+    // 2.0.0-or-newer servers are drawn from a fresh answer rather than from
+    // whatever the last probe (possibly a different server) left behind.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _probeCapabilities());
+  }
+
+  /// Requests the server version unless the server isn't fully configured.
+  ///
+  /// The answer flips the 2.0.0-gated cards; it is deliberately not cached
+  /// across entries, because the server may have been updated or replaced.
+  /// A failed probe is reported with a toast — only the explicit test button
+  /// reports success, so silent background probes do not toast on every entry.
+  void _probeCapabilities() {
+    final settings = ref.read(settingsProvider);
+    final baseUrl = settings.flyNarwhalServerBaseUrl;
+    if (!settings.flyNarwhalServerEnabled || baseUrl.isEmpty) {
+      return;
+    }
+    if (!settings.hasFlyNarwhalAuthCode) {
+      return;
+    }
+    if (baseUrl != _lastProbedFlyNarwhalServerUrl) {
+      _lastProbedFlyNarwhalServerUrl = baseUrl;
+      _capabilitiesProbeRequested = true;
+    }
+    if (!_capabilitiesProbeRequested || !mounted) {
+      return;
+    }
+    unawaited(_runCapabilitiesProbe());
+  }
+
+  Future<void> _runCapabilitiesProbe() async {
+    final result = await probeFlyNarwhalServer(ref);
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    showServerUpdateAvailableToast(
+      ref,
+      l10n,
+      ref.read(flyNarwhalServerUpdateAvailableProvider),
+    );
+    final failure = result.failure;
+    if (failure == null) return;
+    ref.read(toastManagerProvider.notifier).showToast(
+          l10n.settingsServerVersionProbeFailed(
+            failure == serverReturnedNoVersion
+                ? l10n.connectionTestNoVersion
+                : failure,
+          ),
+          type: ToastType.failed,
+          category: 'fly-narwhal-version',
+          coalesce: true,
+        );
+  }
+
+  /// One-line state of the two dandanplay sources for the settings card, e.g.
+  /// "官方服务 · 已启用（优先）  中转服务 · 已停用".
+  String _dandanSourceSummary(AppLocalizations l10n) {
+    final config =
+        ref.watch(danmuSourceConfigControllerProvider).config.valueOrNull;
+    if (config == null) return l10n.settingsDanmuDandanSourceCaption;
+    final account = config.dandanAccount;
+    final relay = config.dandan;
+    if (!account.enabled && !relay.enabled) {
+      return l10n.danmuDandanNoneEnabled;
+    }
+    // Mark the source the server will actually search first, not the stored
+    // priority: a preference stranded on a switched-off source is skipped.
+    final storedOfficialPreferred =
+        account.priority == 0 || (account.priority == null && relay.priority != 0);
+    final officialWins =
+        account.enabled && (storedOfficialPreferred || !relay.enabled);
+    return [
+      _dandanSourceState(
+          l10n, l10n.danmuDandanOfficialTitle, account.enabled, officialWins),
+      _dandanSourceState(
+          l10n, l10n.danmuDandanRelayTitle, relay.enabled, !officialWins),
+    ].join('  ');
+  }
+
+  String _dandanSourceState(
+      AppLocalizations l10n, String title, bool enabled, bool preferred) {
+    final state = enabled
+        ? l10n.danmuDandanStatusEnabled
+        : l10n.danmuDandanStatusDisabled;
+    return preferred && enabled
+        ? '$title · $state（${l10n.danmuDandanStatusPreferred}）'
+        : '$title · $state';
   }
 
   void _openFlyNarwhalAuthCodeDialog() {
+    final l10n = AppLocalizations.of(context);
     _flyNarwhalAuthCodeController.text =
         ref.read(settingsProvider.notifier).getFlyNarwhalAuthCode();
     _isFlyNarwhalAuthCodeVisible = false;
     showAppDialog(
       context: context,
-      title: '填写授权码',
+      title: l10n.settingsServerAuthCodePrompt,
       content: StatefulBuilder(
         builder: (context, setDialogState) => Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('请输入飞鲸服务端授权码：'),
+            Text(l10n.settingsServerAuthCodeLabel),
             const SizedBox(height: 12),
             TextBox(
               key: const ValueKey('settings-fly-narwhal-auth-code-input'),
@@ -101,15 +234,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
-              '请在飞鲸服务端页面点击“获取授权码”后粘贴到此处。',
-              style: TextStyle(fontSize: 12),
+            Text(
+              l10n.settingsServerAuthCodeHint,
+              style: const TextStyle(fontSize: 12),
             ),
           ],
         ),
       ),
-      secondaryButtonText: '取消',
-      primaryButtonText: '确定',
+      secondaryButtonText: l10n.commonCancel,
+      primaryButtonText: l10n.commonConfirm,
       // AppDialog waits for this and then closes itself using its own context.
       onPrimaryPressed: _saveFlyNarwhalAuthCode,
       autoDismiss: true,
@@ -122,12 +255,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         .setFlyNarwhalAuthCode(_flyNarwhalAuthCodeController.text);
   }
 
-
   void _openSslWhitelistDialog() {
     showDialog<void>(
       context: context,
       builder: (context) => const SslWhitelistDialog(),
     );
+  }
+
+  Future<void> _resetImageCache() async {
+    if (_isResettingImageCache) {
+      return;
+    }
+
+    setState(() => _isResettingImageCache = true);
+
+    final l10n = AppLocalizations.of(context);
+    try {
+      await clearImageCache(ref.read(imageCacheManagerProvider));
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      if (!mounted) {
+        return;
+      }
+      ref
+          .read(toastManagerProvider.notifier)
+          .showToast(l10n.settingsGeneralResetImageCacheSuccess);
+    } finally {
+      if (mounted) {
+        setState(() => _isResettingImageCache = false);
+      }
+    }
   }
 
   Future<void> _exportErrorLogs() async {
@@ -171,13 +328,127 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
+  /// 「字体大小」行顶部相对滚动内容原点的偏移。
+  ///
+  /// 按 key 在视图里的子树中找这一行的 RenderBox，而不是靠 GlobalKey
+  /// 持有的 context——见 [_fontScaleRowKey] 上关于切换字号的说明。
+  double? _fontScaleRowOffsetInContent() {
+    final rowBox = _findFontScaleRowBox();
+    final scrollable = _scrollController.position.context.storageContext;
+    final viewportBox = scrollable.findRenderObject() as RenderBox?;
+    if (rowBox == null || viewportBox == null) return null;
+    // 该行在视口坐标系里的 y，加上已滚动距离即内容坐标。
+    final rowTopInViewport =
+        rowBox.localToGlobal(Offset.zero, ancestor: viewportBox).dy;
+    return rowTopInViewport + _scrollController.offset;
+  }
+
+  /// 在列表子树里按 key 找到「字体大小」行的 RenderBox。
+  RenderBox? _findFontScaleRowBox() {
+    final viewport = _scrollController.position.context.storageContext;
+    if (!viewport.mounted) return null;
+    Element? found;
+    void visit(Element element) {
+      if (found != null) return;
+      if (element.widget.key == _fontScaleRowKey) {
+        found = element;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    // 从视图往下找：列表内容不含别的同 key 子树，命中即目标行。
+    visit(viewport as Element);
+    return found?.renderObject as RenderBox?;
+  }
+
+  /// 切换字号：先记下该行当前在内容中的位置，等新排版生效后补偿滚动。
+  void _applyUiFontScale(SettingsNotifier settingsNotifier, String value) {
+    final before = _fontScaleRowOffsetInContent();
+    if (before != null) {
+      _pendingFontScaleAnchor = (
+        baselineOffsetInContent: before,
+        target: value,
+      );
+      // 列表先钉在旧字号上：这一帧不重排，行就不会动。
+      setState(() {
+        _listFontScaleFactorForLayout =
+            UiFontScale.factorFromValue(ref.read(settingsProvider).uiFontScale);
+      });
+    }
+    settingsNotifier.setUiFontScale(value);
+  }
+
+  /// [build] 排完版后调用：新字号已进入设置，解除列表的钉住状态。
+  ///
+  /// 这里只负责两件事：记下「旧排版下该行的基准位置」，然后把
+  /// [_listFontScaleFactorForLayout] 归位——后者会让列表在**下一帧**才按
+  /// 新字号重排。真正的补偿因此交给 [_applyFontScaleScrollCorrection]
+  /// 在随后那一帧里完成。之所以不在这里直接量，是因为 `setState` 只是标脏，
+  /// 当场量到的还是旧字号的几何，差值恒为 0。
+  void _settleFontScaleAnchor() {
+    final pending = _pendingFontScaleAnchor;
+    if (pending == null) return;
+    // 新字号尚未生效，下一帧再试。
+    if (pending.target != ref.read(settingsProvider).uiFontScale) return;
+    _pendingFontScaleAnchor = null;
+    if (!mounted) return;
+    // 此刻列表仍按旧字号排版，量到的位置就是补偿基准。
+    final oldLayoutOffset = _fontScaleRowOffsetInContent();
+    setState(() => _listFontScaleFactorForLayout = null);
+    if (!_scrollController.hasClients || oldLayoutOffset == null) return;
+    _fontScaleAnchorBaselineToSettle = oldLayoutOffset;
+    // 下一帧列表已按新字号重排，到那时再量、再补。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _applyFontScaleScrollCorrection();
+    });
+  }
+
+  /// 按新字号重排后的那一帧调用：量出该行的位移并一次性补掉。
+  void _applyFontScaleScrollCorrection() {
+    final baseline = _fontScaleAnchorBaselineToSettle;
+    if (baseline == null) return;
+    _fontScaleAnchorBaselineToSettle = null;
+    if (!mounted || !_scrollController.hasClients) return;
+    final after = _fontScaleRowOffsetInContent();
+    if (after == null) return;
+    final delta = after - baseline;
+    if (delta == 0) return;
+    final position = _scrollController.position;
+    final target = (position.pixels + delta).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (target != position.pixels) {
+      _scrollController.jumpTo(target);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final settings = ref.watch(settingsProvider);
     final settingsNotifier = ref.read(settingsProvider.notifier);
     final errorLogExporter = ref.watch(errorLogExporterProvider);
     final userInfoAsync = ref.watch(userInfoProvider);
     final connectionTestState = ref.watch(flyNarwhalConnectionTestProvider);
+
+    // Once the connected server is known to carry the danmu source config API,
+    // pull the stored values a single time per screen life so the card summary
+    // reflects the current sources without opening the dialog.
+    final supportsModernContract = ref
+            .watch(flyNarwhalServerCapabilitiesProvider)
+            .valueOrNull
+            ?.supportsModernContract ??
+        false;
+    if (supportsModernContract && !_danmuSourceConfigLoadRequested) {
+      _danmuSourceConfigLoadRequested = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(danmuSourceConfigControllerProvider.notifier).load();
+        }
+      });
+    }
     final updateState = ref.watch(updateControllerProvider);
     final updateSettingsAsync = ref.watch(updateSettingsProvider);
     final updateSettings = updateSettingsAsync.asData?.value;
@@ -186,6 +457,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final canExportLogs =
         errorLogExporter.isSupported && _availableLogDates.isNotEmpty;
 
+    // 这一帧已按新字号排版，据此补偿滚动偏移，把「字体大小」那行钉回
+    // 原位。
+    if (_pendingFontScaleAnchor != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _settleFontScaleAnchor();
+      });
+    }
+
+    // A changed address, auth code or enable switch means the previously probed
+    // version belongs to a different server, so re-ask. Edits to unrelated
+    // settings leave the state untouched and trigger nothing.
+    ref.listen<SettingsState>(settingsProvider, (previous, next) {
+      if (previous == null) return;
+      final changed = previous.flyNarwhalServerEnabled !=
+              next.flyNarwhalServerEnabled ||
+          previous.flyNarwhalServerBaseUrl != next.flyNarwhalServerBaseUrl ||
+          previous.hasFlyNarwhalAuthCode != next.hasFlyNarwhalAuthCode;
+      if (changed) {
+        _probeCapabilities();
+      }
+    });
+
+    ref.listen<String?>(flyNarwhalServerUpdateAvailableProvider, (_, next) {
+      if (next != null) showServerUpdateAvailableToast(ref, l10n, next);
+    });
+
     ref.listen<AsyncValue<String?>>(
       flyNarwhalConnectionTestProvider,
       (_, nextState) {
@@ -193,16 +490,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           data: (version) {
             if (version == null) return;
             ref.read(toastManagerProvider.notifier).showToast(
-                  '飞鲸服务端连接成功，当前服务端版本号：$version',
+                  l10n.settingsServerTestSuccess(version),
                   type: ToastType.success,
                   category: 'fly-narwhal-connection',
                 );
             ref.read(flyNarwhalConnectionTestProvider.notifier).clear();
           },
           error: (error, _) {
-            final isUnreachable = error.toString() == '飞鲸服务端无法访问';
+            final isUnreachable =
+                error.toString() == l10n.settingsServerUnreachable;
             ref.read(toastManagerProvider.notifier).showToast(
-                  isUnreachable ? '飞鲸服务端无法访问' : '飞鲸服务端连接失败：$error',
+                  isUnreachable
+                      ? l10n.settingsServerUnreachable
+                      : l10n.settingsServerTestConnectFailed('$error'),
                   type: ToastType.failed,
                   category: 'fly-narwhal-connection',
                 );
@@ -223,7 +523,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 padding: const EdgeInsets.only(top: 16, bottom: 8),
                 child: _HorizontalSpace(
                   child: Text(
-                    '设置',
+                    l10n.settingsTitle,
                     style: FluentTheme.of(context)
                         .typography
                         .subtitle
@@ -232,12 +532,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
               Expanded(
-                child: Scrollbar(
-                  controller: _scrollController,
-                  child: ListView(
+                // 切换字号时，这一帧的列表先按旧字号排版：整页不重排，
+                // 「字体大小」那一行自然不会位移。等 postFrame 里把滚动
+                // 偏移补偿好，下一帧两者一起生效，用户看不到中间态。
+                child: MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: TextScaler.linear(
+                      _listFontScaleFactorForLayout ??
+                          UiFontScale.factorFromValue(settings.uiFontScale),
+                    ),
+                  ),
+                  child: Scrollbar(
                     controller: _scrollController,
-                    primary: false,
-                    padding: EdgeInsets.zero,
+                    child: ListView(
+                      controller: _scrollController,
+                      primary: false,
+                      padding: EdgeInsets.zero,
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(top: 8, bottom: 24),
@@ -245,14 +555,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const _Header(title: '账号'),
+                              _Header(title: l10n.settingsSectionAccount),
                               userInfoAsync.when(
                                 data: (user) {
                                   if (user == null) {
-                                    return const CardExpanderItem(
-                                      icon: Icon(FluentIcons.contact),
-                                      heading: Text('未加载用户信息'),
-                                      caption: Text('登录后将在首页自动完成用户信息校验'),
+                                    return CardExpanderItem(
+                                      icon: const Icon(FluentIcons.contact),
+                                      heading: Text(l10n.settingsAccountUnloaded),
+                                      caption: Text(
+                                        l10n.settingsAccountUnloadedCaption,
+                                      ),
                                     );
                                   }
 
@@ -279,7 +591,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                     BorderRadius.circular(50),
                                               ),
                                               child: Text(
-                                                '管理员',
+                                                l10n.settingsAccountAdminBadge,
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   color: Colors.blue,
@@ -292,34 +604,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     caption: const Text('FN_Media'),
                                   );
                                 },
-                                loading: () => const CardExpanderItem(
+                                loading: () => CardExpanderItem(
                                   heading: Row(
                                     children: [
-                                      AppLoadingProgressRing(size: 18),
-                                      SizedBox(width: 12),
-                                      Text('正在加载用户信息…'),
+                                      const AppLoadingProgressRing(size: 18),
+                                      const SizedBox(width: 12),
+                                      Text(l10n.commonUserInfoLoading),
                                     ],
                                   ),
                                 ),
                                 error: (e, _) => CardExpanderItem(
                                   icon: const Icon(FluentIcons.error),
-                                  heading: const Text('加载用户信息失败'),
+                                  heading: Text(l10n.commonUserInfoLoadFailed),
                                   caption: Text(e.toString()),
                                 ),
                               ),
                               CardExpanderItem(
                                 key: const ValueKey('settings-logout'),
                                 icon: const Icon(FluentIcons.sign_out),
-                                heading: const Text('退出登录'),
-                                caption: const Text('退出当前账号'),
+                                heading: Text(l10n.settingsAccountSignOut),
+                                caption: Text(l10n.settingsAccountSignOutCaption),
                                 onPressed: () async {
                                   final confirmed = await showAppDialog<bool>(
                                     context: context,
                                     type: AppDialogType.confirmation,
-                                    title: '退出登录',
-                                    content: const Text('确认退出当前帐号？'),
-                                    primaryButtonText: '确定',
-                                    secondaryButtonText: '取消',
+                                    title: l10n.settingsAccountSignOut,
+                                    content: Text(
+                                      l10n.settingsAccountSignOutConfirm,
+                                    ),
+                                    primaryButtonText: l10n.commonConfirm,
+                                    secondaryButtonText: l10n.commonCancel,
                                     primaryResult: true,
                                     secondaryResult: false,
                                   );
@@ -340,19 +654,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 },
                               ),
                               const SizedBox(height: 4),
-                              const _Header(title: '外观'),
+                              _Header(title: l10n.settingsSectionAppearance),
                               CardExpanderItem(
                                 icon: const Icon(FluentIcons.color),
-                                heading: const Text('主题模式'),
-                                caption: const Text('是否跟随系统主题'),
+                                heading: Text(l10n.settingsAppearanceThemeMode),
+                                caption: Text(l10n.settingsAppearanceThemeModeCaption),
                                 trailing: ToggleSwitch(
                                   checked: settings.followSystemTheme,
                                   onChanged: (v) =>
                                       settingsNotifier.setFollowSystemTheme(v),
                                   content: Text(
                                     settings.followSystemTheme
-                                        ? '跟随系统'
-                                        : '手动设置',
+                                        ? l10n.settingsAppearanceFollowSystem
+                                        : l10n.settingsAppearanceManual,
                                   ),
                                 ),
                               ),
@@ -364,22 +678,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         ? FluentIcons.clear_night
                                         : FluentIcons.brightness,
                                   ),
-                                  heading: const Text('颜色'),
-                                  caption: const Text('请选择主题颜色'),
+                                  heading: Text(l10n.settingsAppearanceColor),
+                                  caption: Text(l10n.settingsAppearanceColorCaption),
                                   trailing: ToggleSwitch(
                                     checked: settings.darkMode,
                                     onChanged: (v) =>
                                         settingsNotifier.setDarkMode(v),
                                     content:
-                                        Text(settings.darkMode ? '深色' : '浅色'),
+                                        Text(settings.darkMode
+                                            ? l10n.settingsAppearanceDark
+                                            : l10n.settingsAppearanceLight),
                                   ),
                                 ),
                               ),
                               CardExpanderItem(
                                 icon:
                                     const Icon(FluentIcons.navigation_flipper),
-                                heading: const Text('导航栏样式'),
-                                caption: const Text('请选择导航视图布局'),
+                                heading: Text(l10n.settingsAppearanceNavStyle),
+                                caption: Text(l10n.settingsAppearanceNavStyleCaption),
                                 trailing: DropDownButton(
                                   title: Text(
                                     NavigationDisplayModeMapper.labelFromValue(
@@ -405,16 +721,78 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       .toList(),
                                 ),
                               ),
+                              CardExpanderItem(
+                                icon: const Icon(FluentIcons.blur),
+                                heading: Text(
+                                  l10n.settingsAppearanceDetailsLiquidGlass,
+                                ),
+                                caption: Text(
+                                  l10n.settingsAppearanceDetailsLiquidGlassCaption,
+                                ),
+                                trailing: ToggleSwitch(
+                                  key: const ValueKey(
+                                    'settings-player-details-liquid-glass-toggle',
+                                  ),
+                                  checked: settings.playerDetailsLiquidGlass,
+                                  onChanged: (v) => settingsNotifier
+                                      .setPlayerDetailsLiquidGlass(v),
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              const _Header(title: '通用'),
+                              _Header(title: l10n.settingsSectionGeneral),
+                              CardExpanderItem(
+                                icon: const Icon(FluentIcons.locale_language),
+                                heading: Text(l10n.settingsLanguageTitle),
+                                caption: Text(l10n.settingsLanguageCaption),
+                                trailing: DropDownButton(
+                                  key: const ValueKey(
+                                    'settings-language-dropdown',
+                                  ),
+                                  title: Text(
+                                    AppLanguage.labelFromValue(
+                                      settings.language,
+                                    ),
+                                  ),
+                                  items: AppLanguage.values
+                                      .map(
+                                        (value) => MenuFlyoutItem(
+                                          text: Text(
+                                            AppLanguage.labelFromValue(value),
+                                          ),
+                                          onPressed: () => settingsNotifier
+                                              .setLanguage(value),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ),
+                              CardExpanderItem(
+                                key: _fontScaleRowKey,
+                                icon: const Icon(FluentIcons.font_size),
+                                heading: Text(l10n.settingsGeneralFontSize),
+                                caption: Text(l10n.settingsGeneralFontSizeCaption),
+                                trailing: SegmentedSlider<String>(
+                                  key: const ValueKey(
+                                    'settings-ui-font-scale',
+                                  ),
+                                  values: UiFontScale.values,
+                                  selected: settings.uiFontScale,
+                                  labelBuilder: (value) =>
+                                      UiFontScale.labelFromValue(value, l10n),
+                                  onChanged: (value) => _applyUiFontScale(
+                                    settingsNotifier,
+                                    value,
+                                  ),
+                                ),
+                              ),
                               CardExpanderItem(
                                 icon: const Icon(FluentIcons.keyboard_classic),
-                                heading: const Text('快捷键设置'),
-                                caption: const Text('自定义快捷键'),
+                                heading: Text(l10n.settingsGeneralShortcuts),
+                                caption: Text(l10n.settingsGeneralShortcutsCaption),
                                 trailing: AppButton(
                                   key:
                                       const ValueKey('settings-shortcuts-open'),
-                                  child: const Text('自定义'),
+                                  child: Text(l10n.settingsGeneralCustomize),
                                   onPressed: () {
                                     showDialog(
                                       context: context,
@@ -424,16 +802,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   },
                                 ),
                               ),
+                              CardExpanderItem(
+                                icon: const Icon(FluentIcons.photo),
+                                heading: Text(
+                                  l10n.settingsGeneralResetImageCache,
+                                ),
+                                caption: Text(
+                                  l10n.settingsGeneralResetImageCacheCaption,
+                                ),
+                                trailing: AppButton(
+                                  key: const ValueKey(
+                                    'settings-reset-image-cache',
+                                  ),
+                                  onPressed: _isResettingImageCache
+                                      ? null
+                                      : _resetImageCache,
+                                  child: Text(
+                                    l10n.settingsGeneralResetImageCacheButton,
+                                  ),
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              const _Header(title: '服务器'),
+                              _Header(title: l10n.settingsSectionServer),
                               CardExpanderItem(
                                 key: const ValueKey(
                                   'settings-fly-narwhal-enabled',
                                 ),
                                 icon: const Icon(FluentIcons.server),
-                                heading: const Text('启用飞鲸服务端'),
-                                caption: const Text(
-                                  '启用后可连接飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持',
+                                heading: Text(l10n.settingsServerEnable),
+                                caption: Text(
+                                  l10n.settingsServerEnableCaption,
                                 ),
                                 trailing: ToggleSwitch(
                                   checked: settings.flyNarwhalServerEnabled,
@@ -441,8 +839,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       .setFlyNarwhalServerEnabled,
                                   content: Text(
                                     settings.flyNarwhalServerEnabled
-                                        ? '开启'
-                                        : '关闭',
+                                        ? l10n.settingsAboutOpen
+                                        : l10n.settingsAboutClose,
                                   ),
                                 ),
                               ),
@@ -455,8 +853,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         'settings-fly-narwhal-url',
                                       ),
                                       icon: const Icon(FluentIcons.globe),
-                                      heading: const Text('飞鲸服务端地址'),
-                                      caption: const Text('请填写完整的服务端 URL'),
+                                      heading: Text(l10n.settingsServerAddress),
+                                      caption: Text(l10n.settingsServerAddressIncomplete),
                                       trailing: SizedBox(
                                         width: 360,
                                         child: Row(
@@ -515,6 +913,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                                     .notifier)
                                                                 .showToast(
                                                                   buildFlyNarwhalConfigWarning(
+                                                                    AppLocalizations.of(
+                                                                        context),
                                                                     missingUrl:
                                                                         missingUrl,
                                                                     missingAuthCode:
@@ -542,8 +942,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                         },
                                               child: Text(
                                                 isTestingFlyNarwhalServer
-                                                    ? '测试中'
-                                                    : '测试',
+                                                    ? l10n.settingsServerTesting
+                                                    : l10n.settingsServerTest,
                                               ),
                                             ),
                                           ],
@@ -557,30 +957,136 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       icon: const Icon(FluentIcons.permissions),
                                       heading: Row(
                                         children: [
-                                          const Text('授权码'),
+                                          Text(l10n.settingsServerAuthCode),
                                           const SizedBox(width: 6),
-                                          const HoverTip(
+                                          HoverTip(
                                             tipText:
-                                                '请在浏览器中访问部署在 NAS 中的飞鲸服务端地址（应用中心版请点击飞牛 OS 桌面中的「飞鲸影视」），点击右上角的「获取授权码」按钮，复制授权码后粘贴到填写授权码的文本框中。\n需要服务端版本 >= 0.6.0，低于 0.6.0 版的服务端不支持自动更新到 0.6.0 或以上版本，请手动更新到 0.6.0 或以上版本',
+                                                l10n.settingsServerAuthCodeHelp,
                                           ),
                                         ],
                                       ),
                                       caption: Text(
                                         settings.hasFlyNarwhalAuthCode
-                                            ? '已填写飞鲸服务端授权码'
-                                            : '填写飞鲸服务端授权码',
+                                            ? l10n.settingsServerAuthCodeFilled
+                                            : l10n.settingsServerAuthCodePrompt,
                                       ),
                                       trailing: AppButton(
                                         onPressed:
                                             _openFlyNarwhalAuthCodeDialog,
-                                        child: const Text('填写授权码'),
+                                        child: Text(l10n.settingsServerAuthCodePlaceholder),
                                       ),
                                     ),
+                                    // Servers below 2.0.0 analyze segments but
+                                    // expose no config API, so this card would
+                                    // open onto a failing request.
+                                    if (ref
+                                            .watch(
+                                              flyNarwhalServerCapabilitiesProvider,
+                                            )
+                                            .valueOrNull
+                                            ?.supportsModernContract ??
+                                        false)
+                                      CardExpanderItem(
+                                        key: const ValueKey(
+                                          'settings-fly-narwhal-smart-skip-config',
+                                        ),
+                                        icon: const Icon(
+                                          FluentIcons.auto_enhance_on,
+                                        ),
+                                        heading: Text(
+                                          l10n.playerSettingsSmartSkipConfig,
+                                        ),
+                                        caption: Text(
+                                          l10n.settingsSmartSkipConfigCaption,
+                                        ),
+                                        trailing: AppButton(
+                                          key: const ValueKey(
+                                            'settings-smart-skip-config-open',
+                                          ),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  const SmartSkipConfigDialog(),
+                                            );
+                                          },
+                                          child: Text(
+                                            l10n.smartSkipConfigConfigure,
+                                          ),
+                                        ),
+                                      ),
+                                    // Danmu source config endpoints only exist
+                                    // on servers 2.0.0 or newer.
+                                    if (supportsModernContract) ...[
+                                      CardExpanderItem(
+                                        key: const ValueKey(
+                                          'settings-fly-narwhal-dandan-source',
+                                        ),
+                                        icon: const Icon(FluentIcons.comment),
+                                        heading: Text(
+                                          l10n.settingsDanmuDandanSource,
+                                        ),
+                                        caption: Text(
+                                          _dandanSourceSummary(l10n),
+                                        ),
+                                        trailing: AppButton(
+                                          key: const ValueKey(
+                                            'settings-danmu-dandan-open',
+                                          ),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  const DanmuDandanSourceDialog(),
+                                            );
+                                          },
+                                          child: Text(l10n.danmuSourceConfigure),
+                                        ),
+                                      ),
+                                      CardExpanderItem(
+                                        key: const ValueKey(
+                                          'settings-fly-narwhal-fallback-servers',
+                                        ),
+                                        icon: const Icon(FluentIcons.database),
+                                        heading: Row(
+                                          children: [
+                                            Text(
+                                              l10n.settingsDanmuFallbackServers,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            HoverTip(
+                                              tipText:
+                                                  l10n
+                                                      .settingsDanmuFallbackServersHelp,
+                                            ),
+                                          ],
+                                        ),
+                                        caption: Text(
+                                          l10n
+                                              .settingsDanmuFallbackServersCaption,
+                                        ),
+                                        trailing: AppButton(
+                                          key: const ValueKey(
+                                            'settings-danmu-fallback-open',
+                                          ),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  const DanmuFallbackServersDialog(),
+                                            );
+                                          },
+                                          child: Text(
+                                            l10n.danmuSourceConfigure,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              const _Header(title: '隐私与安全'),
+                              _Header(title: l10n.settingsSectionPrivacy),
                               CardExpanderItem(
                                 key: const ValueKey('settings-ssl-whitelist'),
                                 // `currentColor` in an SVG does not read
@@ -591,18 +1097,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   size: 18,
                                   color: IconTheme.of(context).color,
                                 ),
-                                heading: const Text('SSL 证书信任列表'),
+                                heading: Text(l10n.settingsPrivacySslTitle),
                                 caption: Text(
                                   settings.sslWhitelist.isEmpty
-                                      ? '服务器证书校验失败时可加入信任，在此管理'
-                                      : '已信任 ${settings.sslWhitelist.length} 张证书',
+                                      ? l10n.settingsPrivacySslCaption
+                                      : l10n.settingsPrivacySslTrustedCount(
+                                          '${settings.sslWhitelist.length}',
+                                        ),
                                 ),
                                 trailing: AppButton(
                                   key: const ValueKey(
                                     'settings-ssl-whitelist-open',
                                   ),
                                   onPressed: _openSslWhitelistDialog,
-                                  child: const Text('管理'),
+                                  child: Text(l10n.settingsPrivacyManage),
                                 ),
                               ),
                               CardExpanderItem(
@@ -623,27 +1131,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     );
                                   },
                                 ),
-                                heading: const Text('隐私声明'),
-                                caption: const Text('隐私声明'),
+                                heading: Text(l10n.settingsPrivacyStatement),
+                                caption: Text(l10n.settingsPrivacyStatement),
                                 onPressed: () {
                                   showAppDialog(
                                     context: context,
-                                    title: '隐私声明',
-                                    content: const Text(
-                                      '为了改进软件性能，我们会收集部分硬件信息（如 CPU、GPU 型号等）作为参考依据。这些信息将仅用于优化软件，不会涉及个人隐私。',
+                                    title: l10n.settingsPrivacyStatement,
+                                    content: Text(
+                                      l10n.settingsPrivacyStatementBody,
                                     ),
-                                    primaryButtonText: '我知道了',
+                                    primaryButtonText: l10n.commonGotIt,
                                   );
                                 },
                               ),
                               const SizedBox(height: 4),
-                              const _Header(title: '关于'),
+                              _Header(title: l10n.settingsSectionAbout),
                               CardExpanderItem(
                                 key: const ValueKey('settings-check-update'),
                                 icon: const Icon(FluentIcons.info),
                                 heading: Row(
                                   children: [
-                                    const Text('当前版本'),
+                                    Text(l10n.settingsAboutVersion),
                                     if (updateState.hasUpdateBadge) ...[
                                       const SizedBox(width: 6),
                                       const SharedUpdateBadge(
@@ -654,8 +1162,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 ),
                                 caption: currentVersionAsync.when(
                                   data: (version) => Text(version),
-                                  loading: () => const Text('正在读取版本信息…'),
-                                  error: (error, _) => const Text('无法读取版本信息'),
+                                  loading: () => Text(l10n.settingsAboutVersionLoading),
+                                  error: (error, _) => Text(l10n.settingsAboutVersionUnavailable),
                                 ),
                                 trailing: AppButton(
                                   key: const ValueKey(
@@ -676,7 +1184,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                               width: 18,
                                               height: 18,
                                               child: ProgressRing())
-                                          : const Text('检查更新'),
+                                          : Text(l10n.settingsAboutCheckUpdate),
                                 ),
                               ),
                               SettingsUpdateControls(
@@ -739,17 +1247,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               CardExpanderItem(
                                 key: const ValueKey('settings-changelog'),
                                 icon: const Icon(FluentIcons.history),
-                                heading: const Text('更新日志'),
-                                caption: const Text('查看各版本的更新内容'),
+                                heading: Text(l10n.settingsAboutChangelog),
+                                caption: Text(l10n.settingsAboutChangelogCaption),
                                 onPressed: () => showChangelogDialog(context),
                               ),
                               if (canExportLogs)
                                 CardExpanderItem(
                                   key: const ValueKey('settings-log-export'),
                                   icon: const Icon(FluentIcons.download),
-                                  heading: const Text('导出报错日志'),
-                                  caption: const Text(
-                                    '支持导出近三天的报错日志，方便开发者排查问题',
+                                  heading: Text(l10n.settingsAboutExportLogs),
+                                  caption: Text(
+                                    l10n.settingsAboutExportLogsCaption,
                                   ),
                                   trailing: Row(
                                     children: [
@@ -779,7 +1287,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         onPressed: _isExportingLogs
                                             ? null
                                             : _exportErrorLogs,
-                                        child: const Text('导出'),
+                                        child: Text(l10n.settingsAboutExport),
                                       ),
                                     ],
                                   ),
@@ -792,6 +1300,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ),
+            ),
             ],
           ),
         ),
@@ -799,11 +1308,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _DialogOverlay(
             child: ContentDialog(
               key: const ValueKey('settings-log-export-error-dialog'),
-              title: const Text('导出错误'),
+              title: Text(l10n.settingsAboutExportError),
               content: Text(_logExportErrorMessage!),
               actions: [
                 AppButton(
-                  child: const Text('确定'),
+                  child: Text(l10n.commonConfirm),
                   onPressed: () {
                     setState(() {
                       _logExportErrorMessage = null;
@@ -858,20 +1367,21 @@ class SettingsUpdateControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final currentSettings = settings;
     return Column(
       children: [
         CardExpanderItem(
           key: const ValueKey('settings-update-prerelease'),
           icon: const Icon(FluentIcons.test_beaker),
-          heading: const Text('抢先体验'),
-          caption: const Text('接收预发布版本更新'),
+          heading: Text(l10n.settingsAboutPrereleaseEarly),
+          caption: Text(l10n.settingsAboutPrerelease),
           trailing: ToggleSwitch(
             key: const ValueKey('settings-update-prerelease-toggle'),
             checked: currentSettings?.includePrerelease ?? false,
             onChanged:
                 currentSettings == null ? null : onIncludePrereleaseChanged,
-            content: Text(_toggleLabel(
+            content: Text(_toggleLabel(l10n, 
               isLoading: currentSettings == null,
               value: currentSettings?.includePrerelease ?? false,
             )),
@@ -880,13 +1390,13 @@ class SettingsUpdateControls extends StatelessWidget {
         CardExpanderItem(
           key: const ValueKey('settings-update-auto-download'),
           icon: const Icon(FluentIcons.cloud_download),
-          heading: const Text('自动下载更新'),
-          caption: const Text('发现更新后在后台下载并校验安装包'),
+          heading: Text(l10n.settingsAboutAutoDownload),
+          caption: Text(l10n.settingsAboutAutoDownloadCaption),
           trailing: ToggleSwitch(
             key: const ValueKey('settings-update-auto-download-toggle'),
             checked: currentSettings?.autoDownload ?? false,
             onChanged: currentSettings == null ? null : onAutoDownloadChanged,
-            content: Text(_toggleLabel(
+            content: Text(_toggleLabel(l10n, 
               isLoading: currentSettings == null,
               value: currentSettings?.autoDownload ?? false,
             )),
@@ -895,13 +1405,13 @@ class SettingsUpdateControls extends StatelessWidget {
         CardExpanderItem(
           key: const ValueKey('settings-update-proxy-enabled'),
           icon: const Icon(FluentIcons.globe),
-          heading: const Text('GitHub 资源代理'),
-          caption: const Text('仅用于安装包下载，默认关闭'),
+          heading: Text(l10n.settingsPrivacyGitHubProxy),
+          caption: Text(l10n.settingsPrivacyGitHubProxyCaption),
           trailing: ToggleSwitch(
             key: const ValueKey('settings-update-proxy-enabled-toggle'),
             checked: currentSettings?.isProxyEnabled ?? false,
             onChanged: currentSettings == null ? null : onProxyEnabledChanged,
-            content: Text(_toggleLabel(
+            content: Text(_toggleLabel(l10n, 
               isLoading: currentSettings == null,
               value: currentSettings?.isProxyEnabled ?? false,
             )),
@@ -912,8 +1422,8 @@ class SettingsUpdateControls extends StatelessWidget {
           child: CardExpanderItem(
             key: const ValueKey('settings-update-proxy-url'),
             icon: const Icon(FluentIcons.link),
-            heading: const Text('代理地址'),
-            caption: const Text('必须使用 HTTPS 地址'),
+            heading: Text(l10n.settingsPrivacyProxyAddress),
+            caption: Text(l10n.settingsServerAddressHttpsRequired),
             trailing: SizedBox(
               width: 360,
               child: TextBox(
@@ -928,9 +1438,13 @@ class SettingsUpdateControls extends StatelessWidget {
     );
   }
 
-  String _toggleLabel({required bool isLoading, required bool value}) {
-    if (isLoading) return '加载中';
-    return value ? '开启' : '关闭';
+  String _toggleLabel(
+    AppLocalizations l10n, {
+    required bool isLoading,
+    required bool value,
+  }) {
+    if (isLoading) return l10n.commonLoading;
+    return value ? l10n.settingsAboutOpen : l10n.settingsAboutClose;
   }
 }
 
@@ -1009,8 +1523,12 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.only(top: 16, bottom: 4),
       child: Text(
         title,
+        // FluentTheme's typography carries fixed font sizes, so it ignores the
+        // app-wide textScaler; scale it here to keep headers in step.
+        textScaler: MediaQuery.textScalerOf(context),
         style: FluentTheme.of(context).typography.bodyStrong,
       ),
     );
   }
 }
+

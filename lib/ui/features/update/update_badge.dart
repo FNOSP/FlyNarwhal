@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/update_providers.dart';
 import 'update_dialog.dart';
 import 'update_state.dart';
@@ -47,13 +48,14 @@ class _UpdateBadgeState extends State<UpdateBadge> {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = FluentTheme.of(context).accentColor;
-    final semanticLabel = '发现新版本 ${widget.version}，打开更新详情';
+    final semanticLabel = AppLocalizations.of(context)
+        .updateBadgeSemanticLabel(widget.version);
 
     // Match the 20px compact caption buttons (back / pin / refresh) in the
     // macOS title bar: same size, same circular hover background, same
     // vertical axis, so the badge reads as one of the row.
     const double buttonSize = 20.0;
+    const double iconSize = 16.0;
     final isDark = FluentTheme.of(context).brightness == Brightness.dark;
     final hoverBackground = isDark
         ? Colors.white.withValues(alpha: 0.12)
@@ -77,16 +79,19 @@ class _UpdateBadgeState extends State<UpdateBadge> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: _isHovered ? hoverBackground : Colors.transparent,
-                // Radius 14 exceeds half the 20px box, yielding a full circle
-                // like the neighbouring caption buttons.
-                borderRadius: BorderRadius.circular(14),
+                // Half the 20px box, yielding the same full circle as the
+                // neighbouring caption buttons.
+                borderRadius: BorderRadius.circular(10),
               ),
               child: SvgPicture.asset(
                 'assets/images/version_update.svg',
                 key: const ValueKey('update-badge-icon'),
-                width: 14,
-                height: 14,
-                colorFilter: ColorFilter.mode(accentColor, BlendMode.srcIn),
+                width: iconSize,
+                height: iconSize,
+                colorFilter: const ColorFilter.mode(
+                  Color(0xFF49DE80),
+                  BlendMode.srcIn,
+                ),
               ),
             ),
           ),

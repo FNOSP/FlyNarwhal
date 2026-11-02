@@ -5,6 +5,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../data/models/cloud_storage_type.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../tooling/driver_test_mode.dart';
 
 // Shared dark-flyout palette, identical to the other player control flyouts.
@@ -497,27 +498,32 @@ class _CloudPlayModeFlyoutContent extends StatelessWidget {
     required this.onPlayModeSelected,
   });
 
-  static const _modeCards = [
-    (
-      mode: CloudPlayMode.direct,
-      label: '网盘直连播放',
-      description: '速度较快、省流',
-      recommend: true,
-    ),
-    (
-      mode: CloudPlayMode.proxy,
-      label: 'NAS 代理播放',
-      description: '色调或音频异常时可尝试切换',
-      recommend: false,
-    ),
-  ];
+  static const String _directMode = CloudPlayMode.direct;
+  static const String _proxyMode = CloudPlayMode.proxy;
+
+  /// Stable play-mode identity ([CloudPlayMode.direct] / [CloudPlayMode.proxy])
+  /// kept separate from the localized label and description shown on each card.
+  static const List<String> _modeOrder = [_directMode, _proxyMode];
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final maskedName = maskCloudNickname(cloudStorageInfo.cloudNickName);
     final isVip = cloudStorageInfo.isVip ?? false;
     final selectedMode =
         isDirectLink ? CloudPlayMode.direct : CloudPlayMode.proxy;
+    final modeLabels = {
+      _directMode: (
+        label: l10n.playerCloudModeDirect,
+        description: l10n.playerCloudModeDirectDescription,
+        recommend: true,
+      ),
+      _proxyMode: (
+        label: l10n.playerCloudModeNasProxy,
+        description: l10n.playerCloudModeNasProxyDescription,
+        recommend: false,
+      ),
+    };
 
     return Container(
       width: 380,
@@ -541,7 +547,7 @@ class _CloudPlayModeFlyoutContent extends StatelessWidget {
               const SizedBox(width: 10),
               Flexible(
                 child: Text(
-                  maskedName.isEmpty ? '网盘' : maskedName,
+                  maskedName.isEmpty ? l10n.playerCloudFallbackName : maskedName,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -555,34 +561,35 @@ class _CloudPlayModeFlyoutContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          const Text(
-            '正在播放网盘上的文件，播放速度和画质取决于网盘方规则。',
-            style: TextStyle(color: Color(0xA0FFFFFF), fontSize: 13),
+          Text(
+            l10n.playerCloudPlayingNotice,
+            style: const TextStyle(color: Color(0xA0FFFFFF), fontSize: 13),
           ),
           const SizedBox(height: 4),
-          const Text(
-            '如遇播放异常，可尝试切换播放方式。',
-            style: TextStyle(color: Color(0xA0FFFFFF), fontSize: 13),
+          Text(
+            l10n.playerCloudSwitchNotice,
+            style: const TextStyle(color: Color(0xA0FFFFFF), fontSize: 13),
           ),
           const SizedBox(height: 16),
-          const Text(
-            '播放方式',
-            style: TextStyle(
+          Text(
+            l10n.playerPlayModeLabel,
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 15,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 10),
-          ..._modeCards.map(
-            (card) => _PlayModeCard(
+          ..._modeOrder.map((mode) {
+            final card = modeLabels[mode]!;
+            return _PlayModeCard(
               label: card.label,
               description: card.description,
               recommend: card.recommend,
-              selected: selectedMode == card.mode,
-              onClick: () => onPlayModeSelected(card.mode),
-            ),
-          ),
+              selected: selectedMode == mode,
+              onClick: () => onPlayModeSelected(mode),
+            );
+          }),
         ],
       ),
     );
@@ -613,6 +620,7 @@ class _PlayModeCardState extends State<_PlayModeCard> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
@@ -654,9 +662,9 @@ class _PlayModeCardState extends State<_PlayModeCard> {
                               color: _selectedTextColor,
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text(
-                              '推荐',
-                              style: TextStyle(
+                            child: Text(
+                              l10n.playerCloudPlayRecommend,
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
@@ -718,6 +726,7 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Positioned.fill(
       child: ColoredBox(
         color: const Color(0xFF19191A),
@@ -738,8 +747,7 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 40),
                     child: Text(
-                      'STRM 直连播放异常，可能原因：网盘挂载连接断开、触发网盘风控、'
-                      '网盘限制非会员操作、浏览器不支持该文件类型。',
+                      l10n.playerStrmPlaybackErrorHint,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Color(0x99FFFFFF),
@@ -750,9 +758,9 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
                   ),
                 )
               else
-                const Text(
-                  '抱歉，播放出错了',
-                  style: TextStyle(
+                Text(
+                  l10n.playerCloudPlayErrorTitle,
+                  style: const TextStyle(
                     color: Color(0x99FFFFFF),
                     fontSize: 16,
                     height: 22 / 16,
@@ -764,13 +772,13 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
                 children: [
                   _ErrorPageActionButton(
                     key: const ValueKey('player-cloud-error-back'),
-                    label: '返回',
+                    label: l10n.playerBack,
                     onPressed: onBack,
                   ),
                   const SizedBox(width: 16),
                   _ErrorPageActionButton(
                     key: const ValueKey('player-cloud-error-retry'),
-                    label: '重试',
+                    label: l10n.loadFailedRetry,
                     primary: isStrm,
                     onPressed: onRetry,
                   ),
@@ -778,13 +786,13 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
                     const SizedBox(width: 16),
                     _ErrorPageActionButton(
                       key: const ValueKey('player-cloud-error-switch-quality'),
-                      label: '播放其他画质',
+                      label: l10n.playerCloudSwitchQuality,
                       onPressed: onSwitchQuality,
                     ),
                     const SizedBox(width: 16),
                     _ErrorPageActionButton(
                       key: const ValueKey('player-cloud-error-switch-proxy'),
-                      label: '切换 NAS 代理播放',
+                      label: l10n.playerCloudSwitchToProxy,
                       primary: true,
                       onPressed: onSwitchProxy,
                     ),
@@ -792,7 +800,7 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
                     const SizedBox(width: 16),
                     _ErrorPageActionButton(
                       key: const ValueKey('player-cloud-error-switch-direct'),
-                      label: '网盘直连播放',
+                      label: l10n.playerCloudModeDirect,
                       primary: true,
                       onPressed: onSwitchDirect,
                     ),

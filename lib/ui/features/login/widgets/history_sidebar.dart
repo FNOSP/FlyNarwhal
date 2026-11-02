@@ -3,6 +3,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../../data/models/login_history.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 class HistorySidebar extends StatelessWidget {
@@ -39,11 +40,11 @@ class HistorySidebar extends StatelessWidget {
             Row(
               children: [
                 const SizedBox(width: _headerActionWidth),
-                const Expanded(
+                Expanded(
                   child: Center(
                     child: Text(
-                      '登录历史',
-                      style: TextStyle(
+                      AppLocalizations.of(context).loginHistoryTitle,
+                      style: const TextStyle(
                         color: _textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -64,9 +65,9 @@ class HistorySidebar extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  '登录历史',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).loginHistoryTitle,
+                  style: const TextStyle(
                     color: _textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -85,10 +86,11 @@ class HistorySidebar extends StatelessWidget {
           // History list
           Expanded(
             child: historyList.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      '暂无历史记录',
-                      style: TextStyle(color: _textSecondary, fontSize: 14),
+                      AppLocalizations.of(context).loginHistoryEmpty,
+                      style:
+                          const TextStyle(color: _textSecondary, fontSize: 14),
                     ),
                   )
                 : ListView.builder(

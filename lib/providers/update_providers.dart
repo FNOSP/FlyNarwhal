@@ -19,6 +19,8 @@ import '../domain/update/entities/update_models.dart';
 import '../domain/update/repositories/update_repository.dart';
 import '../domain/update/services/update_asset_selector.dart';
 import '../domain/update/services/update_policy.dart';
+import '../l10n/generated/app_localizations.dart';
+import 'fly_narwhal_server_update_available_notifier.dart';
 import '../services/update/app_version_service.dart';
 import '../services/update/download_url_resolver.dart';
 import '../services/update/linux_package_identity.dart';
@@ -37,6 +39,7 @@ import '../services/update/update_file_store.dart';
 import '../services/update/update_scheduler.dart';
 import '../ui/features/update/update_controller.dart';
 import '../ui/features/update/update_state.dart';
+import '../ui/settings/app_language.dart';
 import 'fly_narwhal_server_update_notifier.dart';
 import 'providers.dart';
 
@@ -346,6 +349,32 @@ final flyNarwhalServerReleaseDataSourceProvider =
   );
 });
 
+/// Snapshot of the settings the server-update flow reads. Keeping this in its
+/// own provider means the notifier depends on a *different* provider element
+/// than the `settingsProvider` it listens to, so a settings change re-runs the
+/// listener instead of invalidating (and disposing) the notifier mid-flight.
+final flyNarwhalServerUpdateSettingsProvider = Provider<SettingsState>((ref) {
+  return ref.watch(settingsProvider);
+});
+
+/// Reports a newer server release than the connected server runs, so the user
+/// can update it from the fnOS app center. Holds the new version, or null.
+///
+/// Enablement reads [flyNarwhalServerUpdateSettingsProvider] rather than
+/// watching it, so toggling the server does not rebuild the notifier.
+final flyNarwhalServerUpdateAvailableProvider = StateNotifierProvider<
+    FlyNarwhalServerUpdateAvailableNotifier,
+    String?>((ref) {
+  return FlyNarwhalServerUpdateAvailableNotifier(
+    fetchLatestRelease: () => ref
+        .read(flyNarwhalServerReleaseDataSourceProvider)
+        .fetchLatest(),
+    isEnabled: () => ref
+        .read(flyNarwhalServerUpdateSettingsProvider)
+        .isFlyNarwhalServerAvailable,
+  );
+});
+
 /// Coordinates the FlyNarwhal server self-update check and install flow.
 final flyNarwhalServerUpdateProvider = StateNotifierProvider<
     FlyNarwhalServerUpdateNotifier, FlyNarwhalServerUpdateState>((ref) {
@@ -356,12 +385,18 @@ final flyNarwhalServerUpdateProvider = StateNotifierProvider<
     dataSource: ref.watch(flyNarwhalRemoteDataSourceProvider),
     fetchServerRelease: releaseDataSource.fetchByTag,
     targetVersion: AppConstants.flyNarwhalServerVersion,
-    isEnabled: () => ref.read(settingsProvider).isFlyNarwhalServerAvailable,
+    isEnabled: () =>
+        ref.read(flyNarwhalServerUpdateSettingsProvider)
+            .isFlyNarwhalServerAvailable,
     getProxyUrl: () => updateSettingsStore.proxyUrl,
+    getL10n: () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
   );
 
   // Re-check when the server is enabled.
-  ref.listen<SettingsState>(settingsProvider, (previous, next) {
+  ref.listen<SettingsState>(flyNarwhalServerUpdateSettingsProvider,
+      (previous, next) {
     final wasEnabled = previous?.flyNarwhalServerEnabled ?? false;
     if (!wasEnabled && next.flyNarwhalServerEnabled) {
       notifier.checkServerUpdate();

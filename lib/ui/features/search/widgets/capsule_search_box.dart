@@ -1,4 +1,6 @@
+import 'dart:io' show Platform;
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import '../../../../domain/entities/search_result_type.dart';
 
 import '../../../../data/models/home_models.dart';
 import '../../../../data/storage/shortcut_settings_store.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../providers/providers.dart';
 import '../search_view_model.dart';
 import 'search_result_dropdown.dart';
@@ -19,7 +22,7 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
   final double collapsedWidth;
   final double expandedWidth;
   final double height;
-  final String placeholder;
+  final String? placeholder;
   final FocusNode? focusNode;
   final VoidCallback? onDismissed;
 
@@ -28,7 +31,7 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
     this.collapsedWidth = 130,
     this.expandedWidth = 480,
     this.height = 32,
-    this.placeholder = '搜索片名、演员',
+    this.placeholder,
     this.focusNode,
     this.onDismissed,
   });
@@ -37,19 +40,74 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
   ConsumerState<CapsuleSearchBox> createState() => _CapsuleSearchBoxState();
 }
 
-class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
+class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
+    implements TextSelectionGestureDetectorBuilderDelegate {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _internalFocusNode = FocusNode();
   FocusNode get _focusNode => widget.focusNode ?? _internalFocusNode;
   final OverlayPortalController _overlayController = OverlayPortalController();
   final LayerLink _layerLink = LayerLink();
 
+  // A bare EditableText only wires caret-placement taps (and an internal
+  // long-press); drag-to-select, double-tap word selection and shift-click
+  // range extension live in the TextSelectionGestureDetector that TextField
+  // builds around its inner EditableText. Replicate that wiring here so the
+  // capsule supports mouse text selection like a normal desktop text field.
+  @override
+  final GlobalKey<EditableTextState> editableTextKey =
+      GlobalKey<EditableTextState>();
+  late final TextSelectionGestureDetectorBuilder
+      _selectionGestureDetectorBuilder =
+      TextSelectionGestureDetectorBuilder(delegate: this);
+
+  @override
+  bool get forcePressEnabled => false;
+
+  @override
+  bool get selectionEnabled => true;
+
   bool _isFocused = false;
   bool _isHovered = false;
   bool _isInteractingWithDropdown = false;
-  // Category tabs mirroring Compose tabs
-  static const List<String> _tabs = ['全部', '电影', '电视剧', '电视直播', '人物', '其他'];
-  String _selectedTab = '全部';
+
+  // Category tabs mirroring Compose tabs. The tab identity is the stable ASCII
+  // [_tabAll]/[_tabMovie]/... value; labels are resolved for display only, so
+  // filtering and selection never depend on the localized text.
+  static const String _tabAll = 'all';
+  static const String _tabMovie = 'movie';
+  static const String _tabTv = 'tv';
+  static const String _tabLive = 'live';
+  static const String _tabPerson = 'person';
+  static const String _tabOther = 'other';
+
+  static const List<String> _tabIds = [
+    _tabAll,
+    _tabMovie,
+    _tabTv,
+    _tabLive,
+    _tabPerson,
+    _tabOther,
+  ];
+
+  static String _tabLabel(AppLocalizations l10n, String tabId) {
+    switch (tabId) {
+      case _tabMovie:
+        return l10n.searchTabMovie;
+      case _tabTv:
+        return l10n.searchTabTv;
+      case _tabLive:
+        return l10n.searchTabLiveChannel;
+      case _tabPerson:
+        return l10n.searchTabPerson;
+      case _tabOther:
+        return l10n.searchTabOther;
+      case _tabAll:
+      default:
+        return l10n.searchTabAll;
+    }
+  }
+
+  String _selectedTab = _tabAll;
   int _selectedIndex = -1;
 
   @override
@@ -68,6 +126,9 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
 
   @override
   void dispose() {
+    // Never leave the window stuck non-movable if the capsule unmounts while
+    // hovered (e.g. navigating into the player right after hovering).
+    _setNativeWindowMovable(true);
     _focusNode.removeListener(_onFocusChange);
     _internalFocusNode.dispose();
     _controller.dispose();
@@ -88,7 +149,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
       // Collapse and clear on blur, like Compose collapseOnBlur
       _controller.clear();
       ref.read(searchProvider.notifier).clearSearch();
-      _selectedTab = '全部';
+      _selectedTab = _tabAll;
       _selectedIndex = -1;
       _overlayController.hide();
     }
@@ -99,6 +160,22 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
     _selectedIndex = value.trim().isEmpty ? -1 : 0;
     _showDropdownIfNeeded();
     setState(() {});
+  }
+
+  // macOS keeps the native title bar drag strip (top ~28px) active even with
+  // a hidden title bar, and on macOS 26 it drags the window even when the
+  // hit view reports mouseDownCanMoveWindow == false. The capsule overlaps
+  // that strip, so drag-to-select text turned into moving the window. While
+  // the pointer hovers the capsule, mark the window non-movable to suppress
+  // the native drag; window dragging from the caption is unaffected because
+  // DragToMoveArea is never hit while the capsule is hovered.
+  static const MethodChannel _windowChannel =
+      MethodChannel('fly_narwhal/window');
+
+  void _setNativeWindowMovable(bool movable) {
+    if (kIsWeb || !Platform.isMacOS) return;
+    _windowChannel.invokeMethod<void>(
+        'setWindowMovable', {'movable': movable}).catchError((Object _) {});
   }
 
   void _showDropdownIfNeeded() {
@@ -114,19 +191,19 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
   }
 
   List<MediaItem> _filterItems(List<MediaItem> all) {
-    if (_selectedTab == '全部') return all;
+    if (_selectedTab == _tabAll) return all;
     return all.where((item) {
       final resultType = SearchResultType.tryParse(item.type);
       switch (_selectedTab) {
-        case '电影':
+        case _tabMovie:
           return resultType == SearchResultType.movie;
-        case '电视剧':
+        case _tabTv:
           return resultType == SearchResultType.tv;
-        case '电视直播':
+        case _tabLive:
           return resultType == SearchResultType.liveChannel;
-        case '人物':
+        case _tabPerson:
           return resultType == SearchResultType.person;
-        case '其他':
+        case _tabOther:
           return resultType != SearchResultType.movie &&
               resultType != SearchResultType.tv &&
               resultType != SearchResultType.liveChannel &&
@@ -149,7 +226,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
     _isInteractingWithDropdown = false;
     _controller.clear();
     ref.read(searchProvider.notifier).clearSearch();
-    _selectedTab = '全部';
+    _selectedTab = _tabAll;
     _selectedIndex = -1;
     _overlayController.hide();
     _focusNode.unfocus();
@@ -190,8 +267,25 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
     context.push(target);
   }
 
+  /// Whether an IME composition (preedit) is currently active in the field.
+  ///
+  /// While composing, the arrow keys belong to the input method's candidate
+  /// list: the OS keeps them for the IME and Flutter forwards them here anyway,
+  /// so consuming them would page the dropdown instead of the candidates.
+  bool get _isImeComposing {
+    final value = editableTextKey.currentState?.currentTextEditingValue;
+    return value != null && !value.composing.isCollapsed;
+  }
+
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    // Leave every key to the IME while a composition is in flight, so its
+    // candidate list keeps ↑/↓, Tab and Enter. Typing Latin text with an IME
+    // active is unaffected: a direct keystroke ends the composition before the
+    // key reaches us, so composing is collapsed by the time the list would move.
+    if (_isImeComposing) {
       return KeyEventResult.ignored;
     }
     final searchState = ref.read(searchProvider);
@@ -205,9 +299,9 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
       return KeyEventResult.handled;
     }
     if (shortcutStore.matches(event, ShortcutActionId.searchSwitchTab)) {
-      final currentIndex = _tabs.indexOf(_selectedTab);
+      final currentIndex = _tabIds.indexOf(_selectedTab);
       setState(() {
-        _selectedTab = _tabs[(currentIndex + 1) % _tabs.length];
+        _selectedTab = _tabIds[(currentIndex + 1) % _tabIds.length];
         final filteredItemsAfterTabSwitch = _filterItems(searchState.results);
         _selectedIndex = filteredItemsAfterTabSwitch.isEmpty ? -1 : 0;
       });
@@ -246,9 +340,21 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = AppLocalizations.of(context);
     final searchState = ref.watch(searchProvider);
 
-    final width = _isFocused ? widget.expandedWidth : widget.collapsedWidth;
+    // The capsule sits in the title bar, above the MediaQuery that carries the
+    // font-size setting, so its own text scales by hand via WindowCaption's
+    // textScaleFactor. Scale the fixed widths by the same factor to keep the
+    // placeholder from being clipped at larger text sizes.
+    final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+
+    // Below 1.0 the width must not shrink with the text: the placeholder sits
+    // in fixed trailing chrome (icon + gap + padding) that the scale does not
+    // touch, so a shrunken capsule clips the tail of the localized string.
+    final widthScale = textScale < 1.0 ? 1.0 : textScale;
+    final width = (_isFocused ? widget.expandedWidth : widget.collapsedWidth) *
+        widthScale;
     final showBackground = _isHovered || _isFocused;
     final backgroundColor = showBackground
         ? theme.resources.controlFillColorDefault
@@ -260,7 +366,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
       overlayChildBuilder: (context) {
         final items = _filterItems(searchState.results);
         return Positioned(
-          width: widget.expandedWidth,
+          width: widget.expandedWidth * textScale,
           child: CompositedTransformFollower(
             link: _layerLink,
             showWhenUnlinked: false,
@@ -270,14 +376,20 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
             child: Align(
               alignment: Alignment.topCenter,
               child: SearchResultDropdown(
-                width: widget.expandedWidth,
+                width: widget.expandedWidth * textScale,
                 isLoading: searchState.isLoading,
                 hasSearched: searchState.hasSearched,
-                tabs: _tabs,
-                selectedTab: _selectedTab,
-                onTabSelected: (tab) {
+                tabs: [for (final id in _tabIds) _tabLabel(l10n, id)],
+                selectedTab: _tabLabel(l10n, _selectedTab),
+                onTabSelected: (label) {
+                  // The dropdown only knows display labels; map the tapped label
+                  // back to its stable tab identity.
+                  final tabId = _tabIds.firstWhere(
+                    (id) => _tabLabel(l10n, id) == label,
+                    orElse: () => _tabAll,
+                  );
                   setState(() {
-                    _selectedTab = tab;
+                    _selectedTab = tabId;
                     final filtered = _filterItems(searchState.results);
                     _selectedIndex = filtered.isEmpty ? -1 : 0;
                   });
@@ -298,8 +410,14 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
           onKeyEvent: _onKeyEvent,
           child: MouseRegion(
             cursor: SystemMouseCursors.text,
-            onEnter: (_) => setState(() => _isHovered = true),
-            onExit: (_) => setState(() => _isHovered = false),
+            onEnter: (_) {
+              setState(() => _isHovered = true);
+              _setNativeWindowMovable(false);
+            },
+            onExit: (_) {
+              setState(() => _isHovered = false);
+              _setNativeWindowMovable(true);
+            },
             child: GestureDetector(
               onTap: () => _focusNode.requestFocus(),
               child: AnimatedContainer(
@@ -328,7 +446,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
                           if (_controller.text.isEmpty)
                             IgnorePointer(
                               child: Text(
-                                widget.placeholder,
+                                widget.placeholder ?? l10n.searchPlaceholder,
                                 maxLines: 1,
                                 overflow: TextOverflow.clip,
                                 style: theme.typography.caption?.copyWith(
@@ -336,24 +454,28 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
                                 ),
                               ),
                             ),
-                          EditableText(
+                          _selectionGestureDetectorBuilder.buildGestureDetector(
                             key: const ValueKey('search-capsule-input'),
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            onChanged: _onTextChanged,
-                            maxLines: 1,
-                            style: theme.typography.caption?.copyWith(
-                                  color: theme.resources.textFillColorPrimary,
-                                ) ??
-                                TextStyle(
-                                  color: theme.resources.textFillColorPrimary,
-                                  fontSize: 12,
-                                ),
-                            cursorColor: theme.resources.textFillColorPrimary,
-                            backgroundCursorColor:
-                                theme.resources.textFillColorTertiary,
-                            selectionColor:
-                                const Color(0xFF2173DF).withValues(alpha: 0.25),
+                            behavior: HitTestBehavior.translucent,
+                            child: EditableText(
+                              key: editableTextKey,
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              onChanged: _onTextChanged,
+                              maxLines: 1,
+                              style: theme.typography.caption?.copyWith(
+                                    color: theme.resources.textFillColorPrimary,
+                                  ) ??
+                                  TextStyle(
+                                    color: theme.resources.textFillColorPrimary,
+                                    fontSize: 12,
+                                  ),
+                              cursorColor: theme.resources.textFillColorPrimary,
+                              backgroundCursorColor:
+                                  theme.resources.textFillColorTertiary,
+                              selectionColor: const Color(0xFF2173DF)
+                                  .withValues(alpha: 0.25),
+                            ),
                           ),
                         ],
                       ),

@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
+import '../access_code_session.dart';
+
 
 /// Authentication interceptor for FnOfficial API requests.
 /// Injects Authorization, Cookie, User-Agent and Authx (single layer sign).
@@ -39,10 +41,25 @@ class AuthInterceptor extends Interceptor {
       options.headers.putIfAbsent('Authorization', () => token);
     }
 
-    // Add Cookie header
-    final cookie = getCookie?.call();
-    if (cookie != null && cookie.isNotEmpty) {
-      options.headers.putIfAbsent('Cookie', () => cookie);
+    // Add Cookie header. Compose the fnOS access-code gateway grant for this
+    // origin (when the NAS is access-code protected) with any explicit
+    // per-request cookie and the persisted session cookie. `mergeCookies`
+    // dedupes by cookie name and keeps the first value seen, so the gateway
+    // grant wins over the session copy and `mode=relay` is preserved once.
+    final grant = getAccessCookieHeader(_originOf(options));
+    final explicitCookie = options.headers['Cookie']?.toString();
+    final sessionCookie = getCookie?.call();
+    var mergedCookie = mergeCookies([grant, explicitCookie, sessionCookie]);
+    // The FN Connect relay requires `mode=relay` on every request; without it
+    // API paths are answered with the portal HTML page (and the OAuth token
+    // exchange never yields a token).
+    if (isFnConnectHost(options.uri.host) &&
+        !mergedCookie.toLowerCase().contains('mode=relay')) {
+      mergedCookie =
+          mergedCookie.isEmpty ? 'mode=relay' : '$mergedCookie; mode=relay';
+    }
+    if (mergedCookie.isNotEmpty) {
+      options.headers['Cookie'] = mergedCookie;
     }
 
     // Add Accept header
@@ -76,6 +93,13 @@ class AuthInterceptor extends Interceptor {
     }
 
     handler.next(options);
+  }
+
+  String _originOf(RequestOptions options) {
+    final uri = options.uri;
+    if (uri.host.isEmpty) return '';
+    final port = uri.hasPort ? ':${uri.port}' : '';
+    return '${uri.scheme}://${uri.host}$port';
   }
 
   String _resolvePath(String rawPath) {

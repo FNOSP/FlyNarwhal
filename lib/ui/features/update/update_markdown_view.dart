@@ -2,6 +2,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
+
 const int _maximumReleaseNotesLength = 256 * 1024;
 
 typedef UpdateExternalLinkOpener = Future<bool> Function(Uri uri);
@@ -24,11 +26,11 @@ class UpdateMarkdownView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final normalizedMarkdown = _normalizeMarkdown(markdown);
+    final normalizedMarkdown = _normalizeMarkdown(markdown, context);
     if (normalizedMarkdown.trim().isEmpty) {
-      return const SelectableText(
-        '本次更新未提供更新说明',
-        key: ValueKey('update-markdown-empty'),
+      return SelectableText(
+        AppLocalizations.of(context).updateMarkdownEmpty,
+        key: const ValueKey('update-markdown-empty'),
       );
     }
 
@@ -50,7 +52,8 @@ class UpdateMarkdownView extends StatelessWidget {
               selectable: true,
               softLineBreak: true,
               sizedImageBuilder: (configuration) => _RemoteImagePlaceholder(
-                altText: configuration.alt ?? '远程图片',
+                altText: configuration.alt ??
+                    AppLocalizations.of(context).updateMarkdownRemoteImageAlt,
               ),
               onTapLink: (text, href, title) => _openLink(href),
               styleSheet: _buildStyleSheet(context),
@@ -124,23 +127,26 @@ class _RemoteImagePlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final blockedLabel = AppLocalizations.of(context)
+        .updateMarkdownRemoteImageBlocked(altText);
     return Semantics(
       image: true,
-      label: '远程图片已阻止：$altText',
+      label: blockedLabel,
       child: Container(
         key: const ValueKey('update-markdown-remote-image-placeholder'),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         color:
             FluentTheme.of(context).resources.cardBackgroundFillColorSecondary,
-        child: Text('远程图片已阻止：$altText'),
+        child: Text(blockedLabel),
       ),
     );
   }
 }
 
-String _normalizeMarkdown(String source) {
+String _normalizeMarkdown(String source, BuildContext context) {
   final boundedSource = source.length > _maximumReleaseNotesLength
-      ? '${source.substring(0, _maximumReleaseNotesLength)}\n\n更新说明过长，已截断显示。'
+      ? '${source.substring(0, _maximumReleaseNotesLength)}'
+          '${AppLocalizations.of(context).updateMarkdownTruncatedSuffix}'
       : source;
 
   // Display raw HTML as inert text instead of allowing embedded HTML behavior.

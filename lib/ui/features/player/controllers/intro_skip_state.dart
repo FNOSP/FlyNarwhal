@@ -27,6 +27,7 @@ class IntroSkipState {
     required this.isOutroPromptVisible,
     required this.outroRemainingSeconds,
     required this.isOutroCancelled,
+    required this.activeOutroSegment,
     required this.isPlaybackEndVisible,
     required this.isAutoPlayEnabled,
     required this.nextEpisodeLoadPhase,
@@ -54,6 +55,7 @@ class IntroSkipState {
       isOutroPromptVisible: false,
       outroRemainingSeconds: 0,
       isOutroCancelled: false,
+      activeOutroSegment: null,
       isPlaybackEndVisible: false,
       isAutoPlayEnabled: true,
       nextEpisodeLoadPhase: NextEpisodeLoadPhase.idle,
@@ -72,14 +74,18 @@ class IntroSkipState {
   final bool isUserSeeking;
   final bool shouldResetPositionBaseline;
   final ResolvedSkipSegments segments;
-  final SkipSegmentMillis? pendingIntroSegment;
-  final SkipSegmentMillis? lastSkippedIntroSegment;
+  final ResolvedSkipSegment? pendingIntroSegment;
+  final ResolvedSkipSegment? lastSkippedIntroSegment;
   final int? introSuppressedUntilMilliseconds;
   final bool isIntroUndoVisible;
   final int introUndoRemainingSeconds;
   final bool isOutroPromptVisible;
   final int outroRemainingSeconds;
   final bool isOutroCancelled;
+
+  /// The outro-role segment whose countdown prompt is showing (or was last
+  /// cancelled). Drives the prompt wording (片尾/下集预告/合并段).
+  final ResolvedSkipSegment? activeOutroSegment;
   final bool isPlaybackEndVisible;
   final bool isAutoPlayEnabled;
   final NextEpisodeLoadPhase nextEpisodeLoadPhase;
@@ -105,6 +111,7 @@ class IntroSkipState {
     bool? isOutroPromptVisible,
     int? outroRemainingSeconds,
     bool? isOutroCancelled,
+    Object? activeOutroSegment = _unset,
     bool? isPlaybackEndVisible,
     bool? isAutoPlayEnabled,
     NextEpisodeLoadPhase? nextEpisodeLoadPhase,
@@ -116,8 +123,9 @@ class IntroSkipState {
           ? this.episodeGuid
           : episodeGuid as String?,
       mediaOpened: mediaOpened ?? this.mediaOpened,
-      effectiveStartPositionMilliseconds: effectiveStartPositionMilliseconds ??
-          this.effectiveStartPositionMilliseconds,
+      effectiveStartPositionMilliseconds:
+          effectiveStartPositionMilliseconds ??
+              this.effectiveStartPositionMilliseconds,
       currentPositionMilliseconds:
           currentPositionMilliseconds ?? this.currentPositionMilliseconds,
       previousMonitoredPositionMilliseconds:
@@ -134,10 +142,10 @@ class IntroSkipState {
       segments: segments ?? this.segments,
       pendingIntroSegment: identical(pendingIntroSegment, _unset)
           ? this.pendingIntroSegment
-          : pendingIntroSegment as SkipSegmentMillis?,
+          : pendingIntroSegment as ResolvedSkipSegment?,
       lastSkippedIntroSegment: identical(lastSkippedIntroSegment, _unset)
           ? this.lastSkippedIntroSegment
-          : lastSkippedIntroSegment as SkipSegmentMillis?,
+          : lastSkippedIntroSegment as ResolvedSkipSegment?,
       introSuppressedUntilMilliseconds:
           identical(introSuppressedUntilMilliseconds, _unset)
               ? this.introSuppressedUntilMilliseconds
@@ -149,6 +157,9 @@ class IntroSkipState {
       outroRemainingSeconds:
           outroRemainingSeconds ?? this.outroRemainingSeconds,
       isOutroCancelled: isOutroCancelled ?? this.isOutroCancelled,
+      activeOutroSegment: identical(activeOutroSegment, _unset)
+          ? this.activeOutroSegment
+          : activeOutroSegment as ResolvedSkipSegment?,
       isPlaybackEndVisible: isPlaybackEndVisible ?? this.isPlaybackEndVisible,
       isAutoPlayEnabled: isAutoPlayEnabled ?? this.isAutoPlayEnabled,
       nextEpisodeLoadPhase: nextEpisodeLoadPhase ?? this.nextEpisodeLoadPhase,

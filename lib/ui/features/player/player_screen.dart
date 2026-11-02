@@ -17,11 +17,13 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../core/network/api_result.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/window/desktop_display_service.dart';
 import '../../../core/window/main_window_persistence_guard.dart';
 import '../../../core/window/window_geometry.dart';
 import '../../../data/models/episode_list_response.dart';
+import '../../../data/models/cloud_storage_type.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
@@ -34,8 +36,11 @@ import '../../../core/network/ssl/player_ssl_trust.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/danmaku_controller.dart';
 import '../../../providers/episode_analysis_controller.dart';
+import '../../../providers/fly_narwhal_server_capabilities.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/quark_cdn_range_providers.dart';
 import '../../../providers/smart_skip_settings_controller.dart';
+import '../../../providers/skip_switches_controller.dart';
 import 'controllers/intro_skip_controller.dart';
 import 'controllers/intro_skip_state.dart';
 import 'controllers/player_seek_executor.dart';
@@ -55,6 +60,7 @@ import 'controllers/player_manager.dart';
 import 'viewmodels/media_playback_view_model.dart';
 import 'controllers/player_overlay_controller.dart';
 import 'controllers/player_session_coordinator.dart';
+import 'controllers/playback_source_controller.dart';
 import 'services/player_service.dart';
 import 'utils/player_volume_helper.dart';
 import 'viewmodels/player_view_model.dart';
@@ -77,6 +83,7 @@ import 'widgets/skip_outro_prompt.dart';
 import 'widgets/playback_end_overlay.dart';
 import 'widgets/playback_details_morph.dart';
 import 'widgets/playback_details_overlay.dart';
+import 'widgets/frosted_playback_details.dart';
 import 'widgets/subtitle_control_flyout.dart';
 import 'widgets/subtitle_search_dialog.dart';
 import '../../shared/local_subtitle_upload.dart';
@@ -108,6 +115,8 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with TickerProviderStateMixin, WindowListener {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   static const int _controlFlyoutOffset = 15;
   static const double _trailingControlSpacing = 12;
   static const Duration _playbackIndicatorVisibleDuration =
@@ -133,6 +142,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
   Player? _player;
+  Player? _hwdecProbePlayer;
+  Future<void>? _hwdecProbeTask;
+  int _hwdecProbeGeneration = 0;
+  late final PlaybackSourceController _playbackSources =
+      PlaybackSourceController(
+    createProxy: ({onError}) =>
+        ref.read(quarkCdnRangeServiceFactoryProvider)(onError: onError),
+    onInvalidate: () => ++_hwdecProbeGeneration,
+    releaseConsumers: _releaseHwdecProbe,
+  );
   VideoController? _videoController;
   bool _isInitialized = false;
   bool _isLoading = true;
@@ -153,7 +172,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   DateTime? _keySeekBurstStartedAt;
   static const Duration _keySeekQuietWindow = Duration(milliseconds: 220);
   static const Duration _keySeekReleaseDelay = Duration(milliseconds: 600);
-  static const Duration _seekConvergenceCheckDelay = Duration(milliseconds: 700);
+  static const Duration _seekConvergenceCheckDelay =
+      Duration(milliseconds: 700);
   int _seekConvergenceToken = 0;
   int _bufferedPosition = 0;
   int _duration = 0;
@@ -175,6 +195,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<PlayerSkipAction>? _skipActionSubscription;
   StreamSubscription<VideoParams>? _videoParamsSubscription;
+  StreamSubscription<List<AudioDevice>>? _audioDeviceSubscription;
+  StreamSubscription<PlayerLog>? _audioPassthroughGuardSubscription;
+
   /// Latest decoded video size reported by the videoParams stream. Cloud
   /// direct-link streams can leave the player state's `width` null even after
   /// frames decode, so playback verification must consult this channel too.
@@ -253,8 +276,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String _videoFillMode = 'default';
   bool _isForceH264 = false;
   bool _isForceSdrColor = false;
+  // Quark direct-link transport: fetch the raw CDN link through the local range
+  // proxy (分片直连) instead of letting mpv open the NAS /media/range link.
+  bool _isDirectLinkCdnRange = true;
   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | <concrete hwdec api>.
   String _decodeMode = 'auto';
+  // Compressed audio passthrough (S/PDIF / HDMI): hand the original bitstream
+  // (AC3/EAC3/DTS/DTS-HD/TrueHD) to an external receiver instead of decoding.
+  bool _isAudioPassthrough = false;
+  // Audio output devices enumerated by mpv, and the selected device name.
+  List<AudioDevice> _audioDevices = const [];
+  String _audioOutputDeviceName = 'auto';
   // Hardware decoders shown in the 指定硬件解码器 menu. Initialized with the
   // platform's known candidates so the menu is never empty, then refined by
   // the background probe once a file is loaded.
@@ -321,6 +353,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     super.initState();
     // Start with an empty list until device-level hwdec support is resolved.
     _availableHwdec = const [];
+    // Subtitle language labels are language-dependent; reload them on a switch.
+    ref.listenManual(
+      settingsProvider.select((s) => s.language),
+      (previous, next) {
+        if (previous != next) {
+          unawaited(_ensureSubtitleLanguageMapsLoaded(force: true));
+          // Re-push the mpv subtitle font so an open session picks up the new
+          // script's font family instead of keeping the old one.
+          unawaited(_applySubtitleSettingsToMpv(
+            ref.read(subtitleSettingsProvider),
+          ));
+        }
+      },
+    );
     _episodeAnalysisController =
         ref.read(episodeAnalysisControllerProvider.notifier);
     _introSkipController = IntroSkipController();
@@ -330,25 +376,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _skipActionSubscription =
         _introSkipController.actions.listen(_handleSkipAction);
-    _seekExecutor = PlayerSeekExecutor(
-      playerAdapter: CallbackPlayerSeekAdapter((targetMilliseconds) async {
-        await _player?.seek(Duration(milliseconds: targetMilliseconds));
-      }),
-      authoritativeDurationMilliseconds: () => _duration,
-      resetDanmaku: () => _danmakuResetGeneration++,
-      updateDanmakuPosition: (targetMilliseconds) {
-        _danmakuPosition.value = Duration(milliseconds: targetMilliseconds);
-      },
-      updatePlayRecord: (targetMilliseconds) {
-        _queuePlayRecordUpdate(positionMs: targetMilliseconds);
-      },
-      notifyUserSeekStarted: () {
-        _introSkipController.dispatch(const UserSeekStarted());
-      },
-      notifyUserSeekCompleted: () {
-        _introSkipController.dispatch(const UserSeekCompleted());
-      },
-    );
+    _seekExecutor = _createSeekExecutor();
     if (_isDesktopPlatform()) {
       windowManager.addListener(this);
       unawaited(_syncFullscreenState());
@@ -373,7 +401,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final settingsManager = ref.read(playerSettingsManagerProvider);
     _isForceH264 = settingsManager.getForceH264();
     _isForceSdrColor = settingsManager.getForceSdrColor();
+    _isDirectLinkCdnRange = settingsManager.getDirectLinkCdnRange();
     _decodeMode = settingsManager.getDecodeMode();
+    _isAudioPassthrough = settingsManager.getAudioPassthrough();
+    _audioOutputDeviceName = settingsManager.getAudioOutputDevice();
     _sessionCoordinator.forceH264 = _isForceH264;
     _sessionCoordinator.forceSdrColor = _isForceSdrColor;
     unawaited(_ensureSubtitleLanguageMapsLoaded());
@@ -416,22 +447,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _initializePlayer() async {
-    _player = Player(
+    if (!mounted) return;
+    final player = Player(
       configuration: const PlayerConfiguration(libass: true),
     );
-    await _applyDefaultMpvSubtitleSettings(_player!);
-    await _applyDecodeMode(_player!);
-    _videoController = VideoController(_player!);
+    _player = player;
+    try {
+      await _applyDefaultMpvSubtitleSettings(player);
+    } catch (_) {
+      // Disposal can finish while mpv is still initializing its properties.
+      if (!mounted || !identical(_player, player)) return;
+      rethrow;
+    }
+    if (!mounted || !identical(_player, player)) return;
+    await _applyDecodeMode(player);
+    if (!mounted || !identical(_player, player)) return;
+    await _applyAudioOutputDevice(player);
+    if (!mounted || !identical(_player, player)) return;
+    _videoController = VideoController(player);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
     _setupPlayerBufferListener();
     _setupPlayerDurationListener();
     _setupPlayerCompletedListener();
     _setupVideoParamsListener();
+    _setupPlayerAudioDeviceListener();
     _setupProviderListeners();
+    _setupAudioPassthroughGuard();
 
     await _loadAndPlayMedia();
-    if (mounted) {
+    if (!mounted || !identical(_player, player)) return;
+    // Enable passthrough only after the first open has succeeded. mpv aborts the
+    // whole playback when a forced audio device rejects bitstream passthrough
+    // while it sets up the audio output for the initial open, which left the
+    // video frozen on its first frame. A change made after playback started is
+    // applied without aborting the stream.
+    await _applyAudioPassthrough(player);
+    if (mounted && identical(_player, player)) {
       _playerFocusNode.requestFocus();
     }
   }
@@ -440,6 +492,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // concrete decoder never gets applied on unsupported hardware.
   Future<void> _initializePlayerSession() async {
     await _restoreSupportedHwdecState();
+    if (!mounted) return;
     await _initializePlayer();
   }
 
@@ -453,6 +506,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final supportedApis = await ref
           .read(playerDeviceContextServiceProvider)
           .loadSupportedHwdecApis();
+      if (!mounted) return;
       final supportedOptions = List<HwdecOption>.unmodifiable(
         supportedApis
             .map((api) => HwdecOption(api: api, label: _hwdecApiLabel(api)))
@@ -475,6 +529,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         await settingsManager.setDecodeMode(sanitizedDecodeMode);
       }
     } catch (error, stackTrace) {
+      if (!mounted) return;
       AppTalker.warning('Player', 'Failed to resolve hwdec support: $error');
       AppTalker.instance.handle(error, stackTrace);
       _availableHwdec = const [];
@@ -495,6 +550,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       'sub-font-size',
       _defaultMpvSubtitleFontSize,
     );
+    if (!mounted || !identical(_player, player)) return;
     await platform.setProperty(
       'sub-pos',
       _defaultMpvSubtitlePosition,
@@ -512,16 +568,152 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await platform.setProperty('hwdec', _decodeMode);
   }
 
+  /// Codecs handed to mpv's [audio-spdif]. mpv only passes a track through when
+  /// its codec matches one of these, so a transcoded (AAC) or PCM track silently
+  /// falls back to normal decoded output instead of going mute.
+  static const String _audioPassthroughCodecs = 'ac3,eac3,dts,dts-hd,truehd';
+
+  /// Toggles compressed audio passthrough (S/PDIF / HDMI). When on, mpv hands
+  /// the original bitstream to the output device for an external receiver to
+  /// decode instead of decoding it to PCM locally. Changing the property
+  /// re-initializes the audio output, so this also applies to a playing stream.
+  ///
+  /// On macOS this also toggles [coreaudio-spdif-hack]: most Mac digital outputs
+  /// (HDMI, USB S/PDIF) do not advertise AC3/DTS to CoreAudio, and without the
+  /// hack mpv refuses to open a passthrough audio output for them.
+  ///
+  /// Deliberately does not touch [audio-exclusive]: WASAPI shared mode already
+  /// carries a compressed bitstream, while forcing exclusive mode makes mpv
+  /// abort playback outright when the device refuses to open in exclusive mode
+  /// (observed as a permanently frozen first frame).
+  Future<void> _applyAudioPassthrough(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer) {
+      return;
+    }
+    await platform.setProperty(
+      'audio-spdif',
+      _isAudioPassthrough ? _audioPassthroughCodecs : '',
+    );
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
+      await platform.setProperty(
+        'coreaudio-spdif-hack',
+        _isAudioPassthrough ? 'yes' : 'no',
+      );
+    }
+  }
+
+  /// Applies the user's audio output device to mpv via the [audio-device]
+  /// property. Changing it re-initializes the audio output, so this takes
+  /// effect for the currently playing stream without reopening.
+  Future<void> _applyAudioOutputDevice(Player player) async {
+    if (player.platform is! NativePlayer) {
+      return;
+    }
+    // mpv aborts playback entirely when it cannot open a device that was
+    // *forced* through [audio-device] (it does not fall back on its own), so a
+    // persisted device that has since disappeared (unplugged HDMI/AVR, or a
+    // different machine) would freeze the very first frame. Only force a
+    // concrete device when mpv still enumerates it; otherwise fall back to the
+    // system default.
+    final requested = _audioOutputDeviceName;
+    final devices = await _resolveAvailableAudioDevices(player);
+    final resolved = (requested.isEmpty || requested == 'auto')
+        ? 'auto'
+        : (devices.any((device) => device.name == requested)
+            ? requested
+            : 'auto');
+    if (resolved != requested) {
+      _audioOutputDeviceName = resolved;
+      unawaited(
+        ref.read(playerSettingsManagerProvider).setAudioOutputDevice(resolved),
+      );
+    }
+    await player.setAudioDevice(AudioDevice(resolved, ''));
+  }
+
+  /// Returns the audio devices mpv currently exposes, waiting briefly for mpv
+  /// to publish its `audio-device-list` when it has not done so yet.
+  Future<List<AudioDevice>> _resolveAvailableAudioDevices(Player player) async {
+    final cached = player.state.audioDevices;
+    if (cached.isNotEmpty) {
+      return cached;
+    }
+    try {
+      return await player.stream.audioDevices
+          .firstWhere((devices) => devices.isNotEmpty)
+          .timeout(const Duration(milliseconds: 800));
+    } catch (_) {
+      return const <AudioDevice>[];
+    }
+  }
+
+  /// Watches mpv's audio-output initialization failures and falls back to
+  /// decoded audio.
+  ///
+  /// When the selected output device cannot carry a compressed bitstream, mpv
+  /// fails to create the passthrough audio output. Left alone that means the
+  /// user keeps the switch on but hears nothing, so drop the switch and restore
+  /// normal decoding instead.
+  void _setupAudioPassthroughGuard() {
+    _audioPassthroughGuardSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+    _audioPassthroughGuardSubscription = player.stream.log.listen((entry) {
+      if (!_isAudioPassthrough || !identical(_player, player)) return;
+      if (entry.level != 'error' && entry.level != 'fatal') return;
+      final text = entry.text;
+      if (!text.contains('Failed to initialize audio driver') &&
+          !text.contains('Received failure from audio thread')) {
+        return;
+      }
+      _onAudioPassthroughUnsupported(player);
+    });
+  }
+
+  void _onAudioPassthroughUnsupported(Player player) {
+    if (!_isAudioPassthrough || !identical(_player, player)) return;
+    _isAudioPassthrough = false;
+    if (mounted) {
+      setState(() {});
+    }
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setAudioPassthrough(false),
+    );
+    unawaited(_applyAudioPassthrough(player));
+    AppTalker.warning(
+      'Player',
+      'audio passthrough unsupported by the selected output device; '
+          'fell back to decoded audio',
+    );
+  }
+
   /// Probes which hardware decoders (hwdec APIs) actually work for the current
   /// file on this machine, without disturbing the active player. Because mpv's
   /// `hwdec-current` does not reliably update when `hwdec` is changed live on
   /// a playing instance (mpv issue #4289), each candidate is tried by opening
-  /// the same [playUri] on a short-lived, picture-less dedicated [Player] and
+  /// the same playback source on a short-lived, picture-less dedicated [Player] and
   /// reading back `hwdec-current`. Runs once, in the background, with a
   /// timeout. The candidate list is already filtered by device/runtime support;
   /// this probe only narrows it down further for the current stream when mpv
   /// can confirm a concrete API.
-  Future<void> _probeAvailableHwdec({required String playUri}) async {
+  Future<void> _probeAvailableHwdec({required PlaybackSourceLease source}) {
+    final task = _runHwdecProbe(
+      source: source,
+      generation: _hwdecProbeGeneration,
+    );
+    _hwdecProbeTask = task;
+    return task;
+  }
+
+  Future<void> _runHwdecProbe({
+    required PlaybackSourceLease source,
+    required int generation,
+  }) async {
+    if (!mounted || !source.isCurrent || generation != _hwdecProbeGeneration) {
+      return;
+    }
+    final playUri = source.playUri;
     if (_hwdecProbeDone || playUri.isEmpty) {
       return;
     }
@@ -537,7 +729,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // Share the same referrer/origin headers as the real playback so the
     // source is reachable during the probe.
-    final headers = _buildPlaybackHttpHeaders(playUri);
+    final headers = source.playerHeaders;
     Player? probePlayer;
     try {
       // The probe only inspects `hwdec-current`; it must never produce sound.
@@ -547,9 +739,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       probePlayer = Player(
         configuration: const PlayerConfiguration(libass: false, muted: true),
       );
+      _hwdecProbePlayer = probePlayer;
       final platform = probePlayer.platform;
       for (final api in candidates) {
-        if (platform is! NativePlayer) {
+        if (platform is! NativePlayer ||
+            !mounted ||
+            !source.isCurrent ||
+            generation != _hwdecProbeGeneration) {
           break;
         }
         try {
@@ -561,10 +757,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // doesn't reliably update `hwdec-current` (mpv issue #4289), which
           // is exactly the path the old open-then-set ordering exercised.
           await platform.setProperty('hwdec', api);
-          await applySslTrustToPlayer(probePlayer, Uri.parse(playUri));
-          await probePlayer.open(Media(playUri, httpHeaders: headers));
+          if (!mounted || generation != _hwdecProbeGeneration) break;
+          await openPlaybackSource(
+            source: source,
+            configureSsl: (uri) => applySslTrustToPlayer(probePlayer!, uri),
+            isConsumerCurrent: () =>
+                mounted && generation == _hwdecProbeGeneration,
+            open: () => probePlayer!.open(Media(playUri, httpHeaders: headers)),
+          );
           // A non-empty result means the api engaged for this stream.
-          final current = await _waitForHwdecCurrent(platform, api);
+          final current = await _waitForHwdecCurrent(platform, api, generation);
           if (current.isNotEmpty && !found.any((option) => option.api == api)) {
             found.add(HwdecOption(api: api, label: _hwdecApiLabel(api)));
           }
@@ -606,10 +808,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       }
 
-      if (mounted && found.isNotEmpty) {
+      if (mounted &&
+          source.isCurrent &&
+          generation == _hwdecProbeGeneration &&
+          found.isNotEmpty) {
         setState(() => _availableHwdec = List.unmodifiable(found));
       }
     } catch (e, st) {
+      if (e is PlaybackSourceSuperseded || !source.isCurrent) return;
       AppTalker.error(
         'Player',
         error: e,
@@ -617,6 +823,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'hwdec probe failed',
       );
     } finally {
+      if (identical(_hwdecProbePlayer, probePlayer)) {
+        _hwdecProbePlayer = null;
+      }
       try {
         await probePlayer?.dispose();
       } catch (_) {}
@@ -638,11 +847,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<String> _waitForHwdecCurrent(
     NativePlayer platform,
     String api,
+    int generation,
   ) async {
     const attempts = 40;
     const step = Duration(milliseconds: 100);
     for (var i = 0; i < attempts; i++) {
-      if (!mounted) {
+      if (!mounted || generation != _hwdecProbeGeneration) {
         return '';
       }
       final current = await platform.getProperty('hwdec-current');
@@ -667,7 +877,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     };
   }
 
-  Future<void> _applyDirectLinkCachePolicy(Player player) async {
+  Future<void> _applyDirectLinkCachePolicy(
+      Player player, PlaybackSourceLease source) async {
     final platform = player.platform;
     if (platform is! NativePlayer) {
       return;
@@ -682,21 +893,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final demuxerMaxBytes = isDirectLink
         ? _directLinkMpvDemuxerMaxBytes
         : _defaultMpvDemuxerMaxBytes;
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'cache',
       'yes',
       waitForInitialization: false,
     );
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'demuxer-readahead-secs',
       readAheadSeconds,
       waitForInitialization: false,
     );
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'demuxer-max-bytes',
       demuxerMaxBytes,
       waitForInitialization: false,
     );
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'cache-pause-wait',
       cachePauseWait,
@@ -710,6 +925,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // link keeps up; once a direct-link source starts starving, allow mpv to
     // pause and rebuild the cache so it can resume promptly instead of
     // freezing. Non-direct (HLS/transcode) sessions always pause as before.
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'cache-pause',
       isDirectLink ? _directLinkMpvCachePause : _defaultMpvCachePause,
@@ -806,12 +1022,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     final now = DateTime.now();
     final previousTickAt = _lastPositionTickAt;
-    final elapsedMs =
-        previousTickAt == null ? 0 : now.difference(previousTickAt).inMilliseconds;
+    final elapsedMs = previousTickAt == null
+        ? 0
+        : now.difference(previousTickAt).inMilliseconds;
     _lastPositionTickAt = now;
-    if (elapsedMs <= 0 ||
-        !player.state.playing ||
-        player.state.buffering) {
+    if (elapsedMs <= 0 || !player.state.playing || player.state.buffering) {
       return;
     }
     // Natural playback advances the playhead by roughly the elapsed wall-clock
@@ -820,7 +1035,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final expected = elapsedMs * _speed;
     final tolerance = expected.abs() * 0.5 + 1500;
     final delta = positionMilliseconds - _lastCommandedSeekTarget;
-    final isNaturalAdvance = delta >= 0 && (delta - expected).abs() <= tolerance;
+    final isNaturalAdvance =
+        delta >= 0 && (delta - expected).abs() <= tolerance;
     if (isNaturalAdvance) {
       _lastCommandedSeekTarget = positionMilliseconds;
     }
@@ -920,6 +1136,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
+  void _setupPlayerAudioDeviceListener() {
+    _audioDeviceSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+    final devices = player.state.audioDevices;
+    if (devices.isNotEmpty) {
+      _audioDevices = devices;
+    }
+    _audioDeviceSubscription = player.stream.audioDevices.listen((devices) {
+      if (devices.isEmpty || _isSameAudioDevices(_audioDevices, devices)) {
+        return;
+      }
+      if (mounted) {
+        setState(() => _audioDevices = devices);
+      } else {
+        _audioDevices = devices;
+      }
+    });
+  }
+
+  static bool _isSameAudioDevices(List<AudioDevice> a, List<AudioDevice> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].name != b[i].name || a[i].description != b[i].description) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Output devices for the settings menu, normalized so an "auto" (system
+  /// default) entry always exists and is labelled in the current language.
+  List<AudioOutputOption> get _audioOutputOptions {
+    final autoLabel = _l10n.playerSettingsAudioOutputDeviceAuto;
+    final options = <AudioOutputOption>[
+      AudioOutputOption(name: 'auto', label: autoLabel),
+    ];
+    for (final device in _audioDevices) {
+      // mpv may also list its own "auto" pseudo-device; collapse it onto ours.
+      if (device.name == 'auto') continue;
+      final label =
+          device.description.isNotEmpty ? device.description : device.name;
+      options.add(AudioOutputOption(name: device.name, label: label));
+    }
+    return options;
+  }
+
   bool get _shouldTrackDirectLinkEmbeddedSubtitles {
     return _playingInfoCache?.isUseDirectLink == true;
   }
@@ -946,7 +1209,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _directLinkSubtitleTrackResolver.embeddedTracksOf(tracks.subtitle);
   }
 
-  void _setupDirectLinkEmbeddedSubtitleTracking() {
+  void _setupDirectLinkEmbeddedSubtitleTracking(PlaybackSourceLease source) {
     _tracksSubscription?.cancel();
     _tracksSubscription = null;
 
@@ -962,6 +1225,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     _syncEmbeddedSubtitleTracks(player.state.tracks);
     _tracksSubscription = player.stream.tracks.listen((tracks) {
+      if (!mounted || !source.isCurrent || !identical(player, _player)) return;
       _syncEmbeddedSubtitleTracks(tracks);
       final pendingGuid = _pendingEmbeddedSubtitleGuid;
       final currentSubtitleGuid =
@@ -981,6 +1245,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<bool> _waitForDirectLinkEmbeddedSubtitleTracks({
     required SubtitleStream? subtitleStream,
     required int loadToken,
+    required PlaybackSourceLease source,
   }) async {
     if (subtitleStream == null) return false;
     if (!_isDirectLinkEmbeddedSubtitle(subtitleStream)) return false;
@@ -1006,6 +1271,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
 
     subscription = player.stream.tracks.listen((tracks) {
+      if (!source.isCurrent ||
+          !mounted ||
+          loadToken != _loadRequestToken ||
+          !identical(player, _player)) {
+        cleanup();
+        if (!completer.isCompleted) completer.complete(false);
+        return;
+      }
       final embeddedTracks =
           _directLinkSubtitleTrackResolver.embeddedTracksOf(tracks.subtitle);
       if (embeddedTracks.isNotEmpty) {
@@ -1022,7 +1295,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     });
 
-    final result = await completer.future;
+    final bool result;
+    try {
+      result = await source.guard(() => completer.future,
+          isConsumerCurrent: () => mounted && loadToken == _loadRequestToken);
+    } finally {
+      cleanup();
+    }
 
     // Verify the request hasn't been superseded during the wait.
     if (loadToken != _loadRequestToken || !mounted || player != _player) {
@@ -1052,7 +1331,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _setupProviderListeners() {
-    if (_hasSetupProviderListeners) return;
+    if (!mounted || _hasSetupProviderListeners) return;
     _hasSetupProviderListeners = true;
 
     ref.listenManual<MediaPState>(
@@ -1137,14 +1416,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       },
     );
 
+    ref.listenManual<SkipSwitchesState>(
+      skipSwitchesControllerProvider,
+      (previous, next) {
+        if (!mounted) return;
+        if (previous?.skipIntro == next.skipIntro &&
+            previous?.skipCredits == next.skipCredits &&
+            previous?.skipRecap == next.skipRecap &&
+            previous?.skipPreview == next.skipPreview &&
+            previous?.skipCommercial == next.skipCommercial) {
+          return;
+        }
+        _resolveAndDispatchSkipSegments();
+        setState(() {});
+      },
+    );
+
     ref.listenManual<EpisodeAnalysisState>(
       episodeAnalysisControllerProvider,
       (previous, next) {
         if (!mounted) return;
         // When the intro/outro analysis request fails, temporarily disable the
         // smart skip switch for this session.
-        final analysisFailed =
-            next.errorMessage != null &&
+        final analysisFailed = next.errorMessage != null &&
             !next.isPolling &&
             next.smartSegments == null;
         if (analysisFailed && !_sessionSmartSkipDisabled) {
@@ -1161,16 +1455,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  /// Whether the active session plays netdisk (网盘) or STRM media. The server
+  /// cannot analyze intro/outro segments for these sources, so the smart-skip
+  /// toggle and its config entry must stay hidden and smart skip must not run.
+  bool get _isCloudOrStrmPlayback {
+    final cloudType =
+        _playingInfoCache?.streamInfo?.cloudStorageInfo?.cloudStorageType;
+    return CloudStorageType.fromValue(cloudType).isKnown;
+  }
+
   /// Whether the smart skip feature should be treated as enabled for the
   /// current session. Requires the FlyNarwhal server to be fully configured,
-  /// the user's persisted smart-skip preference to be on, and no session-scoped
-  /// temporary disable.
+  /// the user's persisted smart-skip preference to be on, no session-scoped
+  /// temporary disable, and a source the server can actually analyze (netdisk
+  /// and STRM media are excluded).
   bool _effectiveSmartSkipEnabled() {
     final settings = ref.read(settingsProvider);
     final smartSkipSettings = ref.read(smartSkipSettingsControllerProvider);
     return settings.isFlyNarwhalServerAvailable &&
         smartSkipSettings.enabled &&
+        !_isCloudOrStrmPlayback &&
         !_sessionSmartSkipDisabled;
+  }
+
+  /// Whether the server's smart-skip *config* endpoint can be used. Servers
+  /// below 2.0.0 analyze segments but expose no config API, so the config entry
+  /// must stay hidden there even though smart skip itself works.
+  bool _smartSkipConfigAvailable(SettingsState settings) {
+    if (!settings.flyNarwhalServerEnabled) return false;
+    return ref
+            .watch(flyNarwhalServerCapabilitiesProvider)
+            .valueOrNull
+            ?.supportsModernContract ??
+        false;
   }
 
   void _resolveAndDispatchSkipSegments() {
@@ -1179,12 +1496,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final smartSegments = _effectiveSmartSkipEnabled()
         ? ref.read(episodeAnalysisControllerProvider).smartSegments
         : null;
+    final switches = ref.read(skipSwitchesControllerProvider);
     _resolvedSkipSegments = _skipSegmentResolver.resolve(
       episodeGuid: cache?.itemGuid ?? _currentItemGuid,
       smartSegments: smartSegments,
       manualSkipOpeningSeconds: playConfig?.skipOpening ?? 0,
       manualSkipEndingSeconds: playConfig?.skipEnding ?? 0,
       durationMilliseconds: _duration > 0 ? _duration : null,
+      switches: SkipSwitches(
+        intro: switches.skipIntro,
+        recap: switches.skipRecap,
+        credits: switches.skipCredits,
+        preview: switches.skipPreview,
+        commercial: switches.skipCommercial,
+      ),
     );
     _introSkipController.dispatch(SegmentsChanged(_resolvedSkipSegments));
   }
@@ -1198,7 +1523,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             isEpisode: cache?.isEpisode == true ||
                 MediaType.tryParse(cache?.item?.type) == MediaType.episode,
             serviceEnabled: settings.flyNarwhalServerEnabled,
-            smartSkipEnabled: smartSkipSettings.enabled,
+            // Netdisk/STRM sources cannot be analyzed server-side; skip the
+            // analysis polling entirely for them.
+            smartSkipEnabled:
+                smartSkipSettings.enabled && !_isCloudOrStrmPlayback,
             episodeGuid: cache?.itemGuid,
             mediaGuid: cache?.currentVideoStream?.mediaGuid,
           ),
@@ -1250,15 +1578,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  Future<void> _ensureSubtitleLanguageMapsLoaded() async {
-    if (_iso6391Map.isNotEmpty && _iso6392Map.isNotEmpty) {
+  Future<void> _ensureSubtitleLanguageMapsLoaded({bool force = false}) async {
+    if (!force && _iso6391Map.isNotEmpty && _iso6392Map.isNotEmpty) {
       return;
     }
     try {
       final tagRepository = ref.read(iTagRepositoryProvider);
       final results = await Future.wait<ApiResult<Map<String, String>>>([
-        tagRepository.getTag('iso6391'),
-        tagRepository.getTag('iso6392'),
+        tagRepository.getTag('iso6391', force: force),
+        tagRepository.getTag('iso6392', force: force),
       ]);
       if (!mounted) return;
       setState(() {
@@ -1300,7 +1628,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final currentFile = _playingInfoCache?.currentFileStream;
     if (currentFile == null || currentFile.guid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '当前文件信息缺失，无法搜索字幕',
+            _l10n.playerInfoMissingSearchSubtitle,
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'subtitle-search:${widget.guid}',
@@ -1338,7 +1666,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       );
               if (!mounted) return subtitleStream.guid;
               ref.read(toastManagerProvider.notifier).showToast(
-                    '下载成功',
+                    _l10n.playerSubtitleDownloadSuccess,
                     style: ToastStyle.liquidGlass,
                     type: ToastType.success,
                     category: 'subtitle-download:${item.trimId}',
@@ -1348,7 +1676,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             } catch (error) {
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
-                      '下载字幕失败: $error',
+                      _l10n.playerSubtitleDownloadFailed('$error'),
                       style: ToastStyle.liquidGlass,
                       type: ToastType.failed,
                       category: 'subtitle-download:${item.trimId}',
@@ -1365,7 +1693,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   );
               if (!mounted) return;
               ref.read(toastManagerProvider.notifier).showToast(
-                    '已创建字幕下载任务',
+                    _l10n.playerSubtitleTaskCreated,
                     style: ToastStyle.liquidGlass,
                     type: ToastType.success,
                     category: 'subtitle-predownload:${item.trimId}',
@@ -1373,7 +1701,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             } catch (error) {
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
-                      '创建字幕下载任务失败，请重试',
+                      _l10n.playerSubtitleTaskFailed,
                       style: ToastStyle.liquidGlass,
                       type: ToastType.failed,
                       category: 'subtitle-predownload:${item.trimId}',
@@ -1397,16 +1725,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _iso6392Map,
     );
     final displayName = StringBuffer(languageName);
-    if (subtitle.isExternal == 1) displayName.write(' - 外挂');
-    if (subtitle.isDefault == 1) displayName.write(' - 默认');
+    if (subtitle.isExternal == 1)
+      displayName.write(_l10n.playerSubtitleExternalSuffix);
+    if (subtitle.isDefault == 1)
+      displayName.write(_l10n.playerSubtitleDefaultSuffix);
 
     final confirmed = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.danger,
-      title: '删除外挂字幕',
-      content: Text('确定要删除 $displayName 外挂字幕吗？'),
-      primaryButtonText: '删除',
-      secondaryButtonText: '取消',
+      title: _l10n.playerSubtitleDeleteTitle,
+      content: Text(_l10n.playerSubtitleDeleteConfirm('$displayName')),
+      primaryButtonText: _l10n.commonDelete,
+      secondaryButtonText: _l10n.commonCancel,
       primaryResult: true,
       secondaryResult: false,
     );
@@ -1416,7 +1746,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await ref.read(fileRepositoryProvider).deleteSubtitle(subtitle.guid);
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '删除字幕成功',
+            _l10n.playerSubtitleDeleteSuccess,
             style: ToastStyle.liquidGlass,
             type: ToastType.success,
             category: 'subtitle-delete:${subtitle.guid}',
@@ -1425,7 +1755,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } catch (error) {
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '删除字幕失败: $error',
+            _l10n.playerSubtitleDeleteFailed('$error'),
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'subtitle-delete:${subtitle.guid}',
@@ -1446,7 +1776,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '已创建字幕下载任务',
+            _l10n.playerSubtitleTaskCreated,
             style: ToastStyle.liquidGlass,
             type: ToastType.success,
             category: 'subtitle-predownload-flyout:${subtitle.guid}',
@@ -1454,7 +1784,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } catch (error) {
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '创建字幕下载任务失败，请重试',
+            _l10n.playerSubtitleTaskFailed,
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'subtitle-predownload-flyout:${subtitle.guid}',
@@ -1467,7 +1797,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final mediaGuid = _playingInfoCache?.currentFileStream?.guid ?? '';
     if (mediaGuid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '当前文件信息缺失，无法添加 NAS 字幕',
+            _l10n.playerInfoMissingAddNasSubtitle,
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'nas-subtitle:${widget.guid}',
@@ -1480,7 +1810,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await showDialog<void>(
         context: context,
         builder: (_) => AddNasSubtitleDialog(
-          title: '添加 NAS 字幕文件',
+          title: _l10n.playerSubtitleAddNasTitle,
           currentPath: _resolveCurrentFilePath(),
           toastStyle: ToastStyle.liquidGlass,
           onConfirm: (paths) async {
@@ -1490,7 +1820,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   .markSubtitle(mediaGuid, paths);
               if (!mounted) return;
               ref.read(toastManagerProvider.notifier).showToast(
-                    'NAS 字幕添加成功',
+                    _l10n.playerSubtitleAddNasSuccess,
                     style: ToastStyle.liquidGlass,
                     type: ToastType.success,
                     category: 'nas-subtitle:$mediaGuid',
@@ -1519,7 +1849,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               if (error is FailureInfo &&
                   error.code == ResponseCodes.subtitleAlreadyMarked) {
                 toastManager.showToast(
-                  '该文件已被添加为字幕',
+                  _l10n.playerSubtitleAlreadyMarked,
                   style: ToastStyle.liquidGlass,
                   type: ToastType.info,
                   category: 'nas-subtitle:$mediaGuid',
@@ -1527,7 +1857,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 return;
               }
               toastManager.showToast(
-                '添加 NAS 字幕失败: $error',
+                _l10n.playerSubtitleAddNasFailed('$error'),
                 style: ToastStyle.liquidGlass,
                 type: ToastType.failed,
                 category: 'nas-subtitle:$mediaGuid',
@@ -1550,7 +1880,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         '';
     if (mediaGuid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '当前文件信息缺失，无法上传字幕',
+            _l10n.playerInfoMissingUploadSubtitle,
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'local-subtitle:${widget.guid}',
@@ -1565,6 +1895,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       final uploaded = await pickAndUploadLocalSubtitles(
         ref: ref,
+        context: context,
         mediaGuid: mediaGuid,
         toastStyle: ToastStyle.liquidGlass,
       );
@@ -1767,68 +2098,171 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return targetUri.host == baseHost && targetUri.port == baseUri.port;
   }
 
-  Future<void> _openMediaWithResume({
+  Future<void> _releaseHwdecProbe() async {
+    final probe = _hwdecProbePlayer;
+    final probeTask = _hwdecProbeTask;
+    if (probe != null) {
+      try {
+        await probe.stop();
+      } catch (_) {
+        // The probe's finally block may already have disposed it.
+      }
+    }
+    if (probeTask != null) {
+      try {
+        await probeTask;
+      } catch (_) {}
+    }
+    _hwdecProbeTask = null;
+    _hwdecProbeDone = false;
+  }
+
+  Future<void> _closePlaybackSource() => _playbackSources.close();
+
+  Future<void> _closeFailedPlaybackSource(PlaybackSourceLease source) async {
+    // Checking ownership and invalidating must happen without an intervening
+    // await: a late failure must never close a newer playback source.
+    if (!source.isCurrent) return;
+    try {
+      await _closePlaybackSource();
+    } catch (error, stackTrace) {
+      AppTalker.error('Player',
+          error: error,
+          stackTrace: stackTrace,
+          message: 'failed playback source cleanup failed');
+    }
+  }
+
+  bool Function() _capturePlaybackOperation() {
+    final loadToken = _loadRequestToken;
+    final switchToken = _cloudSwitchToken;
+    return () =>
+        mounted &&
+        loadToken == _loadRequestToken &&
+        switchToken == _cloudSwitchToken;
+  }
+
+  void _ensurePlaybackOperation(bool Function() isCurrent) {
+    if (!isCurrent()) throw const PlaybackSourceSuperseded();
+  }
+
+  Future<PlaybackSourceLease> _openMediaWithResume({
     required String playUri,
     required int startPositionMs,
     required SubtitleStream? currentSubtitleStream,
+    PlayingInfoCache? directLinkContext,
+    bool Function()? isOperationCurrent,
+    // When false the media is opened paused and left paused; the caller is
+    // responsible for resuming once the video surface can show a frame. Used
+    // by the initial load, where the surface is not mounted yet.
+    bool resumeWhenReady = true,
   }) async {
+    final operationIsCurrent =
+        isOperationCurrent ?? _capturePlaybackOperation();
+    _ensurePlaybackOperation(operationIsCurrent);
     final player = _player;
-    if (player == null) return;
-    // A new source starts with no decoded frame; keep the previous video's
-    // size from satisfying this stream's playback verification.
-    _decodedVideoWidth = 0;
-    _decodedVideoHeight = 0;
-    _resetDirectLinkEmbeddedSubtitleState();
-    await _applyDirectLinkCachePolicy(player);
-
-    // Set mpv native start property so decoding positions from the desired
-    // point. This is the most reliable way for history-progress resume.
-    final platform = player.platform;
-    if (platform is NativePlayer) {
-      if (startPositionMs > 0) {
-        final seconds = (startPositionMs / 1000).toStringAsFixed(3);
-        await platform.setProperty('start', seconds);
-      } else {
-        // Clear any residual start property from a previous open.
-        await platform.setProperty('start', 'none');
-      }
-    }
-
-    final headers = _buildPlaybackHttpHeaders(playUri);
-    // mpv fetches the media bytes over its own native HTTP stack, so the Dio
-    // trust work does not reach it. Trusted hosts need tls-verify relaxed here
-    // too, and it must happen before open.
-    await applySslTrustToPlayer(player, Uri.parse(playUri));
-    await player.open(
-      Media(
-        playUri,
-        httpHeaders: headers.isEmpty ? null : headers,
-      ),
+    if (player == null) throw const PlaybackSourceSuperseded();
+    bool isCurrent() => operationIsCurrent() && identical(_player, player);
+    final source = await _playbackSources.prepare(
+      playUri: playUri,
+      directLinkContext: directLinkContext,
+      playerHeaders: _buildPlaybackHttpHeaders(playUri),
+      upstreamHeaders: directLinkContext?.streamInfo?.header ?? const {},
+      preferCdnRange: _isDirectLinkCdnRange,
     );
-    _setupDirectLinkEmbeddedSubtitleTracking();
-    if (_playingInfoCache?.isUseDirectLink == true) {
-      await _applyInitialDirectLinkAudioTrack();
-    }
+    try {
+      source.ensureCurrent(isConsumerCurrent: isCurrent);
+      // A new source starts with no decoded frame; keep the previous video's
+      // size from satisfying this stream's playback verification.
+      _decodedVideoWidth = 0;
+      _decodedVideoHeight = 0;
+      _resetDirectLinkEmbeddedSubtitleState();
+      await source.guard(() => _applyDirectLinkCachePolicy(player, source),
+          isConsumerCurrent: isCurrent);
 
-    if (_isSupportedExternalSubtitle(currentSubtitleStream)) {
-      _applyExternalSubtitleAsync(currentSubtitleStream!, _loadRequestToken);
-    } else if (_isDirectLinkEmbeddedSubtitle(currentSubtitleStream)) {
-      final tracksReady = await _waitForDirectLinkEmbeddedSubtitleTracks(
-        subtitleStream: currentSubtitleStream,
-        loadToken: _loadRequestToken,
-      );
-      if (tracksReady) {
-        await _applyCurrentSubtitleTrack(currentSubtitleStream);
-      } else {
-        _pendingEmbeddedSubtitleGuid = currentSubtitleStream!.guid;
+      // Preserve the upstream resume behavior, scoped to this source.
+      final platform = player.platform;
+      if (platform is NativePlayer) {
+        await source.guard(
+            () => platform.setProperty(
+                'start',
+                startPositionMs > 0
+                    ? (startPositionMs / 1000).toStringAsFixed(3)
+                    : 'none'),
+            isConsumerCurrent: isCurrent);
       }
-    } else {
-      await _applyCurrentSubtitleTrack(currentSubtitleStream);
-    }
+      await openPlaybackSource(
+        source: source,
+        configureSsl: (uri) => applySslTrustToPlayer(player, uri),
+        isConsumerCurrent: isCurrent,
+        open: () => player.open(
+          Media(source.playUri,
+              httpHeaders:
+                  source.playerHeaders.isEmpty ? null : source.playerHeaders),
+          // Opening with `play: true` lets mpv emit audio the instant it
+          // decodes, which happens before the Flutter video surface is in the
+          // tree - the source of the "sound first, picture later" start. The
+          // initial load opens paused and resumes after the surface mounts;
+          // later opens (quality switches, reopens) have a surface already and
+          // may start immediately.
+          play: resumeWhenReady,
+        ),
+      );
+      _setupDirectLinkEmbeddedSubtitleTracking(source);
+      // mpv consumes `start` when the media loads, so the write above is lost
+      // whenever the previous source left a position behind - playback then
+      // starts at 0 and only the correction seek catches up, which shows a
+      // flash of the opening. Re-applying it after open guarantees the target.
+      if (platform is NativePlayer && startPositionMs > 0) {
+        await source.guard(
+            () => platform.setProperty(
+                'start', (startPositionMs / 1000).toStringAsFixed(3)),
+            isConsumerCurrent: isCurrent);
+      }
+      if (_playingInfoCache?.isUseDirectLink == true) {
+        await source.guard(
+            () => _applyInitialDirectLinkAudioTrack(source: source),
+            isConsumerCurrent: isCurrent);
+      }
 
-    // For non-native platforms or when mpv start didn't fully apply, verify
-    // the position and issue a single correction seek as fallback.
-    await _verifyAndCorrectResume(startPositionMs);
+      if (_isSupportedExternalSubtitle(currentSubtitleStream)) {
+        _applyExternalSubtitleAsync(currentSubtitleStream!, _loadRequestToken,
+            source: source);
+      } else if (_isDirectLinkEmbeddedSubtitle(currentSubtitleStream)) {
+        final tracksReady = await source.guard(
+            () => _waitForDirectLinkEmbeddedSubtitleTracks(
+                subtitleStream: currentSubtitleStream,
+                loadToken: _loadRequestToken,
+                source: source),
+            isConsumerCurrent: isCurrent);
+        if (tracksReady) {
+          await source.guard(
+              () => _applyCurrentSubtitleTrack(currentSubtitleStream,
+                  source: source),
+              isConsumerCurrent: isCurrent);
+        } else {
+          _pendingEmbeddedSubtitleGuid = currentSubtitleStream!.guid;
+        }
+      } else {
+        await source.guard(
+            () => _applyCurrentSubtitleTrack(currentSubtitleStream,
+                source: source),
+            isConsumerCurrent: isCurrent);
+      }
+      await source.guard(() => _verifyAndCorrectResume(startPositionMs, source),
+          isConsumerCurrent: isCurrent);
+      // The initial load opens paused (see [resumeWhenReady]); its caller
+      // resumes once the video surface is mounted and painted. Every other
+      // caller has a surface already, so resume here to preserve the old
+      // unpause-at-open behavior.
+      if (resumeWhenReady) {
+        await source.guard(() => player.play(), isConsumerCurrent: isCurrent);
+      }
+      return source;
+    } catch (_) {
+      await _closeFailedPlaybackSource(source);
+      rethrow;
+    }
   }
 
   PlayRecordRequest? _buildPlayRecordRequest({
@@ -1878,14 +2312,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }());
   }
 
-  Future<void> _reopenPlaybackFromPlayLink({
+  Future<PlaybackSourceLease?> _reopenPlaybackFromPlayLink({
     required String playLink,
     required int startPositionMs,
+    bool resumeWhenReady = true,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
+    await _closePlaybackSource();
+    _ensurePlaybackOperation(isCurrent);
     final prefs = ref.read(preferencesManagerProvider);
     final baseUrl = prefs.getBaseUrl() ?? '';
     final cache = _playingInfoCache;
-    if (baseUrl.isEmpty || cache == null) return;
+    if (baseUrl.isEmpty || cache == null) return null;
 
     final playUri = _sessionCoordinator.absolutePlayUrl(baseUrl, playLink);
     final dio = ref.read(dioClientProvider).dio;
@@ -1893,15 +2331,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       playUri: playUri,
       currentSubtitleStream: cache.currentSubtitleStream,
     );
+    _ensurePlaybackOperation(isCurrent);
     _prepareHlsSubtitleOverlayMode(
       subtitleStream: cache.currentSubtitleStream,
       subtitlePlaylistUrl: prepared.subtitlePlaylistUrl,
     );
-    await _openMediaWithResume(
+    final source = await _openMediaWithResume(
       playUri: prepared.playUri,
+      isOperationCurrent: isCurrent,
       startPositionMs: startPositionMs,
       currentSubtitleStream: cache.currentSubtitleStream,
+      resumeWhenReady: resumeWhenReady,
     );
+    source.ensureCurrent(isConsumerCurrent: isCurrent);
     _startHlsSubtitleSessionAsync(
       dio: dio,
       subtitleStream: cache.currentSubtitleStream,
@@ -1909,14 +2351,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       startPositionMs: startPositionMs,
       loadToken: _loadRequestToken,
     );
+    return source;
   }
 
-  Future<void> _reopenPlaybackWithDirectLink({
+  Future<PlaybackSourceLease?> _reopenPlaybackWithDirectLink({
     required int startPositionMs,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
+    await _closePlaybackSource();
+    _ensurePlaybackOperation(isCurrent);
     final cache = _playingInfoCache;
     final videoStream = cache?.currentVideoStream;
-    if (cache == null || videoStream == null) return;
+    if (cache == null || videoStream == null) return null;
 
     // Cloud media reopens with the 原画 direct-link quality (index 0) and
     // restores the netdisk quality list in the UI; local files keep the
@@ -1929,9 +2375,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       qualities: directQualities,
       cloudStorageType: cloudStorageType,
     );
-    final visibleQualities = filtered.qualities.isNotEmpty
-        ? filtered.qualities
-        : directQualities;
+    final visibleQualities =
+        filtered.qualities.isNotEmpty ? filtered.qualities : directQualities;
     final visibleOriginalIndices = filtered.originalIndices.isNotEmpty
         ? filtered.originalIndices
         : List<int>.generate(directQualities.length, (i) => i);
@@ -1944,6 +2389,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       cloudStorageType: cloudStorageType,
       directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
     );
+    _ensurePlaybackOperation(isCurrent);
     final convertedQualities = isCloud
         ? visibleQualities.map((q) => q.toQualityResponse()).toList()
         : null;
@@ -1954,25 +2400,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       isUseDirectLink: true,
       directLinkQualityIndex: originalIndex,
       currentQualities: convertedQualities ?? cache.currentQualities,
-      currentQuality: isCloud ? convertedQualities!.first : cache.currentQuality,
+      currentQuality:
+          isCloud ? convertedQualities!.first : cache.currentQuality,
     );
     ref
         .read(playerViewModelProvider.notifier)
         .updatePlayingInfo(_playingInfoCache);
     _disposeHlsSubtitleSession();
-    await _openMediaWithResume(
+    return _openMediaWithResume(
       playUri: directLink.playUri,
+      directLinkContext: _playingInfoCache,
+      isOperationCurrent: isCurrent,
       startPositionMs: directLink.effectiveStartMs,
       currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
     );
   }
 
-  Future<void> _handlePlayPlaySuccess(
+  Future<PlaybackSourceLease?> _handlePlayPlaySuccess(
     PlayPlayResponse response, {
     required int startPositionMs,
   }) async {
     final cache = _playingInfoCache;
-    if (cache == null) return;
+    if (cache == null) return null;
 
     _playingInfoCache = cache.copyWith(
       playLink: response.playLink,
@@ -1982,7 +2431,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     ref
         .read(playerViewModelProvider.notifier)
         .updatePlayingInfo(_playingInfoCache);
-    await _reopenPlaybackFromPlayLink(
+    return _reopenPlaybackFromPlayLink(
       playLink: response.playLink,
       startPositionMs: startPositionMs,
     );
@@ -1998,9 +2447,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     try {
       final startPositionMs = _player!.state.position.inMilliseconds;
-      await _reopenPlaybackWithDirectLink(startPositionMs: startPositionMs);
+      final source =
+          await _reopenPlaybackWithDirectLink(startPositionMs: startPositionMs);
 
+      if (source == null) return;
       final verified = await _verifyPlaybackStarted(
+        source: source,
         label: 'quit-reopen-direct',
       );
       if (!verified && mounted) {
@@ -2021,10 +2473,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         });
       }
     } catch (e) {
+      if (e is PlaybackSourceSuperseded) return;
       AppTalker.warning('Player', 'handle quit success failed: $e');
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
-              '切换原画失败: $e',
+              _l10n.playerSwitchOriginalQualityFailed('$e'),
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'playback-source:${widget.guid}',
@@ -2145,7 +2598,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
-              '切换字幕失败: $e',
+              _l10n.playerSubtitleSwitchFailed('$e'),
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'subtitle-switch:${widget.guid}',
@@ -2158,9 +2611,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _verifyAndCorrectResume(int startPositionMs) async {
+  PlayerSeekExecutor _createSeekExecutor({PlaybackSourceLease? source}) {
+    final sourceCache = source == null ? null : _playingInfoCache;
+    return PlayerSeekExecutor(
+      playerAdapter: CallbackPlayerSeekAdapter((targetMilliseconds) async {
+        final player = _player;
+        if (player == null) return;
+        if (source == null) {
+          await player.seek(Duration(milliseconds: targetMilliseconds));
+        } else {
+          await source.guard(
+            () => player.seek(Duration(milliseconds: targetMilliseconds)),
+            isConsumerCurrent: () => mounted && identical(_player, player),
+          );
+        }
+      }),
+      authoritativeDurationMilliseconds: () => _duration,
+      resetDanmaku: () => _danmakuResetGeneration++,
+      updateDanmakuPosition: (targetMilliseconds) {
+        _danmakuPosition.value = Duration(milliseconds: targetMilliseconds);
+      },
+      updatePlayRecord: (targetMilliseconds) {
+        _queuePlayRecordUpdate(
+          positionMs: targetMilliseconds,
+          cacheOverride: sourceCache,
+        );
+      },
+      notifyUserSeekStarted: () {
+        _introSkipController.dispatch(const UserSeekStarted());
+      },
+      notifyUserSeekCompleted: () {
+        _introSkipController.dispatch(const UserSeekCompleted());
+      },
+    );
+  }
+
+  Future<void> _verifyAndCorrectResume(
+      int startPositionMs, PlaybackSourceLease source) async {
     final player = _player;
     if (player == null || startPositionMs <= 0) return;
+
+    final resumeExecutor = _createSeekExecutor(source: source);
 
     // Wait until the media is actually ready before deciding whether to seek.
     // - Direct links: the mpv `start` property already applied the resume, so
@@ -2170,6 +2661,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     //   So wait for duration > 0 (stream loaded) before the correction seek.
     for (int attempt = 0; attempt < 30; attempt++) {
       await Future<void>.delayed(const Duration(milliseconds: 300));
+      source.ensureCurrent(isConsumerCurrent: () => mounted);
       final state = player.state;
       final positionMs = state.position.inMilliseconds;
       final durationMs = state.duration.inMilliseconds;
@@ -2190,22 +2682,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // mpv start property didn't fully apply. Correct through the runtime seek
     // executor without classifying the correction as a user interaction.
-    await _seekExecutor.performSeek(
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
+    await resumeExecutor.performSeek(
       targetMilliseconds: startPositionMs,
       origin: PlayerSeekOrigin.resumeCorrection,
     );
     await Future<void>.delayed(const Duration(milliseconds: 400));
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
 
     // If the seek was still dropped (stream not fully ready), retry once now
     // that duration is known so the correction is not silently lost.
     final afterSeekPosition = player.state.position.inMilliseconds;
     final afterSeekDeviation = (afterSeekPosition - startPositionMs).abs();
     if (afterSeekDeviation > 3000 && player.state.duration.inMilliseconds > 0) {
-      await _seekExecutor.performSeek(
+      source.ensureCurrent(isConsumerCurrent: () => mounted);
+      await resumeExecutor.performSeek(
         targetMilliseconds: startPositionMs,
         origin: PlayerSeekOrigin.resumeCorrection,
       );
       await Future<void>.delayed(const Duration(milliseconds: 200));
+      source.ensureCurrent(isConsumerCurrent: () => mounted);
     }
   }
 
@@ -2248,7 +2744,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final all = cache?.currentSubtitleStreamList ?? const <SubtitleStream>[];
     if (!_isDirectLinkTranscodePlayback) return all;
     return all
-        .where((subtitle) => subtitle.isExternal == 1 || subtitle.extraFile == 1)
+        .where(
+            (subtitle) => subtitle.isExternal == 1 || subtitle.extraFile == 1)
         .toList();
   }
 
@@ -2315,7 +2812,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isDirectLinkEmbeddedSubtitle(subtitleStream);
   }
 
-  Future<void> _applySubtitleSettingsToMpv(SubtitleSettings settings) async {
+  Future<void> _applySubtitleSettingsToMpv(SubtitleSettings settings,
+      {PlaybackSourceLease? source}) async {
     final player = _player;
     if (player == null || !_isCurrentSubtitleMpvAdjustable) {
       return;
@@ -2330,32 +2828,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .round()
         .clamp(0, 100);
     try {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty(
         'sub-delay',
         (-settings.offsetSeconds).toStringAsFixed(3),
       );
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty(
           'sub-scale', settings.fontScale.toStringAsFixed(3));
-      await platform.setProperty('sub-font', AppFonts.primary);
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
+      await platform.setProperty(
+        'sub-font',
+        AppFonts.primaryFor(ref.read(settingsProvider).language),
+      );
       // Let sub-pos move ASS subtitles that rely on style margins. Has no
       // effect on absolutely-positioned (\pos/\move) danmaku tracks.
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty('sub-ass-force-margins', 'yes');
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty('sub-pos', subPos.toString());
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty('sub-visibility', 'yes');
     } catch (e) {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       AppTalker.warning('Player', 'apply subtitle settings to mpv failed: $e');
     }
   }
 
   void _applyExternalSubtitleAsync(
     SubtitleStream subtitleStream,
-    int loadToken,
-  ) {
+    int loadToken, {
+    PlaybackSourceLease? source,
+  }) {
     unawaited(() async {
       try {
         final content = await ref
             .read(playerServiceProvider)
             .downloadExternalSubtitle(subtitleStream.guid);
+        source?.ensureCurrent(isConsumerCurrent: () => mounted);
         final player = _player;
         if (!mounted || player == null || loadToken != _loadRequestToken) {
           return;
@@ -2370,6 +2880,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
         _clearPositionLockedSubtitle();
         await player.setSubtitleTrack(SubtitleTrack.no());
+        source?.ensureCurrent(isConsumerCurrent: () => mounted);
         await player.setSubtitleTrack(
           SubtitleTrack.data(
             content,
@@ -2380,9 +2891,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 : null,
           ),
         );
+        source?.ensureCurrent(isConsumerCurrent: () => mounted);
         _updatePositionLockedSubtitle(content, subtitleStream.format);
-        await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+        await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider),
+            source: source);
       } catch (e) {
+        if (e is PlaybackSourceSuperseded || source?.isCurrent == false) return;
         AppTalker.warning('Player', 'apply external subtitle async failed: $e');
       }
     }());
@@ -2402,8 +2916,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<bool> _applyDirectLinkEmbeddedSubtitleTrack(
-    SubtitleStream subtitleStream,
-  ) async {
+    SubtitleStream subtitleStream, {
+    PlaybackSourceLease? source,
+  }) async {
+    source?.ensureCurrent(isConsumerCurrent: () => mounted);
     final player = _player;
     if (player == null) {
       return false;
@@ -2430,6 +2946,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         await player.setSubtitleTrack(targetTrack);
       }
     } catch (error) {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       AppTalker.warning(
         'Player',
         'lightweight sid switch failed, fallback to setSubtitleTrack: $error',
@@ -2437,8 +2954,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await player.setSubtitleTrack(targetTrack);
     }
 
+    source?.ensureCurrent(isConsumerCurrent: () => mounted);
     _pendingEmbeddedSubtitleGuid = null;
-    await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+    await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider),
+        source: source);
     return true;
   }
 
@@ -2474,7 +2993,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     ref.read(toastManagerProvider.notifier).showToast(
-          '切换字幕失败: $error',
+          _l10n.playerSubtitleSwitchFailed('$error'),
           style: ToastStyle.liquidGlass,
           type: ToastType.failed,
           category: 'subtitle-switch:${widget.guid}',
@@ -2536,7 +3055,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _applyCurrentSubtitleTrack(
     SubtitleStream? subtitleStream, {
     bool strict = false,
+    PlaybackSourceLease? source,
   }) async {
+    source?.ensureCurrent(isConsumerCurrent: () => mounted);
     final player = _player;
     if (player == null) return;
 
@@ -2561,8 +3082,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return;
       }
 
-      final applied =
-          await _applyDirectLinkEmbeddedSubtitleTrack(subtitleStream);
+      final applied = await _applyDirectLinkEmbeddedSubtitleTrack(
+          subtitleStream,
+          source: source);
       if (!applied) {
         final error = StateError(
           'Unable to resolve embedded subtitle track for ${subtitleStream.guid}',
@@ -2584,6 +3106,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final content = await ref
           .read(playerServiceProvider)
           .downloadExternalSubtitle(subtitleStream.guid);
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       if (!mounted || player != _player) {
         return;
       }
@@ -2604,9 +3127,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               : null,
         ),
       );
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       _updatePositionLockedSubtitle(content, subtitleStream.format);
-      await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+      await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider),
+          source: source);
     } catch (e) {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       AppTalker.warning('Player', 'apply external subtitle failed: $e');
       if (player == _player) {
         await player.setSubtitleTrack(SubtitleTrack.no());
@@ -2745,37 +3271,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Attempts direct-link playback; if player.open fails, automatically
   /// falls back to HLS transcode playback.
-  Future<void> _openDirectLinkWithHlsFallback({
+  Future<PlaybackSourceLease?> _openDirectLinkWithHlsFallback({
     required PlayerSessionLoadResult result,
     required Dio dio,
     required int startPositionMs,
     required int requestToken,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
     try {
-      await _openMediaWithResume(
+      _ensurePlaybackOperation(isCurrent);
+      final source = await _openMediaWithResume(
         playUri: result.preparedPlaySource.playUri,
+        directLinkContext: result.playingInfoCache,
+        isOperationCurrent: isCurrent,
         startPositionMs: startPositionMs,
         currentSubtitleStream: result.playingInfoCache.currentSubtitleStream,
+        // Initial load: leave paused until the surface is mounted (see the
+        // non-direct branch in [_loadAndPlayMedia]).
+        resumeWhenReady: false,
       );
-      if (!mounted || requestToken != _loadRequestToken) return;
+      _ensurePlaybackOperation(isCurrent);
+      if (!mounted || requestToken != _loadRequestToken) return null;
 
       final isCloudDirect =
           _playingInfoCache?.directLinkQualities.isNotEmpty ?? false;
       final verified = await _verifyPlaybackStarted(
+        source: source,
         timeout: isCloudDirect
             ? _cloudDirectVerifyTimeout
             : _localDirectVerifyTimeout,
         label: isCloudDirect ? 'open-cloud-direct' : 'open-local-direct',
       );
-      if (verified) return;
+      if (verified) return source;
     } catch (e) {
+      if (e is PlaybackSourceSuperseded) rethrow;
+      _ensurePlaybackOperation(isCurrent);
       AppTalker.warning(
         'Player',
         'direct link playback failed, falling back to HLS: $e',
       );
     }
 
-    if (!mounted || requestToken != _loadRequestToken) return;
+    _ensurePlaybackOperation(isCurrent);
+    if (!mounted || requestToken != _loadRequestToken) return null;
     // Cloud direct-link failure: instead of silently falling back to a NAS
     // transcode of the same huge file, mirror the web player's error guard —
     // show the reason and let the user switch quality or play mode.
@@ -2785,9 +3323,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _cloudPlaybackErrorVisible = true;
         _cloudPlaybackErrorIsProxy = false;
       });
-      return;
+      return null;
     }
-    await _fallbackToHlsFromDirectLink(startPositionMs: startPositionMs);
+    return _fallbackToHlsFromDirectLink(
+      startPositionMs: startPositionMs,
+      // Part of the initial load (see [_loadAndPlayMedia]); stay paused until
+      // the surface is mounted.
+      resumeWhenReady: false,
+    );
   }
 
   /// Returns true when the player has started producing frames.
@@ -2798,9 +3341,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// pass a longer timeout for netdisk sessions. [label] identifies the call
   /// path in the logs so a timeout/failure can be traced back to its trigger.
   Future<bool> _verifyPlaybackStarted({
+    required PlaybackSourceLease source,
     Duration timeout = _localDirectVerifyTimeout,
     String label = 'playback',
   }) async {
+    try {
+      final verified = await _verifyPlaybackStartedForSource(
+        source: source,
+        timeout: timeout,
+        label: label,
+      );
+      source.ensureCurrent(isConsumerCurrent: () => mounted);
+      if (!verified) await _closeFailedPlaybackSource(source);
+      return verified;
+    } catch (_) {
+      await _closeFailedPlaybackSource(source);
+      rethrow;
+    }
+  }
+
+  Future<bool> _verifyPlaybackStartedForSource({
+    required PlaybackSourceLease source,
+    Duration timeout = _localDirectVerifyTimeout,
+    String label = 'playback',
+  }) async {
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     final player = _player;
     if (player == null) {
       AppTalker.warning(
@@ -2838,6 +3403,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final attempts = (timeout.inMilliseconds / 500).ceil();
       for (int attempt = 0; attempt < attempts; attempt++) {
         await Future<void>.delayed(const Duration(milliseconds: 500));
+        source.ensureCurrent(isConsumerCurrent: () => mounted);
         if (!mounted) {
           AppTalker.warning(
             'Player',
@@ -2886,7 +3452,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             decodedWidth <= 0 &&
             !state.playing &&
             state.buffer.inMilliseconds <= 0;
-        final msSinceProgress = stopwatch.elapsedMilliseconds - progressAnchorMs;
+        final msSinceProgress =
+            stopwatch.elapsedMilliseconds - progressAnchorMs;
         if (isStalledOpen &&
             msSinceProgress >= stalledOpenGrace.inMilliseconds) {
           AppTalker.warning(
@@ -2908,6 +3475,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // mpv never opened the container (duration=0, width=null), opened it but
     // has not decoded a frame yet (duration>0, width=null), or stalled mid
     // network (buffer/buffering/position values).
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     final state = player.state;
     AppTalker.warning(
       'Player',
@@ -2927,13 +3495,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Switches from a failed direct-link session to HLS transcode playback.
-  Future<void> _fallbackToHlsFromDirectLink({
+  Future<PlaybackSourceLease?> _fallbackToHlsFromDirectLink({
     required int startPositionMs,
+    // See [_openMediaWithResume]. The initial-load caller passes false so the
+    // fallback also stays paused until the surface is mounted.
+    bool resumeWhenReady = true,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
+    await _closePlaybackSource();
+    _ensurePlaybackOperation(isCurrent);
     final cache = _playingInfoCache;
     final videoStream = cache?.currentVideoStream;
     final fileStream = cache?.currentFileStream;
-    if (cache == null || videoStream == null || fileStream == null) return;
+    if (cache == null || videoStream == null || fileStream == null) return null;
 
     final audioGuid = cache.currentAudioStream?.guid ??
         _selectedAudioGuid ??
@@ -2951,8 +3525,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       startPositionMs: startPositionMs,
       quality: cache.currentQuality,
     );
-    if (!mounted) return;
+    if (!mounted) return null;
 
+    _ensurePlaybackOperation(isCurrent);
     _playingInfoCache = cache.copyWith(
       playLink: hlsResult.playLinkRaw,
       playRecordLink: null,
@@ -2962,9 +3537,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .read(playerViewModelProvider.notifier)
         .updatePlayingInfo(_playingInfoCache);
 
-    await _reopenPlaybackFromPlayLink(
+    return _reopenPlaybackFromPlayLink(
       playLink: hlsResult.playLinkRaw,
       startPositionMs: startPositionMs,
+      resumeWhenReady: resumeWhenReady,
     );
   }
 
@@ -2987,7 +3563,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _loadAndPlayMedia() async {
     final requestToken = ++_loadRequestToken;
+    final isCurrent = _capturePlaybackOperation();
+    PlaybackSourceLease? source;
     try {
+      await _closePlaybackSource();
+      _ensurePlaybackOperation(isCurrent);
       _suspendPlaybackTransitionFeedback = true;
       _hidePlaybackIndicator();
       setState(() => _isLoading = true);
@@ -3002,7 +3582,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           userGuid: ref.read(userInfoProvider).valueOrNull?.guid,
         ),
       );
-      if (!mounted || requestToken != _loadRequestToken) {
+      if (!isCurrent()) {
         return;
       }
 
@@ -3010,21 +3590,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _streamInfo = result.streamInfo;
       _playingInfoCache = result.playingInfoCache;
       final flyNarwhalSettings = ref.read(settingsProvider);
-      final serverFullyConfigured = flyNarwhalSettings.isFlyNarwhalServerAvailable;
+      final serverFullyConfigured =
+          flyNarwhalSettings.isFlyNarwhalServerAvailable;
       if (serverFullyConfigured) {
+        // Probe before every playback: the server may have been updated or
+        // rolled back since the last one, and the danmaku contract differs.
+        final capabilities = await probeFlyNarwhalServerCapabilities(ref);
+        if (!isCurrent()) {
+          return;
+        }
         unawaited(
-          ref
-              .read(danmakuControllerProvider.notifier)
-              .loadDanmaku(_buildDanmakuRequest(result.playInfo)),
+          ref.read(danmakuControllerProvider.notifier).loadDanmaku(
+                _buildDanmakuRequest(result.playInfo),
+                allowLegacyKeyFallback:
+                    !capabilities.supportsModernContract,
+              ),
         );
       } else {
-        ref
-            .read(danmakuControllerProvider.notifier)
-            .clear();
+        ref.read(danmakuControllerProvider.notifier).clear();
         // When the server isn't fully configured, turn the danmaku switch off.
-        ref
-            .read(danmakuControllerProvider.notifier)
-            .setVisibility(false);
+        ref.read(danmakuControllerProvider.notifier).setVisibility(false);
       }
       // Mirror for the smart skip feature: when the server isn't fully
       // configured, treat smart skip as temporarily disabled for this session.
@@ -3045,7 +3630,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           widget.initialPositionMs ?? result.effectiveStartPositionMs;
 
       if (result.playingInfoCache.isUseDirectLink) {
-        await _openDirectLinkWithHlsFallback(
+        source = await _openDirectLinkWithHlsFallback(
           result: result,
           dio: dio,
           startPositionMs: startMs,
@@ -3053,13 +3638,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         );
       } else {
         try {
-          await _openMediaWithResume(
+          source = await _openMediaWithResume(
             playUri: result.preparedPlaySource.playUri,
+            isOperationCurrent: isCurrent,
             startPositionMs: startMs,
             currentSubtitleStream:
                 result.playingInfoCache.currentSubtitleStream,
+            // Initial load: the video surface is not mounted yet, so leave the
+            // media paused and resume after [_isInitialized] puts it on screen.
+            resumeWhenReady: false,
           );
-          if (!mounted || requestToken != _loadRequestToken) {
+          if (!isCurrent()) {
             return;
           }
           // For cloud NAS proxy sessions, verify the stream actually started.
@@ -3067,12 +3656,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // transcode never produced frames (common when the NAS cannot proxy
           // a huge cloud file), show the same error guard the web player does
           // so the user can retry or switch to 网盘直连播放.
-          final isCloudProxy =
-              !result.playingInfoCache.isUseDirectLink &&
-                  (result.playingInfoCache.streamInfo?.isCloudDirectMedia ??
-                      false);
+          final isCloudProxy = !result.playingInfoCache.isUseDirectLink &&
+              (result.playingInfoCache.streamInfo?.isCloudDirectMedia ?? false);
           if (isCloudProxy) {
             final verified = await _verifyPlaybackStarted(
+              source: source,
               timeout: const Duration(seconds: 20),
               label: 'open-cloud-proxy',
             );
@@ -3087,6 +3675,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             }
           }
         } catch (e) {
+          if (e is PlaybackSourceSuperseded) rethrow;
           AppTalker.warning(
             'Player',
             'initial cloud proxy playback failed: $e',
@@ -3102,7 +3691,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           return;
         }
       }
-      if (!mounted || requestToken != _loadRequestToken) {
+      if (!isCurrent()) {
         return;
       }
       _startHlsSubtitleSessionAsync(
@@ -3114,11 +3703,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         loadToken: requestToken,
       );
 
+      source?.ensureCurrent(isConsumerCurrent: isCurrent);
       _volume = ref.read(playerSettingsManagerProvider).getVolume();
       await _player!.setVolume(uiVolumeToMpvVolume(_volume));
 
+      source?.ensureCurrent(isConsumerCurrent: isCurrent);
+      _ensurePlaybackOperation(isCurrent);
       _speed = ref.read(playerSettingsManagerProvider).getSpeed();
       await _player!.setRate(_speed);
+      source?.ensureCurrent(isConsumerCurrent: isCurrent);
+      _ensurePlaybackOperation(isCurrent);
 
       setState(() {
         _isLoading = false;
@@ -3143,6 +3737,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ? NextEpisodeLoadPhase.loading
                 : NextEpisodeLoadPhase.unavailable;
       });
+      // The media was opened paused so mpv could not emit audio while the
+      // opening awaits ran. Now that the surface is mounted, wait for one
+      // frame to be painted and then resume, so picture and sound land
+      // together instead of audio starting a beat early.
+      await _resumeAfterInitialSurfaceMount(isCurrent);
       _resolveAndDispatchSkipSegments();
       _introSkipController.dispatch(
         EpisodeSessionStarted(
@@ -3170,9 +3769,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Probe which hardware decoders actually work for this file (in the
       // background, without touching the active player) so the
       // 指定硬件解码器 menu can list them.
-      unawaited(
-        _probeAvailableHwdec(playUri: result.preparedPlaySource.playUri),
-      );
+      if (source != null && !_cloudPlaybackErrorVisible) {
+        unawaited(_probeAvailableHwdec(source: source));
+      }
 
       _fetchEpisodeContextAsync(requestToken);
 
@@ -3180,6 +3779,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // the new video stream is known (KMP does this on every media load).
       unawaited(_applyWindowAspectRatio());
     } catch (e, st) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
+      if (source != null) await _closeFailedPlaybackSource(source);
+      if (!isCurrent()) return;
       AppTalker.error(
         'Player',
         error: e,
@@ -3187,7 +3789,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'Error loading media',
       );
       ref.read(toastManagerProvider.notifier).showToast(
-            '加载失败: $e',
+            _l10n.playerLoadFailed('$e'),
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'playback-load:${widget.guid}',
@@ -3197,9 +3799,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Always clear the loading flag for the active request, covering the
       // early-return paths above where the request stays current but never
       // reached the success branch (e.g. a superseded or aborted load).
-      if (mounted && requestToken == _loadRequestToken && _isLoading) {
+      if (isCurrent() && _isLoading) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  /// Resumes the initial-load media once its video surface can show a frame.
+  ///
+  /// The media is opened paused (see [_openMediaWithResume]'s `resumeWhenReady`)
+  /// so mpv cannot emit audio during the opening awaits, which is what made
+  /// sound start ahead of the picture. This is called right after
+  /// `_isInitialized` is set, so the Video widget is in the tree; one painted
+  /// frame is then enough for the platform texture to attach, after which
+  /// audio starts alongside the visible picture.
+  Future<void> _resumeAfterInitialSurfaceMount(
+    bool Function() isCurrent,
+  ) async {
+    final player = _player;
+    if (player == null) return;
+    await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !isCurrent() || !identical(player, _player)) return;
+    try {
+      await player.play();
+    } catch (e) {
+      AppTalker.warning('Player', 'resume after surface mount failed: $e');
     }
   }
 
@@ -3440,9 +4065,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _seekRelative(int milliseconds) {
     if (_player == null) return;
-    final target = (_resolveRelativeSeekBase() + milliseconds)
-        .clamp(0, _duration)
-        .toInt();
+    final target =
+        (_resolveRelativeSeekBase() + milliseconds).clamp(0, _duration).toInt();
     final origin =
         _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
     _scheduleCoalescedSeek(target, origin);
@@ -3563,12 +4187,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final origin =
         _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
     _scheduleCoalescedSeek(target, origin);
-    final label = milliseconds < 0 ? '快退至' : '快进至';
+    final label =
+        milliseconds < 0 ? _l10n.playerSeekRewindTo : _l10n.playerSeekForwardTo;
     ref.read(toastManagerProvider.notifier).showToast(
-          '$label：${formatDurationToDateTime(target)}',
+          _l10n.playerSeekTimeToast(label, formatDurationToDateTime(target)),
           style: ToastStyle.liquidGlass,
           type: ToastType.info,
           category: 'seek',
+          coalesce: true,
         );
   }
 
@@ -3598,7 +4224,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     final remaining = _keySeekReleaseDelay - heldFor;
-    final delay = remaining < _keySeekQuietWindow ? remaining : _keySeekQuietWindow;
+    final delay =
+        remaining < _keySeekQuietWindow ? remaining : _keySeekQuietWindow;
     _keySeekDebounceTimer = Timer(delay, _flushCoalescedSeek);
   }
 
@@ -3644,9 +4271,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Converge only on mpv's completed-seek reading. The reported position is
       // the optimistic echo and always equals the target right after a seek, so
       // treating it as confirmation makes this check a no-op.
-      final converged =
-          completedSeekMs != null &&
-              (completedSeekMs - target).abs() <= toleranceMs;
+      final converged = completedSeekMs != null &&
+          (completedSeekMs - target).abs() <= toleranceMs;
       if (converged) {
         return;
       }
@@ -3681,7 +4307,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       final start = index + marker.length;
       final end = text.indexOf(',', start);
-      final slice = end < 0 ? text.substring(start) : text.substring(start, end);
+      final slice =
+          end < 0 ? text.substring(start) : text.substring(start, end);
       final seconds = double.tryParse(slice);
       if (seconds == null) {
         return null;
@@ -3698,10 +4325,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _setVolume(clampedVolume);
     _lastVolumeBeforeMute = 0.0;
     ref.read(toastManagerProvider.notifier).showToast(
-          '当前音量：${(clampedVolume * 100).toInt()}%',
+          _l10n.playerVolumeLabel('${(clampedVolume * 100).toInt()}'),
           style: ToastStyle.liquidGlass,
           type: ToastType.info,
           category: 'volume',
+          coalesce: true,
         );
   }
 
@@ -3711,20 +4339,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _lastVolumeBeforeMute = _volume;
       _setVolume(0.0);
       ref.read(toastManagerProvider.notifier).showToast(
-            '静音',
+            _l10n.playerVolumeMute,
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'volume',
+            coalesce: true,
           );
     } else {
       final restoreVolume =
           _lastVolumeBeforeMute > 0 ? _lastVolumeBeforeMute : 0.05;
       _setVolume(restoreVolume);
       ref.read(toastManagerProvider.notifier).showToast(
-            '解除静音：${(restoreVolume * 100).toInt()}%',
+            _l10n.playerVolumeUnmuteLabel('${(restoreVolume * 100).toInt()}'),
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'volume',
+            coalesce: true,
           );
     }
   }
@@ -3746,9 +4376,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'toggle fullscreen failed',
       );
       if (mounted) {
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast('切换全屏失败: $error', style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerToggleFullscreenFailed('$error'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
       }
     }
   }
@@ -3861,13 +4492,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   String? get _forceH264DisabledReason {
     final codec = _playingInfoCache?.currentVideoStream?.codecName ?? '';
-    return codec.toLowerCase() == 'h264' ? '当前视频为 H.264' : null;
+    return codec.toLowerCase() == 'h264' ? _l10n.playerForceH264Disabled : null;
   }
 
   String? get _forceSdrDisabledReason {
     final colorRangeType =
         _playingInfoCache?.currentVideoStream?.colorRangeType ?? '';
-    return colorRangeType.toLowerCase() == 'sdr' ? '当前视频为 SDR' : null;
+    return colorRangeType.toLowerCase() == 'sdr'
+        ? _l10n.playerForceSdrDisabled
+        : null;
   }
 
   void _onForceH264Changed(bool enabled) {
@@ -3888,6 +4521,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     unawaited(_restartPlaybackForTranscodeSettings());
   }
 
+  /// Only a Quark netdisk direct session routes through the CDN range proxy, so
+  /// the switch is hidden for every other source.
+  bool get _showDirectLinkCdnRange {
+    final cache = _playingInfoCache;
+    if (cache == null || !cache.isUseDirectLink) return false;
+    final cloudType = cache.streamInfo?.cloudStorageInfo?.cloudStorageType;
+    return CloudStorageType.fromValue(cloudType).isQuarkPan;
+  }
+
+  void _onDirectLinkCdnRangeChanged(bool enabled) {
+    if (enabled == _isDirectLinkCdnRange) return;
+    setState(() => _isDirectLinkCdnRange = enabled);
+    unawaited(
+        ref.read(playerSettingsManagerProvider).setDirectLinkCdnRange(enabled));
+    final player = _player;
+    if (player == null) return;
+    unawaited(_reopenPlaybackWithDirectLink(
+      startPositionMs: player.state.position.inMilliseconds,
+    ));
+  }
+
   void _onDecodeModeChanged(String mode) {
     if (mode == _decodeMode) return;
     setState(() => _decodeMode = mode);
@@ -3895,6 +4549,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player != null) {
       unawaited(_applyDecodeMode(player));
+    }
+  }
+
+  void _onAudioPassthroughChanged(bool enabled) {
+    if (enabled == _isAudioPassthrough) return;
+    setState(() => _isAudioPassthrough = enabled);
+    unawaited(
+        ref.read(playerSettingsManagerProvider).setAudioPassthrough(enabled));
+    final player = _player;
+    if (player != null) {
+      unawaited(_applyAudioPassthrough(player));
+    }
+  }
+
+  void _onAudioOutputDeviceChanged(String name) {
+    if (name == _audioOutputDeviceName) return;
+    setState(() => _audioOutputDeviceName = name);
+    unawaited(
+        ref.read(playerSettingsManagerProvider).setAudioOutputDevice(name));
+    final player = _player;
+    if (player != null) {
+      unawaited(_applyAudioOutputDevice(player));
     }
   }
 
@@ -3912,7 +4588,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final fileStream = cache.currentFileStream;
     if (videoStream == null || fileStream == null) return;
 
+    ++_cloudSwitchToken;
+    final isCurrent = _capturePlaybackOperation();
     try {
+      await _closePlaybackSource();
+      _ensurePlaybackOperation(isCurrent);
       setState(() => _isLoading = true);
       final currentPosition = player.state.position.inMilliseconds;
       final currentPlayLink = cache.playLink;
@@ -3937,8 +4617,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               MediaPRequest(playLink: currentPlayLink),
               updateState: false,
             );
-        await _reopenPlaybackWithDirectLink(startPositionMs: currentPosition);
+        _ensurePlaybackOperation(isCurrent);
+        final source = await _reopenPlaybackWithDirectLink(
+            startPositionMs: currentPosition);
+        if (source == null) return;
         final verified = await _verifyPlaybackStarted(
+          source: source,
           timeout: (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false)
               ? _cloudDirectVerifyTimeout
               : _localDirectVerifyTimeout,
@@ -3967,6 +4651,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 updateState: false,
               );
         }
+        _ensurePlaybackOperation(isCurrent);
         final audioGuid = cache.currentAudioStream?.guid ??
             _selectedAudioGuid ??
             _requestedAudioGuid ??
@@ -3995,19 +4680,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 forcedSdr: playRequest.forcedSdr,
               ),
             );
+        _ensurePlaybackOperation(isCurrent);
         await _handlePlayPlaySuccess(response,
             startPositionMs: currentPosition);
       }
+      _ensurePlaybackOperation(isCurrent);
       if (mounted) setState(() => _isLoading = false);
       // The server-side playback session was recreated (or restored to
       // direct link), so any transcode statistics held by the details panel
       // are stale; re-query the media/p endpoint immediately.
       _refreshPlaybackDetailsImmediately();
     } catch (e) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
       AppTalker.warning('Player', 'restart for transcode settings failed: $e');
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
-              '切换播放设置失败: $e',
+              _l10n.playerSwitchPlaybackSettingsFailed('$e'),
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
             );
@@ -4075,15 +4763,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _enterPipMode() async {
     AppTalker.info('PiP', 'PiP requested from player screen');
     if (!_isDesktopPlatform()) {
-      _showFeatureComingSoon('画中画');
+      _showFeatureComingSoon(_l10n.playerPip);
       return;
     }
 
     final player = _player;
     if (player == null || !_isInitialized) {
-      ref
-          .read(toastManagerProvider.notifier)
-          .showToast('播放器尚未准备完成', style: ToastStyle.liquidGlass, type: ToastType.info);
+      ref.read(toastManagerProvider.notifier).showToast(_l10n.playerNotReady,
+          style: ToastStyle.liquidGlass, type: ToastType.info);
       return;
     }
 
@@ -4127,9 +4814,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         setState(() => _isPipMode = false);
         // PiP exit cleared the ratio lock; restore the player's setting.
         unawaited(_applyWindowAspectRatio());
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast('进入画中画失败: $error', style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerEnterPipFailed('$error'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -4169,9 +4857,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'exit PiP failed',
       );
       if (mounted) {
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast('退出画中画失败: $error', style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerExitPipFailed('$error'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -4235,14 +4924,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
 
     final switchToken = ++_cloudSwitchToken;
+    final isCurrent = _capturePlaybackOperation();
     setState(() => _isLoading = true);
     try {
+      await _closePlaybackSource();
+      _ensurePlaybackOperation(isCurrent);
       final currentPosition = player.state.position.inMilliseconds;
       final directLink = await _sessionCoordinator.getDirectPlayLink(
         mediaGuid: videoStream.mediaGuid,
         startPositionMs: currentPosition,
         directLinkQualityIndex: targetIndex,
       );
+      _ensurePlaybackOperation(isCurrent);
       if (!_isCurrentCloudSwitch(switchToken)) return;
 
       _playingInfoCache = cache.copyWith(
@@ -4256,14 +4949,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .updatePlayingInfo(_playingInfoCache);
       _queuePlayRecordUpdate(positionMs: currentPosition);
 
-      await _openMediaWithResume(
+      final source = await _openMediaWithResume(
         playUri: directLink.playUri,
+        directLinkContext: _playingInfoCache,
+        isOperationCurrent: isCurrent,
         startPositionMs: currentPosition,
         currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
       );
       if (!_isCurrentCloudSwitch(switchToken)) return;
 
       final verified = await _verifyPlaybackStarted(
+        source: source,
         timeout: _cloudDirectVerifyTimeout,
         label: 'switch-cloud-direct-quality',
       );
@@ -4291,11 +4987,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
       _refreshPlaybackDetailsImmediately();
     } catch (e) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
       AppTalker.warning('Player', 'cloud direct quality switch failed: $e');
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast('切换画质失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerSwitchQualityFailed('$e'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
@@ -4413,18 +5111,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .read(playerSettingsManagerProvider)
           .setCloudPlayMode(cloudType, mode, userGuid: userGuid),
     );
-    final label =
-        mode == CloudPlayMode.direct ? '网盘直连播放' : 'NAS 代理播放';
-    ref
-        .read(toastManagerProvider.notifier)
-        .showToast('播放方式切换至 $label', style: ToastStyle.liquidGlass, type: ToastType.success);
+    final label = mode == CloudPlayMode.direct
+        ? _l10n.playerCloudModeDirect
+        : _l10n.playerCloudModeNasProxy;
+    ref.read(toastManagerProvider.notifier).showToast(
+        _l10n.playerCloudModeSwitchedToast(label),
+        style: ToastStyle.liquidGlass,
+        type: ToastType.success);
 
     final switchToken = ++_cloudSwitchToken;
+    final isCurrent = _capturePlaybackOperation();
     setState(() {
       _isLoading = true;
       _cloudPlaybackErrorVisible = false;
     });
     try {
+      await _closePlaybackSource();
+      _ensurePlaybackOperation(isCurrent);
       final currentPosition = player.state.position.inMilliseconds;
       if (mode == CloudPlayMode.direct) {
         final entered = await _enterCloudDirectMode(
@@ -4473,6 +5176,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           } finally {
             dio.options.receiveTimeout = previousReceiveTimeout;
           }
+          _ensurePlaybackOperation(isCurrent);
           if (!_isCurrentCloudSwitch(switchToken)) return;
 
           _playingInfoCache = cache.copyWith(
@@ -4492,11 +5196,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _currentResolution = quality?.resolution ?? '';
             _currentBitrate = quality?.bitrate;
           });
-          await _handlePlayPlaySuccess(response,
+          final source = await _handlePlayPlaySuccess(response,
               startPositionMs: currentPosition);
           if (!_isCurrentCloudSwitch(switchToken)) return;
 
+          if (source == null) return;
           final proxyVerified = await _verifyPlaybackStarted(
+            source: source,
             timeout: const Duration(seconds: 20),
             label: 'switch-cloud-play-mode-proxy',
           );
@@ -4504,6 +5210,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             throw Exception('NAS proxy playback verification failed');
           }
         } catch (e) {
+          if (e is PlaybackSourceSuperseded) rethrow;
+          _ensurePlaybackOperation(isCurrent);
           // Mid-playback switch from 网盘直连播放 to NAS proxy: when the proxy
           // negotiation fails, revert to the direct session the user came
           // from (the web player keeps the previous mode on switch failure).
@@ -4511,18 +5219,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             'Player',
             'NAS proxy play mode failed, falling back to direct: $e',
           );
-          ref
-              .read(toastManagerProvider.notifier)
-              .showToast('NAS 代理播放失败，正在切换为网盘直连播放',
-                  style: ToastStyle.liquidGlass, type: ToastType.info);
+          ref.read(toastManagerProvider.notifier).showToast(
+              _l10n.playerCloudProxyFailedFallbackDirect,
+              style: ToastStyle.liquidGlass,
+              type: ToastType.info);
           if (!_isCurrentCloudSwitch(switchToken)) return;
           final directEntered = await _enterCloudDirectMode(
             switchToken: switchToken,
             startPositionMs: currentPosition,
           );
-          if (directEntered &&
-              mounted &&
-              _isCurrentCloudSwitch(switchToken)) {
+          if (directEntered && mounted && _isCurrentCloudSwitch(switchToken)) {
             // Fallback succeeded; let the common success block below reset
             // the loading state and refresh playback details.
           } else if (!directEntered &&
@@ -4542,6 +5248,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _refreshPlaybackDetailsImmediately();
       }
     } catch (e, st) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
       AppTalker.error(
         'Player',
         error: e,
@@ -4549,15 +5256,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'cloud play mode switch failed',
       );
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast('切换播放方式失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerSwitchPlayModeFailed('$e'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
   }
 
-  /// Switches the current cloud session to 网盘直连播放, mirroring the direct
+  /// Switches the current cloud session to netdisk direct-link playback, mirroring the direct
   /// branch of [_switchCloudPlayMode]. Returns true when the direct link opens
   /// and verifies successfully; otherwise returns false so callers can decide
   /// whether to show the error overlay.
@@ -4565,6 +5273,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required int switchToken,
     required int startPositionMs,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
     final cache = _playingInfoCache;
     final player = _player;
     if (cache == null || player == null) return false;
@@ -4583,9 +5292,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       qualities: directQualities,
       cloudStorageType: cloudStorageType,
     );
-    final visibleQualities = filtered.qualities.isNotEmpty
-        ? filtered.qualities
-        : directQualities;
+    final visibleQualities =
+        filtered.qualities.isNotEmpty ? filtered.qualities : directQualities;
     final visibleOriginalIndices = filtered.originalIndices.isNotEmpty
         ? filtered.originalIndices
         : List<int>.generate(directQualities.length, (i) => i);
@@ -4602,6 +5310,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       cloudStorageType: cloudStorageType,
       directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
     );
+    _ensurePlaybackOperation(isCurrent);
     if (!_isCurrentCloudSwitch(switchToken)) return false;
 
     final convertedQualities =
@@ -4609,8 +5318,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playingInfoCache = cache.copyWith(
       isUseDirectLink: true,
       playLink: null,
-      playRecordLink: _sessionCoordinator
-          .ensureDirectPlayRecordLink(cache.playRecordLink),
+      playRecordLink:
+          _sessionCoordinator.ensureDirectPlayRecordLink(cache.playRecordLink),
       directLinkQualityIndex: originalIndex,
       currentQualities: convertedQualities,
       currentQuality: convertedQualities[visibleIndex],
@@ -4633,13 +5342,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     _queuePlayRecordUpdate(positionMs: startPositionMs);
 
-    await _openMediaWithResume(
+    final source = await _openMediaWithResume(
       playUri: directLink.playUri,
+      directLinkContext: _playingInfoCache,
+      isOperationCurrent: isCurrent,
       startPositionMs: startPositionMs,
       currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
     );
     if (!_isCurrentCloudSwitch(switchToken)) return false;
     final verified = await _verifyPlaybackStarted(
+      source: source,
       timeout: _cloudDirectVerifyTimeout,
       label: 'enter-cloud-direct-mode',
     );
@@ -4680,6 +5392,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
     );
 
+    ++_cloudSwitchToken;
+    final isCurrent = _capturePlaybackOperation();
     try {
       setState(() => _isLoading = true);
       final currentPosition = player.state.position.inMilliseconds;
@@ -4706,6 +5420,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _refreshPlaybackDetailsImmediately();
         return;
       }
+      // resetQuality updates the current NAS session without opening media;
+      // keep its lease until an operation actually replaces the playback source.
+      final resetsCurrentSession = !isTargetDirectLink &&
+          !cache.isUseDirectLink &&
+          currentPlayLink != null;
+      if (!resetsCurrentSession) {
+        await _closePlaybackSource();
+      }
+      _ensurePlaybackOperation(isCurrent);
       _playingInfoCache = cache.copyWith(
         currentQuality: quality,
         isUseDirectLink: isTargetDirectLink,
@@ -4767,10 +5490,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             forcedSdr: playRequest.forcedSdr,
           ),
         );
+        _ensurePlaybackOperation(isCurrent);
         await _handlePlayPlaySuccess(response,
             startPositionMs: currentPosition);
       }
 
+      _ensurePlaybackOperation(isCurrent);
       setState(() {
         _isLoading = false;
         _currentQuality = quality;
@@ -4779,15 +5504,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
       _refreshPlaybackDetailsImmediately();
     } catch (e) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
       // Restore the pre-switch session state: the optimistic cache update
       // above already ran, and leaving it in place would make later switches
       // believe the session is in a mode it is not actually in.
       _playingInfoCache = cache;
       ref.read(playerViewModelProvider.notifier).updatePlayingInfo(cache);
       AppTalker.warning('Player', 'switch quality failed: $e');
-      ref
-          .read(toastManagerProvider.notifier)
-          .showToast('切换画质失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
+      ref.read(toastManagerProvider.notifier).showToast(
+          _l10n.playerSwitchQualityFailed('$e'),
+          style: ToastStyle.liquidGlass,
+          type: ToastType.failed);
       setState(() => _isLoading = false);
     }
   }
@@ -4857,7 +5584,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (_isCurrentAudioSwitch(switchToken)) {
         _requestedAudioGuid = null;
         ref.read(toastManagerProvider.notifier).showToast(
-              '切换音频失败: $error',
+              _l10n.playerSwitchAudioFailed('$error'),
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'player-audio-switch',
@@ -4878,8 +5605,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<AudioTrack> _resolveDirectLinkAudioTrack(
     AudioStream audio,
-    int switchToken,
-  ) async {
+    int switchToken, {
+    PlaybackSourceLease? source,
+  }) async {
     AudioTrack? resolveCurrentTracks() {
       return _directLinkAudioTrackResolver.resolve(
         audioStreams:
@@ -4909,6 +5637,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     });
     subscription = player.stream.tracks.listen((tracks) {
+      if (source != null && !source.isCurrent) return;
       _embeddedAudioTracks =
           _directLinkAudioTrackResolver.embeddedTracksOf(tracks.audio);
       final resolvedTrack = resolveCurrentTracks();
@@ -4922,7 +5651,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
 
     try {
-      final resolvedTrack = await completer.future;
+      final resolvedTrack = source == null
+          ? await completer.future
+          : await source.guard(() => completer.future,
+              isConsumerCurrent: () => _isCurrentAudioSwitch(switchToken));
       if (!_isCurrentAudioSwitch(switchToken)) {
         throw StateError('音频切换请求已过期');
       }
@@ -4933,7 +5665,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _applyInitialDirectLinkAudioTrack() async {
+  Future<void> _applyInitialDirectLinkAudioTrack(
+      {PlaybackSourceLease? source}) async {
     final targetAudio = _playingInfoCache?.currentAudioStream;
     if (targetAudio == null) {
       return;
@@ -4944,12 +5677,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final targetTrack = await _resolveDirectLinkAudioTrack(
         targetAudio,
         switchToken,
+        source: source,
       );
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       if (!_isCurrentAudioSwitch(switchToken)) {
         return;
       }
-      await _applyDirectLinkAudioTrack(targetTrack);
+      await _applyDirectLinkAudioTrack(targetTrack, source: source);
     } catch (error, stackTrace) {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       AppTalker.error(
         'Player',
         error: error,
@@ -4959,7 +5695,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _applyDirectLinkAudioTrack(AudioTrack audioTrack) async {
+  Future<void> _applyDirectLinkAudioTrack(AudioTrack audioTrack,
+      {PlaybackSourceLease? source}) async {
+    source?.ensureCurrent(isConsumerCurrent: () => mounted);
     final player = _player;
     if (player == null) {
       throw StateError('播放器尚未初始化');
@@ -4974,6 +5712,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         );
         return;
       } catch (error) {
+        source?.ensureCurrent(isConsumerCurrent: () => mounted);
         AppTalker.warning(
           'Player',
           'mpv aid switch failed, fallback to setAudioTrack: $error',
@@ -5094,9 +5833,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(_playingInfoCache);
       AppTalker.warning('Player', 'switch subtitle failed: $e');
-      ref
-          .read(toastManagerProvider.notifier)
-          .showToast('切换字幕失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
+      ref.read(toastManagerProvider.notifier).showToast(
+          _l10n.playerSubtitleSwitchFailed('$e'),
+          style: ToastStyle.liquidGlass,
+          type: ToastType.failed);
       if (mounted) {
         setState(() {
           _isSubtitleSwitching = false;
@@ -5119,8 +5859,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final format =
         subtitle.format.isNotEmpty ? subtitle.format.toUpperCase() : '';
     return format.isEmpty
-        ? '字幕正在切换至：$languageName'
-        : '字幕正在切换至：$languageName $format';
+        ? _l10n.playerSubtitleSwitchingTo(languageName)
+        : _l10n.playerSubtitleSwitchingToFormat(languageName, format);
   }
 
   Future<void> _handleBack() async {
@@ -5173,6 +5913,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void dispose() {
+    unawaited(_closePlaybackSource());
     if (_isDesktopPlatform()) {
       windowManager.removeListener(this);
       unawaited(_windowAspectRatioController.release());
@@ -5196,6 +5937,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _completedSubscription?.cancel();
     _tracksSubscription?.cancel();
     _videoParamsSubscription?.cancel();
+    _audioDeviceSubscription?.cancel();
+    _audioPassthroughGuardSubscription?.cancel();
     _skipActionSubscription?.cancel();
     _removeIntroSkipStateListener?.call();
     _introSkipController.dispose();
@@ -5216,14 +5959,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final subtitleSettings = ref.watch(subtitleSettingsProvider);
     final danmakuState = ref.watch(danmakuControllerProvider);
     final overlayState = ref.watch(playerOverlayControllerProvider);
+    // 字幕与弹幕跟界面语言使用同一字体族（繁体需要 TC 字形）。
+    final playerFontFamily = AppFonts.primaryFor(
+      ref.watch(settingsProvider.select((s) => s.language)),
+    );
     _scheduleMacOSWindowButtonsSync(
       visible: overlayState.isUiVisible,
     );
-    final playerCursor = _isInitialized &&
-            !_isPipMode &&
-            !overlayState.isUiVisible
-        ? SystemMouseCursors.none
-        : SystemMouseCursors.click;
+    final playerCursor =
+        _isInitialized && !_isPipMode && !overlayState.isUiVisible
+            ? SystemMouseCursors.none
+            : SystemMouseCursors.click;
 
     final playerStack = MouseRegion(
       cursor: playerCursor,
@@ -5262,6 +6008,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     settings: danmakuState.settings,
                     loadStatus: danmakuState.loadStatus,
                     resetGeneration: _danmakuResetGeneration,
+                    fontFamily: playerFontFamily,
                   );
                 },
               ),
@@ -5275,6 +6022,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   lines: lines,
                   visible: _useHlsSubtitleOverlay,
                   settings: subtitleSettings,
+                  fontFamily: playerFontFamily,
                 );
               },
             ),
@@ -5307,91 +6055,91 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             // inside the top bar.
             Positioned.fill(
               child: AnimatedOpacity(
-                  opacity: overlayState.isUiVisible ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Stack(
-                children: [
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      height: 112,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.7),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: _buildTopBar(),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      height: 168,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.7),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: MouseRegion(
-                      onEnter: (_) {
-                        _overlayController.setHovered(
-                          PlayerHoverZone.bottomControls,
-                          true,
-                        );
-                        _showUi();
-                      },
-                      onExit: (_) => _overlayController.setHovered(
-                        PlayerHoverZone.bottomControls,
-                        false,
-                      ),
-                      child: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildProgressBar(),
-                              const SizedBox(height: 12),
-                              _buildControlButtons(
-                                overlayState: overlayState,
-                                subtitleSettings: subtitleSettings,
-                                danmakuState: danmakuState,
-                              ),
+                opacity: overlayState.isUiVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 112,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.7),
+                              Colors.transparent,
                             ],
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: _buildTopBar(),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 168,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.7),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: MouseRegion(
+                        onEnter: (_) {
+                          _overlayController.setHovered(
+                            PlayerHoverZone.bottomControls,
+                            true,
+                          );
+                          _showUi();
+                        },
+                        onExit: (_) => _overlayController.setHovered(
+                          PlayerHoverZone.bottomControls,
+                          false,
+                        ),
+                        child: SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildProgressBar(),
+                                const SizedBox(height: 12),
+                                _buildControlButtons(
+                                  overlayState: overlayState,
+                                  subtitleSettings: subtitleSettings,
+                                  danmakuState: danmakuState,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
           // The “播放详细信息” panel is deliberately rendered OUTSIDE the
           // AnimatedOpacity that fades the transport controls, so it stays on
           // screen when the controls auto-hide. Its open state is independent
@@ -5406,6 +6154,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 builder: (context, constraints) {
                   final cache = _playingInfoCache;
                   if (cache == null) return const SizedBox.shrink();
+                  // The frosted style has no morph, so a settled close never
+                  // leaves a collapsing subtree behind.
+                  if (!ref.watch(settingsProvider).playerDetailsLiquidGlass) {
+                    if (!_isPlaybackDetailsVisible) {
+                      return const SizedBox.shrink();
+                    }
+                    return FrostedPlaybackDetails(
+                      cache: cache,
+                      transcodeStatus: _playbackDetailsTranscodeStatus,
+                      bufferedSeconds: _isInitialized
+                          ? ((_bufferedPosition - _currentPosition) / 1000)
+                              .clamp(0.0, double.infinity)
+                          : null,
+                      onClose: _closePlaybackDetails,
+                      closeTooltip: _l10n.playerClose,
+                    );
+                  }
                   final maxWidth = constraints.maxWidth - 32;
                   final maxHeight = constraints.maxHeight - 76;
                   final spawnSize = _isMacOS ? 30.0 : 34.0;
@@ -5437,7 +6202,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       key: const ValueKey('player-playback-details-close'),
                       iconData: FluentIcons.chrome_close,
                       onPressed: _closePlaybackDetails,
-                      tooltip: '关闭',
+                      tooltip: _l10n.playerClose,
                       size: 30,
                       iconSize: 14,
                       borderRadius: BorderRadius.circular(15),
@@ -5461,9 +6226,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             CloudPlaybackErrorDialog(
               key: const ValueKey('player-cloud-playback-error'),
               isProxyMode: _cloudPlaybackErrorIsProxy,
-              isStrm:
-                  _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
-                      false,
+              isStrm: _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
+                  false,
               onRetry: _retryCloudPlaybackWithReload,
               onSwitchQuality: _switchCloudAlternativeQualityWithReload,
               onSwitchProxy: _switchCloudPlayModeWithReloadToProxy,
@@ -5489,10 +6253,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   List<Widget> _buildSkipAndEndOverlays() {
     final state = _introSkipState;
-    final credits = state.segments.creditsSegment;
-    final hasContentAfterCredits = credits != null &&
+    final activeOutro = state.activeOutroSegment;
+    final hasContentAfterCredits = activeOutro != null &&
         state.durationMilliseconds != null &&
-        credits.endMilliseconds < state.durationMilliseconds! - 1000;
+        activeOutro.endMilliseconds < state.durationMilliseconds! - 1000;
     final item = _playInfo?.item ?? _playingInfoCache?.item;
 
     return [
@@ -5501,6 +6265,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           countdown: state.introUndoRemainingSeconds,
           isPip: _isPipMode,
           onHoverChanged: _handleSkipPromptHover,
+          message: _l10n.playerSkipAutoSkipped(
+            state.lastSkippedIntroSegment == null
+                ? _l10n.playerSkipSegmentIntro
+                : skipSegmentLabel(
+                    _l10n,
+                    state.lastSkippedIntroSegment!.kinds,
+                  ),
+          ),
           onUndo: () {
             _introSkipController.dispatch(const IntroUndoRequested());
           },
@@ -5513,6 +6285,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           nextEpisodePhase: state.nextEpisodeLoadPhase,
           isPip: _isPipMode,
           onHoverChanged: _handleSkipPromptHover,
+          subject: activeOutro == null
+              ? _l10n.playerSkipSegmentOutro
+              : skipSegmentLabel(_l10n, activeOutro.kinds),
           onCancel: () {
             _introSkipController.dispatch(const OutroCancelRequested());
           },
@@ -5639,7 +6414,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           child: PlayerActionButton.icon(
             key: const ValueKey('pip-close'),
             iconData: FluentIcons.chrome_close,
-            tooltip: '关闭',
+            tooltip: _l10n.playerClose,
             onPressed: () => unawaited(_closeFromPip()),
             size: 28,
             iconSize: 14,
@@ -5655,7 +6430,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 PlayerActionButton.svg(
                   key: const ValueKey('pip-seek-backward'),
                   svgAssetPath: 'assets/images/back10s.svg',
-                  tooltip: '快退 10 秒',
+                  tooltip: _l10n.playerRewindTenSeconds,
                   onPressed: () => _seekRelative(-10000),
                   size: 38,
                   iconSize: 24,
@@ -5667,7 +6442,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   svgAssetPath: _isPlaying
                       ? 'assets/images/pause.svg'
                       : 'assets/images/play.svg',
-                  tooltip: '播放/暂停',
+                  tooltip: _l10n.playerPlayPause,
                   onPressed: _togglePlayPause,
                   size: 52,
                   iconSize: 34,
@@ -5677,7 +6452,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 PlayerActionButton.svg(
                   key: const ValueKey('pip-seek-forward'),
                   svgAssetPath: 'assets/images/forward10s.svg',
-                  tooltip: '快进 10 秒',
+                  tooltip: _l10n.playerForwardTenSeconds,
                   onPressed: () => _seekRelative(10000),
                   size: 38,
                   iconSize: 24,
@@ -5708,7 +6483,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           child: PlayerActionButton.lottie(
             key: const ValueKey('pip-exit'),
             lottieAssetPath: 'assets/lottie/quit_pip.json',
-            tooltip: '退出画中画',
+            tooltip: _l10n.playerExitPip,
             onPressed: () => unawaited(_exitPipMode()),
             size: 30,
             iconSize: 22,
@@ -5724,8 +6499,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       currentPosition: _currentPosition,
       totalDuration: _duration,
       buffered: bufferedProgressRatio,
-      introSegment: _resolvedSkipSegments.introSegment,
-      creditsSegment: _resolvedSkipSegments.creditsSegment,
+      segments: _resolvedSkipSegments.allSegmentMarkers,
       showHoverTimestamp: false,
       onSeek: _seekTo,
     );
@@ -5743,8 +6517,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         currentPosition: _currentPosition,
         totalDuration: _duration,
         buffered: bufferedProgressRatio,
-        introSegment: _resolvedSkipSegments.introSegment,
-        creditsSegment: _resolvedSkipSegments.creditsSegment,
+        segments: _resolvedSkipSegments.allSegmentMarkers,
         onSeek: _seekTo,
       ),
     );
@@ -5794,7 +6567,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '设置成功',
+            _l10n.playerSkipConfigSaved,
             style: ToastStyle.liquidGlass,
             type: ToastType.success,
             category: 'skip-config',
@@ -5809,7 +6582,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .updatePlayingInfo(_playingInfoCache);
       _resolveAndDispatchSkipSegments();
       ref.read(toastManagerProvider.notifier).showToast(
-            '设置失败: $error',
+            _l10n.playerSkipConfigSaveFailed('$error'),
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'skip-config',
@@ -5833,6 +6606,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!fnSettings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
             ),
@@ -5852,15 +6626,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         controller.setVisibility(true);
         return;
       }
+      final capabilities = await probeFlyNarwhalServerCapabilities(ref);
+      if (!mounted) return;
       final loaded = await controller.loadDanmaku(
         _buildDanmakuRequest(playInfo),
+        allowLegacyKeyFallback: !capabilities.supportsModernContract,
       );
       if (!mounted) return;
       if (loaded) {
         controller.setVisibility(true);
       } else {
         ref.read(toastManagerProvider.notifier).showToast(
-              '请求弹幕接口失败，请检查飞鲸服务端配置',
+              _l10n.playerDanmakuRequestFailed,
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'danmaku-load-error',
@@ -5881,6 +6658,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (!mounted) return false;
         ref.read(toastManagerProvider.notifier).showToast(
               buildFlyNarwhalConfigWarning(
+                AppLocalizations.of(context),
                 missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
                 missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
               ),
@@ -5896,7 +6674,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (!mounted) return false;
         if (!succeeded) {
           ref.read(toastManagerProvider.notifier).showToast(
-                '请求智能片头片尾接口失败，请检查飞鲸服务端配置',
+                _l10n.playerSmartSkipRequestFailed,
                 style: ToastStyle.liquidGlass,
                 type: ToastType.failed,
                 category: 'smart-skip-load-error',
@@ -5915,7 +6693,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } catch (error) {
       if (!mounted) return false;
       ref.read(toastManagerProvider.notifier).showToast(
-            '设置失败: $error',
+            _l10n.playerSkipConfigSaveFailed('$error'),
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'smart-skip-setting',
@@ -5933,7 +6711,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final analysis = ref.read(episodeAnalysisControllerProvider);
     final controller = ref.read(episodeAnalysisControllerProvider.notifier);
     final cache = _playingInfoCache;
-    final mediaGuid = analysis.mediaGuid ?? cache?.currentVideoStream?.mediaGuid;
+    final mediaGuid =
+        analysis.mediaGuid ?? cache?.currentVideoStream?.mediaGuid;
     if (mediaGuid == null) return false;
 
     await controller.updateContext(
@@ -5974,7 +6753,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           svgAssetPath:
               _isPlaying ? 'assets/images/pause.svg' : 'assets/images/play.svg',
           onPressed: _togglePlayPause,
-          tooltip: '播放/暂停',
+          tooltip: _l10n.playerPlayPause,
           size: 34,
           iconSize: 22,
         ),
@@ -5982,7 +6761,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         PlayerActionButton.svg(
           svgAssetPath: 'assets/images/back10s.svg',
           onPressed: () => _seekRelative(-10000),
-          tooltip: '快退 10 秒',
+          tooltip: _l10n.playerRewindTenSeconds,
           size: 30,
           iconSize: 20,
         ),
@@ -5990,7 +6769,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         PlayerActionButton.svg(
           svgAssetPath: 'assets/images/forward10s.svg',
           onPressed: () => _seekRelative(10000),
-          tooltip: '快进 10 秒',
+          tooltip: _l10n.playerForwardTenSeconds,
           size: 30,
           iconSize: 20,
         ),
@@ -6029,8 +6808,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             false) ...[
           CloudAccountChip(
             key: const ValueKey('player-cloud-account-chip'),
-            cloudStorageInfo:
-                _playingInfoCache!.streamInfo!.cloudStorageInfo!,
+            cloudStorageInfo: _playingInfoCache!.streamInfo!.cloudStorageInfo!,
             isDirectLink: _playingInfoCache!.isUseDirectLink,
             yOffset: _controlFlyoutOffset,
             isActiveControl:
@@ -6075,9 +6853,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             currentResolution: _currentResolution,
             currentBitrate: _currentBitrate,
             cloudMode: _isCloudDirectSession,
-            isStrm:
-                _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
-                    false,
+            isStrm: _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
+                false,
             yOffset: _controlFlyoutOffset,
             isActiveControl:
                 overlayState.activeFlyout == PlayerFlyoutType.quality,
@@ -6100,7 +6877,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ? 'assets/images/danmu_open.svg'
                   : 'assets/images/danmu_close.svg',
               onPressed: () => unawaited(_onDanmakuTogglePressed()),
-              tooltip: danmakuState.isVisible ? '关闭弹幕' : '开启弹幕',
+              tooltip: danmakuState.isVisible
+                  ? _l10n.playerDanmakuClose
+                  : _l10n.playerDanmakuOpen,
               size: 34,
               iconSize: 24,
             ),
@@ -6167,13 +6946,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           totalDurationMillis: _duration,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
           smartSkipEnabled: _effectiveSmartSkipEnabled(),
-          isSmartAnalysisGloballyEnabled: settings.flyNarwhalServerEnabled,
+          // Netdisk/STRM sources cannot be analyzed server-side, so present
+          // smart skip as unavailable there: the toggle, the config entry and
+          // the "智能跳过" value text all follow this flag.
+          isSmartAnalysisGloballyEnabled:
+              settings.flyNarwhalServerEnabled && !_isCloudOrStrmPlayback,
+          // Smart skip itself works on every server that serves
+          // /api/analysis/segments; only the config endpoint is newer. The flag
+          // below drives the config entry alone, so an old server keeps the
+          // toggle but loses the config page.
+          isSmartSkipConfigAvailable: _smartSkipConfigAvailable(settings),
           isSavingSkipConfig: _isSavingSkipConfig,
           onSmartSkipEnabledChanged: _setSmartSkipEnabled,
           isFlyNarwhalServerAvailable: settings.isFlyNarwhalServerAvailable,
           onFlyNarwhalConfigMissing: () {
             ref.read(toastManagerProvider.notifier).showToast(
                   buildFlyNarwhalConfigWarning(
+                    AppLocalizations.of(context),
                     missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
                     missingAuthCode: !settings.hasFlyNarwhalAuthCode,
                   ),
@@ -6203,8 +6992,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onForceSdrColorChanged:
               _forceSdrDisabledReason == null ? _onForceSdrColorChanged : null,
           forceSdrDisabledReason: _forceSdrDisabledReason,
+          directLinkCdnRange: _isDirectLinkCdnRange,
+          onDirectLinkCdnRangeChanged: _onDirectLinkCdnRangeChanged,
+          directLinkCdnRangeVisible: _showDirectLinkCdnRange,
           decodeMode: _decodeMode,
           onDecodeModeChanged: _onDecodeModeChanged,
+          audioPassthrough: _isAudioPassthrough,
+          onAudioPassthroughChanged: _onAudioPassthroughChanged,
+          audioOutputDevices: _audioOutputOptions,
+          audioOutputDeviceName: _audioOutputDeviceName,
+          onAudioOutputDeviceChanged: _onAudioOutputDeviceChanged,
           availableHwdec: _availableHwdec,
           onSkipConfigChanged: (skipOpening, skipEnding) {
             unawaited(_saveSkipConfig(skipOpening, skipEnding));
@@ -6231,7 +7028,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             key: const ValueKey('player-enter-pip'),
             lottieAssetPath: 'assets/lottie/to_pip.json',
             onPressed: () => unawaited(_enterPipMode()),
-            tooltip: '画中画',
+            tooltip: _l10n.playerPip,
             size: 30,
             iconSize: 22,
           ),
@@ -6266,15 +7063,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Closes the “播放详细信息” panel. Kept a single code path so the panel's
-  /// close button and the top-bar toggle run the exact same cleanup. The
-  /// panel collapses back into its trigger button with the liquid morph
-  /// animation; the widget tree is disposed once the morph has settled
-  /// (see [_handlePlaybackDetailsMorphSettled]).
+  /// close button and the top-bar toggle run the exact same cleanup. In the
+  /// liquid glass style the panel collapses back into its trigger button with
+  /// the morph animation and the widget tree is disposed once the morph has
+  /// settled (see [_handlePlaybackDetailsMorphSettled]); the frosted style has
+  /// no transition, so the subtree simply disappears.
   void _closePlaybackDetails() {
     if (!_isPlaybackDetailsVisible) return;
+    final liquidGlass = ref.read(settingsProvider).playerDetailsLiquidGlass;
     setState(() => _isPlaybackDetailsVisible = false);
-    _playbackDetailsAnimClosing = true;
-    _playbackDetailsMorphController.close();
+    _playbackDetailsAnimClosing = liquidGlass;
+    if (liquidGlass) _playbackDetailsMorphController.close();
     _stopPlaybackDetailsPolling();
     _showUi();
   }
@@ -6373,6 +7172,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final topPadding = _isMacOS && !_isFullscreen ? 12.0 : 6.0;
     final topBarContentHeight = _isMacOS ? 30.0 : 36.0;
     final topBarDragHeight = topPadding + topBarContentHeight;
+    final isWindows =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
     return SafeArea(
       child: SizedBox(
@@ -6426,10 +7227,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             'player-window-caption-pin-button',
                           ),
                           brightness: Brightness.dark,
+                          // Match the square window controls' 34x34 hover area.
+                          compact: isWindows,
                           buttonSize: _isMacOS ? 30 : 34,
-                          iconSize: _isMacOS ? 16 : 18,
-                          borderRadius:
-                              BorderRadius.circular(_isMacOS ? 15 : 17),
+                          iconSize: isWindows || _isMacOS ? 16 : 18,
+                          borderRadius: playerTopBarActionBorderRadius,
                         ),
                         const SizedBox(width: 4),
                         // The GlobalKey lets the playback details morph
@@ -6443,13 +7245,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             ),
                             iconData: FluentIcons.info,
                             onPressed: _togglePlaybackDetails,
-                            tooltip: '播放详细信息',
+                            tooltip: _l10n.playerPlaybackDetailsTooltip,
                             size: _isMacOS ? 30 : 34,
-                            iconSize: _isMacOS ? 16 : 18,
-                            borderRadius: BorderRadius.circular(
-                              _isMacOS ? 15 : 17,
-                            ),
+                            iconSize: isWindows || _isMacOS ? 16 : 18,
+                            borderRadius: playerTopBarActionBorderRadius,
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        const PlayerWindowCaptionControls(
+                          keyPrefix: 'player-window',
                         ),
                       ],
                     ),
@@ -6468,7 +7272,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       key: const ValueKey('player-back-button'),
       iconData: FluentIcons.back,
       onPressed: _handleBack,
-      tooltip: '返回',
+      tooltip: _l10n.playerBack,
       size: _isMacOS ? 30 : 34,
       iconSize: _isMacOS ? 15 : 18,
       borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
@@ -6861,9 +7665,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _windowAspectRatioController.release(restoreNormalMinimumSize: false),
       );
       unawaited(
-        ref
-            .read(playerSettingsManagerProvider)
-            .setPlayerWindowFullscreen(true),
+        ref.read(playerSettingsManagerProvider).setPlayerWindowFullscreen(true),
       );
     }
     setState(() => _isFullscreen = true);
@@ -7029,8 +7831,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _showFeatureComingSoon(String feature) {
-    ref
-        .read(toastManagerProvider.notifier)
-        .showToast('$feature 暂未接入', style: ToastStyle.liquidGlass, type: ToastType.info);
+    ref.read(toastManagerProvider.notifier).showToast(
+        _l10n.playerFeatureComingSoon(feature),
+        style: ToastStyle.liquidGlass,
+        type: ToastType.info);
   }
 }

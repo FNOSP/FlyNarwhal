@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/models/home_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../domain/entities/media_type.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
@@ -31,7 +32,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   static const Duration _tabSwitchAnimationDuration =
       Duration(milliseconds: 300);
 
-  String _selectedTab = favoritesTabs.first;
+  FavoritesTab _selectedTab = favoritesTabs.first;
   int _selectedTabIndex = 0;
   int _tabSwitchDirection = 1;
   bool _enableTabAnimation = false;
@@ -213,7 +214,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         items: [
           MenuFlyoutItem(
             key: ValueKey('smart-analysis-${item.guid}'),
-            text: const Text('智能分析片头/片尾'),
+            text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
             onPressed: isSubmitting
                 ? null
                 : () {
@@ -232,6 +233,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !settings.hasFlyNarwhalAuthCode,
             ),
@@ -257,26 +259,44 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   // Show toast for smart analysis submission result
   void _showAnalysisToast(
+    AppLocalizations l10n,
     SmartAnalysisTargetType targetType,
     String targetGuid,
     AsyncValue<String>? previous,
     AsyncValue<String>? next,
   ) {
-    if (next == null || next.isLoading || identical(previous, next)) return;
+    if (next == null || identical(previous, next)) return;
+    final baseCategory = 'smart-analysis:${targetType.name}:$targetGuid';
+    if (next.isLoading) {
+      // Immediate feedback while the slow collection/submit runs (KMP parity).
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.smartAnalysisQueuedLoading,
+            type: ToastType.success,
+            category: baseCategory,
+          );
+      return;
+    }
     next.when(
       data: (message) {
         ref.read(toastManagerProvider.notifier).showToast(
               message,
               type: ToastType.success,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
       loading: () {},
       error: (error, stackTrace) {
+        final isSubmissionFailure =
+            error is SmartAnalysisSubmissionException &&
+                error.preparingStarted;
         ref.read(toastManagerProvider.notifier).showToast(
-              error.toString(),
+              isSubmissionFailure
+                  ? l10n.smartSkipAnalysisFailedRetry
+                  : error is SmartAnalysisUserMessageException
+                      ? error.message
+                      : error.toString(),
               type: ToastType.failed,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
     );
@@ -284,6 +304,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
     final favoritesState = ref.watch(favoritesBrowseNotifierProvider);
     final favoritesNotifier =
@@ -331,12 +352,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           (state) => state.submissionFor(targetType, item.guid),
         ),
         (previous, next) =>
-            _showAnalysisToast(targetType, item.guid, previous, next),
+            _showAnalysisToast(l10n, targetType, item.guid, previous, next),
       );
     }
 
     final selectedFilters = favoritesState.query.selectedFilters;
-    final headerTitle = favoritesState.mdbName ?? '收藏';
+    final headerTitle = favoritesState.mdbName ?? l10n.navFavorites;
     final selectedCacheKey = favoritesState.query.selectedCacheKey;
     final scrollController = _getScrollController(selectedCacheKey);
     final contentKey = favoritesState.isInitializing ||
@@ -394,7 +415,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 unawaited(favoritesNotifier.switchTab(tab));
                               },
                               builder: (context, states) => Text(
-                                tab,
+                                favoritesTabLabel(l10n, tab),
                                 style: TextStyle(
                                   fontWeight: isSelected
                                       ? FontWeight.bold
@@ -431,7 +452,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   ),
                   child: Row(
                     children: [
-                      if (_selectedTab != '人物')
+                      if (_selectedTab != FavoritesTab.person)
                         FilterButton(
                           isSelected: _isFilterOpen,
                           selectedFilters: selectedFilters,
@@ -449,11 +470,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         onSortOrderSelected: (order) {
                           unawaited(favoritesNotifier.updateSortOrder(order));
                         },
-                        sortOptions: const [
-                          SortItem('收藏时间', 'create_time'),
-                          SortItem('发行年份', 'release_date'),
-                          SortItem('标题', 'sort_title'),
-                          SortItem('评分', 'vote_average'),
+                        sortOptions: [
+                          SortItem(l10n.sortAddedDate, 'create_time'),
+                          SortItem(l10n.sortReleaseYear, 'release_date'),
+                          SortItem(l10n.sortTitle, 'sort_title'),
+                          SortItem(l10n.sortScore, 'vote_average'),
                         ],
                       ),
                     ],
@@ -546,7 +567,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                       height: 150 * scaleFactor,
                                     ),
                                     const SizedBox(height: 12),
-                                    const Text('无数据'),
+                                    Text(l10n.personNoData),
                                   ],
                                 ),
                               )
@@ -563,6 +584,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 ),
                                 itemCount: items.length,
                                 itemBuilder: (context, index) {
+                                  final l10n =
+                                      AppLocalizations.of(context);
                                   final item = items[index];
                                   return LayoutBuilder(
                                       builder: (context, constraints) {
@@ -573,7 +596,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                       builder: (moreFlyoutController) =>
                                           MoviePoster(
                                     title: item.title,
-                                    subtitle: buildPosterSubtitle(item),
+                                    subtitle: buildPosterSubtitle(item, l10n),
                                     posterPath: item.effectivePoster,
                                     score: item.voteAverage,
                                     resolutions: item.mediaStream?.resolutions,

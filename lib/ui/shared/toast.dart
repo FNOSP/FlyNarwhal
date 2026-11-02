@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../l10n/generated/app_localizations.dart';
 import 'window_caption.dart';
 
 const Duration _defaultToastDuration = Duration(seconds: 2);
@@ -52,13 +53,14 @@ const LiquidGlassSettings _liquidGlassToastSettings = LiquidGlassSettings(
 );
 
 // Build warning message based on missing FlyNarwhal config fields
-String buildFlyNarwhalConfigWarning({
+String buildFlyNarwhalConfigWarning(
+  AppLocalizations l10n, {
   required bool missingUrl,
   required bool missingAuthCode,
 }) {
-  if (missingUrl && missingAuthCode) return '请填写飞鲸服务端 URL 和授权码';
-  if (missingUrl) return '请填写飞鲸服务端 URL';
-  return '请填写飞鲸服务端授权码';
+  if (missingUrl && missingAuthCode) return l10n.toastServerCredentialsRequired;
+  if (missingUrl) return l10n.toastServerUrlRequired;
+  return l10n.toastServerAuthCodeRequired;
 }
 
 @immutable
@@ -78,6 +80,12 @@ class ToastMessage {
   final ToastType type;
   final ToastStyle style;
   final Duration duration;
+
+  /// Identity of a coalescing toast, or null when the toast never coalesces.
+  ///
+  /// Only callers that pass `coalesce: true` set this; a toast carrying a
+  /// category for any other reason is inert and behaves like an uncategorised
+  /// one (it stacks instead of replacing).
   final String? category;
   final int revision;
 
@@ -105,12 +113,10 @@ class ToastPresentation {
   const ToastPresentation({
     required this.assetPath,
     required this.iconColor,
-    required this.semanticLabel,
   });
 
   final String assetPath;
   final Color iconColor;
-  final String semanticLabel;
 }
 
 extension ToastTypePresentation on ToastType {
@@ -119,25 +125,32 @@ extension ToastTypePresentation on ToastType {
       ToastType.success => const ToastPresentation(
           assetPath: 'assets/images/toast_success.svg',
           iconColor: Color(0xFF5DC264),
-          semanticLabel: '成功',
         ),
       ToastType.failed => const ToastPresentation(
           assetPath: 'assets/images/toast_error.svg',
           iconColor: Color(0xFFFF7864),
-          semanticLabel: '错误',
         ),
       ToastType.info => const ToastPresentation(
           assetPath: 'assets/images/toast_info.svg',
           iconColor: Color(0xFF409EFF),
-          semanticLabel: '信息',
         ),
       ToastType.warning => const ToastPresentation(
           assetPath: 'assets/images/toast_warning.svg',
           iconColor: Color(0xFFFFAA43),
-          semanticLabel: '警告',
         ),
     };
   }
+}
+
+// Localized semantics label for the toast type, used as the accessibility
+// prefix for the toast message.
+String _toastTypeLabel(AppLocalizations l10n, ToastType type) {
+  return switch (type) {
+    ToastType.success => l10n.toastSuccess,
+    ToastType.failed => l10n.toastError,
+    ToastType.info => l10n.toastInfo,
+    ToastType.warning => l10n.toastWarning,
+  };
 }
 
 class ToastManager extends StateNotifier<List<ToastMessage>> {
@@ -148,12 +161,22 @@ class ToastManager extends StateNotifier<List<ToastMessage>> {
   final Uuid _uuid;
   int _nextRevision = 0;
 
+  /// Shows a toast.
+  ///
+  /// By default every call stacks a brand-new toast under the ones already on
+  /// screen, and [category] is merely a label with no effect. Pass
+  /// `coalesce: true` together with a [category] for transient feedback that
+  /// repeats the same slot: the repeat replaces the previous toast in place,
+  /// restarts its lifetime and keeps its position in the stack instead of
+  /// piling up a second bubble. Player seek and volume feedback are the only
+  /// callers that need this.
   void showToast(
     String message, {
     ToastType type = ToastType.success,
     ToastStyle style = ToastStyle.fluent,
     Duration duration = _defaultToastDuration,
     String? category,
+    bool coalesce = false,
   }) {
     final normalizedMessage = message.trim();
     if (normalizedMessage.isEmpty) {
@@ -162,9 +185,10 @@ class ToastManager extends StateNotifier<List<ToastMessage>> {
 
     final normalizedDuration =
         duration > Duration.zero ? duration : _defaultToastDuration;
-    final existingIndex = category == null
+    final coalescedCategory = coalesce ? category : null;
+    final existingIndex = coalescedCategory == null
         ? -1
-        : state.indexWhere((toast) => toast.category == category);
+        : state.indexWhere((toast) => toast.category == coalescedCategory);
 
     if (existingIndex >= 0) {
       final updatedToasts = [...state];
@@ -187,7 +211,7 @@ class ToastManager extends StateNotifier<List<ToastMessage>> {
         type: type,
         style: style,
         duration: normalizedDuration,
-        category: category,
+        category: coalescedCategory,
         revision: _takeNextRevision(),
       ),
     ]);
@@ -376,6 +400,7 @@ class _ToastItemState extends State<_ToastItem>
   @override
   Widget build(BuildContext context) {
     final presentation = widget.toast.type.presentation;
+    final l10n = AppLocalizations.of(context);
 
     final Widget body = widget.toast.style == ToastStyle.liquidGlass
         ? _buildLiquidGlassBody(presentation)
@@ -383,7 +408,8 @@ class _ToastItemState extends State<_ToastItem>
 
     return Semantics(
       liveRegion: true,
-      label: '${presentation.semanticLabel}：${widget.toast.message}',
+      label:
+          '${_toastTypeLabel(l10n, widget.toast.type)}：${widget.toast.message}',
       child: SlideTransition(
         position: _offsetAnimation,
         child: FadeTransition(

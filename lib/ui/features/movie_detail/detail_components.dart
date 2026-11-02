@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../player/widgets/subtitle_selection_panel.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 import 'package:fly_narwhal/ui/shared/media_category_icon.dart';
@@ -114,12 +115,13 @@ class DetailTags extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final List<Widget> items = [];
 
     final voteAverage = double.tryParse(item.voteAverage) ?? 0.0;
     if (!isEpisode && voteAverage > 0) {
       items.add(Text(
-        '${voteAverage.toStringAsFixed(1)} 分',
+        l10n.tvDetailScore(voteAverage.toStringAsFixed(1)),
         style: const TextStyle(
           color: Color(0xFFFACC15),
           fontSize: 14,
@@ -249,7 +251,7 @@ class DetailTags extends StatelessWidget {
         smartAnalysisStatusText != null &&
         smartAnalysisStatusText!.isNotEmpty) {
       items.add(Text(
-        '智能片头/片尾检测状态：$smartAnalysisStatusText',
+        l10n.movieDetailSmartAnalysisStatus(smartAnalysisStatusText!),
         style: TextStyle(
           color: FluentTheme.of(context)
               .typography
@@ -293,12 +295,13 @@ class _ImdbLinkState extends State<ImdbLink> {
   @override
   Widget build(BuildContext context) {
     if (widget.imdbId.isEmpty) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '链接:  ',
+          l10n.linkLabel,
           style: TextStyle(
             color: FluentTheme.of(context)
                 .typography
@@ -320,7 +323,7 @@ class _ImdbLinkState extends State<ImdbLink> {
               }
             },
             child: Text(
-              'IMDB链接',
+              l10n.imdbLinkLabel,
               style: TextStyle(
                 color: FluentTheme.of(context).typography.bodyStrong?.color,
                 fontSize: 14,
@@ -352,7 +355,6 @@ class MediaDescription extends StatefulWidget {
 }
 
 class _MediaDescriptionState extends State<MediaDescription> {
-  static const String _moreLabel = '更多';
   static const double _moreGap = 4;
   // 测量与渲染布局差异的安全余量：避免“恰好填满”的临界状态
   // 把“更多”按钮挤到被 maxLines 裁掉的下一行。
@@ -360,6 +362,7 @@ class _MediaDescriptionState extends State<MediaDescription> {
 
   @override
   Widget build(BuildContext context) {
+    final moreLabel = AppLocalizations.of(context).actionMore2;
     final maxLines = widget.isSeason ? 2 : 4;
     final processedOverview = widget.overview.replaceAll('\n\n', '\n');
     // 测量用样式必须与 Text.rich 实际渲染继承的字体一致（含 DefaultTextStyle
@@ -398,7 +401,7 @@ class _MediaDescriptionState extends State<MediaDescription> {
         }
 
         final moreWidth = (TextPainter(
-          text: TextSpan(text: _moreLabel, style: measuredMoreStyle),
+          text: TextSpan(text: moreLabel, style: measuredMoreStyle),
           textDirection: TextDirection.ltr,
         )..layout())
             .width;
@@ -464,7 +467,7 @@ class _MediaDescriptionState extends State<MediaDescription> {
                   onTap: widget.onMore,
                   child: Padding(
                     padding: const EdgeInsets.only(left: _moreGap),
-                    child: const Text(_moreLabel, style: moreStyle),
+                    child: Text(moreLabel, style: moreStyle),
                   ),
                 ),
               ),
@@ -874,7 +877,9 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
   ) {
     final theme = FluentTheme.of(context);
     final isSelected = item.value == widget.selectedValue;
-    final titleText = item.isDefault ? '${item.title} - 默认' : item.title;
+    final titleText = item.isDefault
+        ? AppLocalizations.of(context).defaultSuffix(item.title)
+        : item.title;
     final subtitleText = [
       item.subtitle1,
       item.subtitle2,
@@ -940,7 +945,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Text(
-            '无内容',
+            AppLocalizations.of(context).mediaInfoNoContent,
             style: TextStyle(
               fontSize: 13,
               color: FluentTheme.of(context)
@@ -1204,7 +1209,7 @@ class _SubtitleStreamSelectorState extends State<SubtitleStreamSelector> {
 
   @override
   Widget build(BuildContext context) {
-    final label = widget.selectedLabel ?? '字幕';
+    final label = widget.selectedLabel ?? AppLocalizations.of(context).movieDetailSubtitleLabel;
 
     return FlyoutTarget(
       controller: _controller,

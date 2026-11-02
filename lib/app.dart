@@ -1,7 +1,14 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/services.dart' show MethodChannel;
+import 'package:flutter/services.dart'
+    show
+        HardwareKeyboard,
+        KeyDownEvent,
+        LogicalKeyboardKey,
+        MethodChannel,
+        PhysicalKeyboardKey,
+        SelectionChangedCause;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,15 +34,59 @@ import 'data/storage/account_settings_store.dart';
 import 'data/storage/kmp_preferences_migration_service.dart';
 import 'data/storage/kmp_windows_preferences_reader.dart';
 import 'data/storage/update_settings_store.dart';
+import 'providers/fly_narwhal_server_capabilities.dart';
+import 'providers/fly_narwhal_server_update_available_notifier.dart';
 import 'providers/providers.dart';
 import 'providers/reporting_providers.dart';
 import 'providers/update_providers.dart';
 import 'services/update/update_scheduler.dart';
 import 'services/window/main_window_lifecycle_controller.dart';
+import 'l10n/generated/app_localizations.dart';
 import 'tooling/driver_test_mode.dart';
 import 'ui/navigation/app_router.dart';
+import 'ui/settings/app_language.dart';
+import 'ui/settings/ui_font_scale.dart';
 import 'ui/shared/ssl_trust_dialog_host.dart';
 import 'ui/shared/toast.dart';
+
+/// Windows clipboard-history (Win+V) paste workaround.
+///
+/// Choosing an item in the Win+V panel makes Windows synthesize a Ctrl+V chord
+/// from raw injected key events that carry no scan code. Flutter's Windows
+/// embedder reads the Control modifier state while processing that chord and,
+/// because the whole injected sequence is flushed at once, it sees Control
+/// already released: the V key-down reaches the framework as a bare "V", so the
+/// default `Ctrl+V -> PasteTextIntent` shortcut never fires and nothing is
+/// pasted. The injected V is still recognizable — with no scan code it cannot be
+/// mapped to a physical key, so its `physicalKey` never equals
+/// [PhysicalKeyboardKey.keyV] (a physical V always does). Detect that case and
+/// run the paste action ourselves so every text field accepts clipboard-history
+/// pastes. A physical Ctrl+V is unaffected (Control is genuinely held, so it is
+/// left to the default shortcut).
+void _installWindowsClipboardHistoryPasteFallback() {
+  if (kIsWeb || !Platform.isWindows) return;
+  HardwareKeyboard.instance.addHandler((event) {
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyV) {
+      return false;
+    }
+    // A genuine Ctrl+V arrives with Control pressed and is already handled by
+    // the framework; only rescue the modifier-less injected variant, which is
+    // identified by its empty scan code (unresolvable physical key). The
+    // control character is checked too in case the embedder ever preserves it.
+    if (HardwareKeyboard.instance.isControlPressed) return false;
+    final isInjected = event.physicalKey != PhysicalKeyboardKey.keyV ||
+        event.character == '\u0016';
+    if (!isInjected) return false;
+    final context = FocusManager.instance.primaryFocus?.context;
+    if (context != null) {
+      Actions.maybeInvoke(
+        context,
+        const PasteTextIntent(SelectionChangedCause.keyboard),
+      );
+    }
+    return true;
+  });
+}
 
 MainWindowLifecycleController? mainWindowLifecycleController;
 
@@ -45,6 +96,7 @@ Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    _installWindowsClipboardHistoryPasteFallback();
     await LiquidGlassWidgets.initialize();
     final talker = await AppTalker.initialize();
 
@@ -306,6 +358,9 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
       // Instantiate the server-update notifier so its reactive triggers
       // (server enable, login change, manual check) are registered up front.
       ref.read(flyNarwhalServerUpdateProvider);
+      // Ask the server which version it runs at launch (when the server is
+      // enabled and configured) so a newer release can be announced.
+      unawaited(_checkServerUpdateAtLaunch());
       // Register the one-shot per-user settings migration listener before any
       // UI reads settings, so the first successful login migrates + clears the
       // global namespace exactly once.
@@ -314,6 +369,22 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
       _scheduler = scheduler;
       unawaited(_reportLaunch());
     });
+  }
+
+  /// Checks at launch whether the repository has a newer server release.
+  ///
+  /// Skipped when settings aren't loaded yet — the settings page runs the same
+  /// check on entry, so a user whose session lands late is still told.
+  Future<void> _checkServerUpdateAtLaunch() async {
+    if (!ref.read(settingsProvider).isFlyNarwhalServerAvailable) return;
+    final l10n = AppLocalizations.of(context);
+    await ref.read(serverVersionProbeProvider.future);
+    if (!mounted) return;
+    showServerUpdateAvailableToast(
+      ref,
+      l10n,
+      ref.read(flyNarwhalServerUpdateAvailableProvider),
+    );
   }
 
   Future<void> _reportLaunch() async {
@@ -391,25 +462,44 @@ class MyApp extends ConsumerWidget {
     return FluentApp.router(
       title: '飞鲸影视',
       debugShowCheckedModeBanner: false,
+      locale: AppLanguage.localeFromValue(settings.language),
+      supportedLocales: const <Locale>[
+        Locale('zh'),
+        Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+        Locale('en'),
+      ],
+      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+        AppLocalizations.delegate,
+        ...FluentLocalizations.localizationsDelegates,
+      ],
       theme: FluentThemeData(
         brightness: isDark ? Brightness.dark : Brightness.light,
         accentColor: Colors.blue,
-        fontFamily: AppFonts.primary,
+        fontFamily: AppFonts.primaryFor(settings.language),
       ),
       routeInformationParser: router.routeInformationParser,
       routerDelegate: router.routerDelegate,
       routeInformationProvider: router.routeInformationProvider,
       builder: (context, child) {
-        return _MouseBackNavigationListener(
-          router: router,
-          navigationStackNotifier: ref.read(navigationStackProvider.notifier),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (child != null) child,
-              const ToastHost(),
-              const SslTrustDialogHost(),
-            ],
+        // Applied above the Navigator, so the scale reaches every route,
+        // dialog and the self-drawn window caption.
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(
+              UiFontScale.factorFromValue(settings.uiFontScale),
+            ),
+          ),
+          child: _MouseBackNavigationListener(
+            router: router,
+            navigationStackNotifier: ref.read(navigationStackProvider.notifier),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (child != null) child,
+                const ToastHost(),
+                const SslTrustDialogHost(),
+              ],
+            ),
           ),
         );
       },

@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../domain/entities/live_library_settings.dart';
+import '../../l10n/generated/app_localizations.dart';
 import 'semi_icons.dart';
 
 /// 布局菜单形态：
@@ -43,12 +44,12 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
 
   // 普通媒体库(compact)菜单：仅 竖幅海报/横幅海报 两项，均可切换，镜像 Web `/library/:id`。
   List<MenuFlyoutItemBase> _buildCompactItems(
-      BuildContext context, Color checkColor) {
+      BuildContext context, Color checkColor, AppLocalizations l10n) {
     return [
       MenuFlyoutItem(
         key: const ValueKey('layout-vertical-poster'),
         leading: const _PosterShapeIcon(vertical: true),
-        text: const Text('竖幅海报'),
+        text: Text(l10n.layoutVerticalPoster),
         trailing: widget.viewType == LiveViewType.verticalPoster
             ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
             : null,
@@ -60,7 +61,7 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
       MenuFlyoutItem(
         key: const ValueKey('layout-horizontal-poster'),
         leading: const _PosterShapeIcon(vertical: false),
-        text: const Text('横幅海报'),
+        text: Text(l10n.layoutBannerPoster),
         trailing: widget.viewType == LiveViewType.horizontalPoster
             ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
             : null,
@@ -74,12 +75,12 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
 
   // 直播库(live)菜单：海报墙/列表分组 + 竖幅/横幅海报。
   List<MenuFlyoutItemBase> _buildLiveItems(
-      BuildContext context, Color checkColor) {
+      BuildContext context, Color checkColor, AppLocalizations l10n) {
     return [
       MenuFlyoutItem(
         key: const ValueKey('layout-poster-wall'),
         leading: const Icon(FluentIcons.grid_view_medium, size: 16),
-        text: const Text('海报墙'),
+        text: Text(l10n.layoutPosterWall),
         trailing: _isPosterWall
             ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
             : null,
@@ -91,7 +92,7 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
       MenuFlyoutItem(
         key: const ValueKey('layout-list'),
         leading: const Icon(FluentIcons.bulleted_list, size: 16),
-        text: const Text('列表'),
+        text: Text(l10n.layoutList),
         trailing: !_isPosterWall
             ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
             : null,
@@ -104,7 +105,7 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
       MenuFlyoutItem(
         key: const ValueKey('layout-vertical-poster'),
         leading: const _PosterShapeIcon(vertical: true),
-        text: const Text('竖幅海报'),
+        text: Text(l10n.layoutVerticalPoster),
         trailing: widget.viewType == LiveViewType.verticalPoster
             ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
             : null,
@@ -118,7 +119,7 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
       MenuFlyoutItem(
         key: const ValueKey('layout-horizontal-poster'),
         leading: const _PosterShapeIcon(vertical: false),
-        text: const Text('横幅海报'),
+        text: Text(l10n.layoutBannerPoster),
         trailing: widget.viewType == LiveViewType.horizontalPoster
             ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
             : null,
@@ -142,11 +143,12 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
         placementMode: FlyoutPlacementMode.bottomLeft,
         builder: (context) {
           final theme = FluentTheme.of(context);
+          final l10n = AppLocalizations.of(context);
           final checkColor = theme.typography.body?.color ?? Colors.white;
           return MenuFlyout(
             items: widget.variant == LayoutMenuVariant.compact
-                ? _buildCompactItems(context, checkColor)
-                : _buildLiveItems(context, checkColor),
+                ? _buildCompactItems(context, checkColor, l10n)
+                : _buildLiveItems(context, checkColor, l10n),
           );
         },
       );
@@ -160,6 +162,7 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = AppLocalizations.of(context);
     final textColor = theme.typography.body?.color ?? Colors.white;
     final active = _hovered || _isFlyoutOpen;
 
@@ -189,7 +192,7 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '布局',
+                  l10n.layoutTitle,
                   style: theme.typography.body?.copyWith(
                     fontSize: 16,
                     color: textColor,

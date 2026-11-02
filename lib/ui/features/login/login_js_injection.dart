@@ -4,12 +4,16 @@ class LoginJsInjectionBuilder {
     required this.autoLoginPasswordLiteral,
     required this.allowAutoLogin,
     required this.usernameHistoryJsonLiteral,
+    required this.rememberPasswordLabel,
   });
 
   final String autoLoginUsernameLiteral;
   final String autoLoginPasswordLiteral;
   final bool allowAutoLogin;
   final String usernameHistoryJsonLiteral;
+
+  /// Localized "remember password" label injected into the NAS login page.
+  final String rememberPasswordLabel;
 
   String build() {
     return '''
@@ -26,11 +30,20 @@ class LoginJsInjectionBuilder {
   // which trips that reload loop even though the page recovers. The
   // alert only blocks the recovered page, so suppress it; fnOS's own
   // reload counter still terminates the loop on the recovered page.
+  // The alert is rendered in the fnOS UI locale, so match both the
+  // Chinese and English wording (kept loose to tolerate minor phrasing
+  // differences between fnOS versions).
   if (!window.__flynarwhal_alert_guarded) {
     window.__flynarwhal_alert_guarded = true;
     var originalAlert = window.alert ? window.alert.bind(window) : null;
+    function isTerminalSystemErrorAlert(message) {
+      var text = String(message);
+      if (text.indexOf('系统异常') !== -1 && text.indexOf('管理员') !== -1) return true;
+      if (text.indexOf('System error') !== -1 && text.indexOf('administrator') !== -1) return true;
+      return false;
+    }
     window.alert = function(message) {
-      if (String(message).indexOf('系统异常，请联系管理员修复系统') !== -1) return;
+      if (isTerminalSystemErrorAlert(message)) return;
       if (originalAlert) originalAlert(message);
     };
   }
@@ -58,6 +71,49 @@ class LoginJsInjectionBuilder {
 
   function getPasswordInput() {
     return document.querySelector('#password') || document.querySelector('input[name="password"]') || document.querySelector('input[type="password"]');
+  }
+
+  function getAccessCodeInput() {
+    return document.querySelector('#access-code-input') || document.querySelector('input[name="access-code"]');
+  }
+
+  // Report the fnOS access code to the host so it can establish a native
+  // gateway session (GET /access_code_verify) for the NAS API requests.
+  function reportAccessCode() {
+    var input = getAccessCodeInput();
+    if (!input) return;
+    var value = (input.value || '').trim();
+    if (!value || value === window.__flynarwhal_last_access_code) return;
+    window.__flynarwhal_last_access_code = value;
+    callNative('CaptureAccessCode', JSON.stringify({ code: value }));
+  }
+
+  function bindAccessCodeCapture() {
+    var input = getAccessCodeInput();
+    // The fnOS page gates on its own access-code step. Report that the page
+    // is gated so the host holds its `/signin` navigation; the page clears
+    // the gate by itself (its own /access_code_verify), which the fetch hook
+    // reports as `ReportGateState{cleared:true}`.
+    if (input && !window.__flynarwhal_gate_reported) {
+      window.__flynarwhal_gate_reported = true;
+      callNative('ReportGateState', JSON.stringify({ gated: true, cleared: false }));
+    }
+    if (!input) return;
+    if (!input.__flynarwhal_access_code_bound) {
+      input.__flynarwhal_access_code_bound = true;
+      input.addEventListener('change', reportAccessCode);
+      input.addEventListener('blur', reportAccessCode);
+    }
+    var form = input.closest('form');
+    if (form && !form.__flynarwhal_access_code_bound) {
+      form.__flynarwhal_access_code_bound = true;
+      form.addEventListener('submit', reportAccessCode);
+    }
+    var submitButton = document.querySelector('button[type="submit"]');
+    if (submitButton && !submitButton.__flynarwhal_access_code_bound) {
+      submitButton.__flynarwhal_access_code_bound = true;
+      submitButton.addEventListener('click', reportAccessCode);
+    }
   }
 
   function triggerInput(input, value) {
@@ -88,12 +144,22 @@ class LoginJsInjectionBuilder {
     }));
   }
 
-  function bindCapture(element, eventName) {
+  // fnOS re-dispatches change/click/submit on its login form on every render
+  // tick, so binding captureLogin directly to those events reports the form
+  // (including the plaintext password) several times per second. Only report
+  // events the user actually generated (`isTrusted`), plus the one scripted
+  // submit the auto-login path performs itself.
+  function onLoginEvent(event) {
+    if (event && event.isTrusted === false) return;
+    captureLogin();
+  }
+
+  function bindCapture(element, eventName, handler) {
     if (!element) return;
     var bindingKey = '__flynarwhal_' + eventName + '_bound';
     if (element[bindingKey]) return;
     element[bindingKey] = true;
-    element.addEventListener(eventName, captureLogin);
+    element.addEventListener(eventName, handler || onLoginEvent);
   }
 
   function ensureRememberPasswordCheckbox() {
@@ -101,6 +167,15 @@ class LoginJsInjectionBuilder {
     if (existingInput) return existingInput;
 
     var originalCheckbox = document.getElementById('stay');
+    if (!originalCheckbox) {
+      var stayDivs = document.querySelectorAll('div');
+      for (var stayIndex = 0; stayIndex < stayDivs.length; stayIndex++) {
+        if ((stayDivs[stayIndex].innerText || '').trim() === '保持登录') {
+          originalCheckbox = stayDivs[stayIndex].closest('.semi-checkbox');
+          break;
+        }
+      }
+    }
     var originalField = originalCheckbox ? originalCheckbox.closest('.semi-form-field') : null;
     var insertionContainer = originalField ? originalField.parentElement : null;
     if (!insertionContainer) {
@@ -126,7 +201,7 @@ class LoginJsInjectionBuilder {
     checkmark.style.cssText = 'display:none;color:#fff;font-size:14px;font-weight:bold;';
     box.appendChild(checkmark);
     var label = document.createElement('span');
-    label.textContent = '记住密码';
+    label.textContent = $rememberPasswordLabel;
     label.style.cssText = 'font-size:16px;line-height:22px;color:#fff;';
 
     function renderRememberPassword() {
@@ -231,6 +306,13 @@ class LoginJsInjectionBuilder {
         if (requestUrl.indexOf('/sac/rpcproxy/v1/new-user-guide/status') !== -1) {
           sendNetworkLog({ type: 'Fetch', url: requestUrl, cookie: document.cookie || '', pageUrl: window.location.href || '' });
         }
+        // The page ran its own access-code verification; once it succeeds the
+        // page's gateway session exists, so the host may navigate to /signin.
+        if (requestUrl.indexOf('/access_code_verify') !== -1) {
+          if (response.status >= 200 && response.status < 300) {
+            callNative('ReportGateState', JSON.stringify({ gated: false, cleared: true }));
+          }
+        }
         if (requestUrl.indexOf('/oauthapi/authorize') === -1 && requestUrl.indexOf('/v/api/v1/sys/config') === -1) return response;
         response.clone().text().then(function(body) {
           var payload = { type: 'Fetch', url: requestUrl, status: response.status, body: body, cookie: document.cookie || '', pageUrl: window.location.href || '' };
@@ -268,7 +350,11 @@ class LoginJsInjectionBuilder {
   function injectLoginPage() {
     hookFetch();
     hookXhr();
-    if (window.location.href.indexOf('/login') !== -1) {
+    bindAccessCodeCapture();
+    // The fnOS login form is not always served under /login (the OAuth entry
+    // point is /signin?client_id=...), so detect it by its own fields rather
+    // than by the URL path.
+    if (getUsernameInput() && getPasswordInput()) {
       ensureRememberPasswordCheckbox();
       bindLoginCapture();
       injectUsernameHistory();

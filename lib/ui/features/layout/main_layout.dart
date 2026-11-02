@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../home/home_view_model.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
+import '../../settings/ui_font_scale.dart';
 import '../../shared/window_caption.dart';
 import '../../shared/media_category_icon.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
@@ -139,6 +141,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final mediaDbList = ref.watch(mediaDbListNotifierProvider);
     final mediaSumAsync = ref.watch(mediaSumNotifierProvider);
     final mediaSum = mediaSumAsync.asData?.value ?? const <String, int>{};
@@ -218,7 +221,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
           if (list.isEmpty) {
             return [
               PaneItem(
-                title: const Text('暂无媒体库'),
+                title: Text(l10n.navNoMediaLibrary),
                 icon: const Icon(FluentIcons.info),
                 enabled: false,
                 body: const SizedBox.shrink(),
@@ -236,7 +239,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
         },
         loading: () => [
           PaneItem(
-            title: const Text('加载中…'),
+            title: Text(l10n.commonLoading),
             icon: const AppLoadingProgressRing(size: 16),
             enabled: false,
             body: const SizedBox.shrink(),
@@ -244,7 +247,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
         ],
         error: (err, _) => [
           PaneItem(
-            title: const Text('加载失败'),
+            title: Text(l10n.loadFailedTitle),
             icon: const Icon(FluentIcons.error),
             enabled: false,
             body: const SizedBox.shrink(),
@@ -257,35 +260,35 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       return [
         PaneItem(
           key: const ValueKey('category-total'),
-          title: const Text('全部'),
+          title: Text(l10n.searchTabAll),
           body: const SizedBox.shrink(),
           icon: buildNavigationAssetIcon('assets/images/category_all.svg'),
           trailing: buildCountText(mediaSum['total']),
         ),
         PaneItem(
           key: const ValueKey('category-movie'),
-          title: const Text('电影'),
+          title: Text(l10n.mediaTypeMovie),
           body: const SizedBox.shrink(),
           icon: buildNavigationAssetIcon('assets/images/movie.svg'),
           trailing: buildCountText(mediaSum['movie']),
         ),
         PaneItem(
           key: const ValueKey('category-tv'),
-          title: const Text('电视节目'),
+          title: Text(l10n.mediaTypeTv),
           body: const SizedBox.shrink(),
           icon: buildNavigationAssetIcon('assets/images/tv.svg'),
           trailing: buildCountText(mediaSum['tv']),
         ),
         PaneItem(
           key: const ValueKey('category-live'),
-          title: const Text('电视直播'),
+          title: Text(l10n.mediaTypeLive),
           body: const SizedBox.shrink(),
           icon: buildNavigationAssetIcon('assets/images/live_tv.svg'),
           trailing: buildCountText(mediaSum['live']),
         ),
         PaneItem(
           key: const ValueKey('category-video'),
-          title: const Text('其他'),
+          title: Text(l10n.mediaTypeOther),
           body: const SizedBox.shrink(),
           icon: buildNavigationAssetIcon('assets/images/other_media.svg'),
           trailing: buildCountText(mediaSum['video']),
@@ -330,21 +333,21 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       PaneItem(
         key: const ValueKey('nav-home'),
         icon: const Icon(FluentIcons.home),
-        title: const Text('首页'),
+        title: Text(l10n.homeTitle),
         body: const SizedBox.shrink(),
         onTap: () => context.go('/home'),
       ),
       PaneItem(
         key: const ValueKey('nav-favorites'),
         icon: buildFavoriteIcon(),
-        title: const Text('收藏'),
+        title: Text(l10n.navFavorites),
         body: const SizedBox.shrink(),
         trailing: buildCountText(mediaSum['favorite']),
         onTap: () => context.go('/favorites'),
       ),
       PaneItemExpander(
         icon: buildNavigationAssetIcon('assets/images/media_library.svg'),
-        title: const Text('媒体库'),
+        title: Text(l10n.homeMediaLibrary),
         body: const SizedBox.shrink(),
         items: mediaDbPaneItems.map((item) {
           if (item is PaneItem) {
@@ -367,7 +370,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       ),
       PaneItemExpander(
         icon: buildNavigationAssetIcon('assets/images/category.svg'),
-        title: const Text('分类'),
+        title: Text(l10n.navCategories),
         body: const SizedBox.shrink(),
         items: categoryPaneItems.map((item) {
           if (item is PaneItem) {
@@ -435,7 +438,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       PaneItem(
         key: const ValueKey('nav-settings'),
         icon: const Icon(FluentIcons.settings),
-        title: const Text('设置'),
+        title: Text(l10n.settingsTitle),
         body: const SizedBox.shrink(),
         onTap: () => context.go('/settings'),
       ),
@@ -559,12 +562,10 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                       ),
                       if (isMinimalDisplayMode)
                         Padding(
-                          // Center the 28px compact button on the same
-                          // vertical axis as the 20px caption buttons
-                          // (back/pin/refresh): their top padding plus half
-                          // the height difference, 16 + (20 - 28) / 2 = 12.
+                          // The nav toggle is a 20px compact button like its
+                          // siblings, so it shares their vertical axis directly.
                           padding: const EdgeInsets.only(
-                            top: kRefreshButtonTopPadding + (20 - 28) / 2,
+                            top: kRefreshButtonTopPadding,
                             left: kCaptionButtonSpacing,
                             right: kCaptionButtonSpacing,
                           ),
@@ -645,7 +646,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
               ),
             )
         : WindowCaption(
-              title: const Text('飞鲸影视'),
+              title: Text(l10n.appTitle),
               titleTrailing: const SharedUpdateBadge(
                 key: ValueKey('titlebar-update-badge'),
               ),
@@ -662,6 +663,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
               onBack: canGoBack ? handleBackNavigation : null,
               showNavToggle: isMinimalDisplayMode,
               onNavToggle: isMinimalDisplayMode ? handleNavToggle : null,
+              textScaleFactor: UiFontScale.factorFromValue(settings.uiFontScale),
             );
 
     return Focus(

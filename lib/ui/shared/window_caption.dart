@@ -1,12 +1,24 @@
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../l10n/generated/app_localizations.dart';
 import 'package:window_manager/window_manager.dart'
     hide WindowCaption, DragToMoveArea;
 
 const double kWindowTitleBarHeight = 48.0;
+
+// Match Windows caption buttons while retaining other desktop hover styles.
+BorderRadius get playerTopBarActionBorderRadius {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    return BorderRadius.zero;
+  }
+  return BorderRadius.circular(
+    defaultTargetPlatform == TargetPlatform.macOS ? 15 : 17,
+  );
+}
 
 class WindowCaption extends StatefulWidget {
   final Widget? title;
@@ -17,6 +29,10 @@ class WindowCaption extends StatefulWidget {
   final bool showRefreshAction;
   final bool showPinAction;
   final Future<void> Function()? onRefreshPressed;
+
+  /// App-wide text scale from the font-size setting. The caption lives above
+  /// the MediaQuery that carries it, so it has to be applied here.
+  final double textScaleFactor;
 
   // When true, always show the back button (enabled when onBack is set,
   // grayed-out and non-interactive when onBack is null).
@@ -44,6 +60,7 @@ class WindowCaption extends StatefulWidget {
     this.onBack,
     this.onNavToggle,
     this.showNavToggle = false,
+    this.textScaleFactor = 1.0,
   });
 
   @override
@@ -104,7 +121,14 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
                                 : Colors.black.withValues(alpha: 0.8956),
                             fontSize: 14,
                           ),
-                          child: widget.title ?? const SizedBox.shrink(),
+                          child: MediaQuery(
+                            data: MediaQuery.of(context).copyWith(
+                              textScaler: TextScaler.linear(
+                                widget.textScaleFactor,
+                              ),
+                            ),
+                            child: widget.title ?? const SizedBox.shrink(),
+                          ),
                         ),
                         if (widget.titleTrailing != null) ...[
                           // Keep the trailing badge visually separated from the title text.
@@ -165,11 +189,18 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
               ],
             ],
           ),
-          // Centered content (e.g. search box) overlaid on the caption.
+          // Centered content (e.g. search box) overlaid on the caption. It
+          // scales with the caption title: the search capsule reads the
+          // scaler to size itself, so its text and width grow together.
           if (widget.center != null)
             Align(
               alignment: Alignment.center,
-              child: widget.center!,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(widget.textScaleFactor),
+                ),
+                child: widget.center!,
+              ),
             ),
         ],
       ),
@@ -202,21 +233,21 @@ class WindowCaptionBackButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final Brightness? brightness;
   final bool compact;
-  final String semanticLabel;
+  final String? semanticLabel;
 
   const WindowCaptionBackButton({
     super.key,
     this.onPressed,
     this.brightness,
     this.compact = false,
-    this.semanticLabel = '返回',
+    this.semanticLabel,
   });
 
   const WindowCaptionBackButton.compact({
     super.key,
     this.onPressed,
     this.brightness,
-    this.semanticLabel = '返回',
+    this.semanticLabel,
   }) : compact = true;
 
   @override
@@ -248,13 +279,14 @@ class _WindowCaptionBackButtonState extends State<WindowCaptionBackButton> {
     final backgroundColor =
         (_isHovered && _isEnabled) ? hoverBackground : Colors.transparent;
     final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
+    final label = widget.semanticLabel ?? AppLocalizations.of(context).captionBack;
 
     return Semantics(
       button: true,
       enabled: _isEnabled,
-      label: widget.semanticLabel,
+      label: label,
       child: Tooltip(
-        message: widget.semanticLabel,
+        message: label,
         child: MouseRegion(
           cursor:
               _isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -293,21 +325,21 @@ class WindowCaptionNavToggleButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final Brightness? brightness;
   final bool compact;
-  final String semanticLabel;
+  final String? semanticLabel;
 
   const WindowCaptionNavToggleButton({
     super.key,
     this.onPressed,
     this.brightness,
     this.compact = false,
-    this.semanticLabel = '切换导航栏',
+    this.semanticLabel,
   });
 
   const WindowCaptionNavToggleButton.compact({
     super.key,
     this.onPressed,
     this.brightness,
-    this.semanticLabel = '切换导航栏',
+    this.semanticLabel,
   }) : compact = true;
 
   @override
@@ -327,10 +359,11 @@ class _WindowCaptionNavToggleButtonState
     final baseColor = isDark ? Colors.white : Colors.black;
     // Dim the icon when the button is disabled.
     final iconColor = _isEnabled ? baseColor : baseColor.withValues(alpha: 0.3);
-    final buttonSize = widget.compact ? 28.0 : 46.0;
-    // menu.svg's glyph only fills ~78% of its viewBox, so the nominal size
-    // runs larger than a font icon for the same visual weight.
-    final iconSize = widget.compact ? 16.0 : 18.0;
+    final buttonSize = widget.compact ? 20.0 : 46.0;
+    // menu.svg's glyph only fills ~78% of its viewBox, so it needs a nominal
+    // size a touch above the back button's 16px font icon to read as the same
+    // visual weight.
+    final iconSize = widget.compact ? 18.0 : 18.0;
     final hoverBackground = widget.compact
         ? (isDark
             ? Colors.white.withValues(alpha: 0.12)
@@ -342,13 +375,15 @@ class _WindowCaptionNavToggleButtonState
     final backgroundColor =
         (_isHovered && _isEnabled) ? hoverBackground : Colors.transparent;
     final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
+    final label =
+        widget.semanticLabel ?? AppLocalizations.of(context).captionToggleNav;
 
     return Semantics(
       button: true,
       enabled: _isEnabled,
-      label: widget.semanticLabel,
+      label: label,
       child: Tooltip(
-        message: widget.semanticLabel,
+        message: label,
         child: MouseRegion(
           cursor:
               _isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -383,21 +418,21 @@ class WindowCaptionRefreshButton extends StatefulWidget {
   final Future<void> Function()? onPressed;
   final Brightness? brightness;
   final bool compact;
-  final String semanticLabel;
+  final String? semanticLabel;
 
   const WindowCaptionRefreshButton({
     super.key,
     required this.onPressed,
     this.brightness,
     this.compact = false,
-    this.semanticLabel = '刷新',
+    this.semanticLabel,
   });
 
   const WindowCaptionRefreshButton.compact({
     super.key,
     required this.onPressed,
     this.brightness,
-    this.semanticLabel = '刷新',
+    this.semanticLabel,
   }) : compact = true;
 
   @override
@@ -468,13 +503,15 @@ class _WindowCaptionRefreshButtonState extends State<WindowCaptionRefreshButton>
     final backgroundColor =
         _isHovered || _isRefreshing ? hoverBackground : Colors.transparent;
     final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
+    final label =
+        widget.semanticLabel ?? AppLocalizations.of(context).captionRefresh;
 
     return Semantics(
       button: true,
       enabled: _canPress,
-      label: widget.semanticLabel,
+      label: label,
       child: Tooltip(
-        message: widget.semanticLabel,
+        message: label,
         child: MouseRegion(
           cursor:
               _canPress ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -585,7 +622,7 @@ class _WindowCaptionPinButtonState extends State<WindowCaptionPinButton>
     final isDark = widget.brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white : Colors.black;
     final buttonSize = widget.buttonSize ?? (widget.compact ? 20.0 : 46.0);
-    final iconSize = widget.iconSize ?? (widget.compact ? 14.0 : 16.0);
+    final iconSize = widget.iconSize ?? (widget.compact ? 16.0 : 18.0);
     final hoverBackground = widget.compact
         ? (isDark
             ? Colors.white.withValues(alpha: 0.12)
@@ -596,7 +633,9 @@ class _WindowCaptionPinButtonState extends State<WindowCaptionPinButton>
     final backgroundColor = _isHovered ? hoverBackground : Colors.transparent;
     final borderRadius =
         widget.borderRadius ?? BorderRadius.circular(widget.compact ? 14 : 0);
-    final label = _isAlwaysOnTop ? '取消置顶' : '窗口置顶';
+    final l10n = AppLocalizations.of(context);
+    final label =
+        _isAlwaysOnTop ? l10n.captionUnpin : l10n.captionAlwaysOnTop;
 
     return Semantics(
       button: true,
@@ -673,23 +712,31 @@ class WindowCaptionButton extends StatefulWidget {
   final Widget icon;
   final VoidCallback? onPressed;
   final Brightness? brightness;
+  final double width;
+  final double height;
 
   const WindowCaptionButton({
     super.key,
     required this.icon,
     this.onPressed,
     this.brightness,
+    this.width = 46,
+    this.height = kWindowTitleBarHeight,
   });
 
   factory WindowCaptionButton.minimize({
     Key? key,
     VoidCallback? onPressed,
     Brightness? brightness,
+    double width = 46,
+    double height = kWindowTitleBarHeight,
   }) {
     return WindowCaptionButton(
       key: key,
       onPressed: onPressed,
       brightness: brightness,
+      width: width,
+      height: height,
       icon: _MinimizeIcon(brightness: brightness),
     );
   }
@@ -698,11 +745,15 @@ class WindowCaptionButton extends StatefulWidget {
     Key? key,
     VoidCallback? onPressed,
     Brightness? brightness,
+    double width = 46,
+    double height = kWindowTitleBarHeight,
   }) {
     return WindowCaptionButton(
       key: key,
       onPressed: onPressed,
       brightness: brightness,
+      width: width,
+      height: height,
       icon: _MaximizeIcon(brightness: brightness),
     );
   }
@@ -711,11 +762,15 @@ class WindowCaptionButton extends StatefulWidget {
     Key? key,
     VoidCallback? onPressed,
     Brightness? brightness,
+    double width = 46,
+    double height = kWindowTitleBarHeight,
   }) {
     return WindowCaptionButton(
       key: key,
       onPressed: onPressed,
       brightness: brightness,
+      width: width,
+      height: height,
       icon: _UnmaximizeIcon(brightness: brightness),
     );
   }
@@ -724,11 +779,15 @@ class WindowCaptionButton extends StatefulWidget {
     Key? key,
     VoidCallback? onPressed,
     Brightness? brightness,
+    double width = 46,
+    double height = kWindowTitleBarHeight,
   }) {
     return WindowCaptionButton(
       key: key,
       onPressed: onPressed,
       brightness: brightness,
+      width: width,
+      height: height,
       icon: _CloseIcon(brightness: brightness),
     );
   }
@@ -765,8 +824,8 @@ class _WindowCaptionButtonState extends State<WindowCaptionButton> {
       child: GestureDetector(
         onTap: widget.onPressed,
         child: Container(
-          width: 46,
-          height: kWindowTitleBarHeight,
+          width: widget.width,
+          height: widget.height,
           color: backgroundColor,
           alignment: Alignment.center,
           child: widget.icon,
@@ -774,6 +833,99 @@ class _WindowCaptionButtonState extends State<WindowCaptionButton> {
       ),
     );
   }
+}
+
+/// Compact native window actions for frameless Windows player overlays.
+class PlayerWindowCaptionControls extends StatefulWidget {
+  final String keyPrefix;
+  final double buttonSize;
+
+  const PlayerWindowCaptionControls({
+    super.key,
+    required this.keyPrefix,
+    this.buttonSize = 34,
+  });
+
+  @override
+  State<PlayerWindowCaptionControls> createState() =>
+      _PlayerWindowCaptionControlsState();
+}
+
+class _PlayerWindowCaptionControlsState
+    extends State<PlayerWindowCaptionControls> with WindowListener {
+  @override
+  void initState() {
+    windowManager.addListener(this);
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+      return const SizedBox.shrink();
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        WindowCaptionButton.minimize(
+          key: ValueKey('${widget.keyPrefix}-minimize-button'),
+          brightness: Brightness.dark,
+          width: widget.buttonSize,
+          height: widget.buttonSize,
+          onPressed: () {
+            windowManager.minimize();
+          },
+        ),
+        FutureBuilder<bool>(
+          future: windowManager.isMaximized(),
+          builder: (context, snapshot) {
+            if (snapshot.data == true) {
+              return WindowCaptionButton.unmaximize(
+                key: ValueKey('${widget.keyPrefix}-unmaximize-button'),
+                brightness: Brightness.dark,
+                width: widget.buttonSize,
+                height: widget.buttonSize,
+                onPressed: () {
+                  windowManager.unmaximize();
+                },
+              );
+            }
+            return WindowCaptionButton.maximize(
+              key: ValueKey('${widget.keyPrefix}-maximize-button'),
+              brightness: Brightness.dark,
+              width: widget.buttonSize,
+              height: widget.buttonSize,
+              onPressed: () {
+                windowManager.maximize();
+              },
+            );
+          },
+        ),
+        WindowCaptionButton.close(
+          key: ValueKey('${widget.keyPrefix}-close-button'),
+          brightness: Brightness.dark,
+          width: widget.buttonSize,
+          height: widget.buttonSize,
+          onPressed: () {
+            windowManager.close();
+          },
+        ),
+      ],
+    );
+  }
+
+  @override
+  void onWindowMaximize() => setState(() {});
+
+  @override
+  void onWindowUnmaximize() => setState(() {});
 }
 
 class _MinimizeIcon extends StatelessWidget {

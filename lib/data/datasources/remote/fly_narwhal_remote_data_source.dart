@@ -14,6 +14,7 @@ import '../../../core/network/ssl/ssl_trust_persistence.dart';
 import '../../../core/network/sse_event_parser.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../models/fly_narwhal/index.dart';
+import '../../../providers/danmaku_controller.dart' show danmakuWholeWorkKey;
 
 class FlyNarwhalRemoteDataSource {
   static const String _kServerUnreachable = '飞鲸服务端无法访问';
@@ -28,9 +29,15 @@ class FlyNarwhalRemoteDataSource {
   final String Function() getFlyNarwhalBaseUrl;
   final bool Function() getFlyNarwhalServerEnabled;
   final String Function() getAuthCode;
+  final String Function()? getClientVersion;
+  final void Function(String message)? onClientVersionTooLow;
   final RuntimeConfiguration? _runtimeConfiguration;
   final FlyNarwhalResponseCrypto _crypto;
   final Dio _dio;
+
+  /// Server-side business code meaning the client version is below the
+  /// server's configured minimum (ResultCodes.CLIENT_VERSION_TOO_LOW).
+  static const int clientVersionTooLowCode = 4001;
 
   FlyNarwhalRemoteDataSource({
     required this.getToken,
@@ -39,6 +46,8 @@ class FlyNarwhalRemoteDataSource {
     required this.getFlyNarwhalBaseUrl,
     bool Function()? getFlyNarwhalServerEnabled,
     required this.getAuthCode,
+    this.getClientVersion,
+    this.onClientVersionTooLow,
     RuntimeConfiguration? runtimeConfiguration,
     Dio? dio,
     FlyNarwhalResponseCrypto? crypto,
@@ -132,10 +141,88 @@ class FlyNarwhalRemoteDataSource {
             Map<String, dynamic>.from(json as Map)));
   }
 
+  Future<ApiResult<SmartAnalysisResult<SmartSkipConfig>>> getSmartSkipConfig({
+    required String userGuid,
+  }) {
+    return _get(ApiEndpoints.flyNarwhalSmartSkipConfig,
+        parameters: <String, dynamic>{'user_guid': userGuid},
+        fromJsonT: (json) => SmartSkipConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  Future<ApiResult<SmartAnalysisResult<String>>> saveSmartSkipConfig({
+    required SaveSmartSkipConfigRequest request,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalSmartSkipConfig,
+        data: request.toJson(), fromJsonT: (json) => json?.toString() ?? '');
+  }
+
   Future<ApiResult<SmartAnalysisResult<String>>> setFnBaseUrl(
       SetFnBaseUrlRequest request) {
     return _post(ApiEndpoints.flyNarwhalFnBaseUrl,
         data: request.toJson(), fromJsonT: (json) => json?.toString() ?? '');
+  }
+
+  /// Reads the runtime-editable danmu source config (dandanplay relay +
+  /// fallback servers). Requires server >= 2.0.0.
+  Future<ApiResult<SmartAnalysisResult<DanmuSourceConfig>>>
+      getDanmuSourceConfig() {
+    return _get(ApiEndpoints.flyNarwhalDanmuSourceConfig,
+        fromJsonT: (json) => DanmuSourceConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Upserts the single dandanplay relay. [enabled] is the switch; a blank
+  /// [url] with it on just leaves the source without an address.
+  Future<ApiResult<SmartAnalysisResult<String>>> saveDandanRelay({
+    required DanmuDandanConfig dandan,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandan,
+        data: dandan.toJson(), fromJsonT: (json) => json?.toString() ?? '');
+  }
+
+  /// Inserts (no id) or updates (with id) one fallback server; the same call
+  /// carries the enable/disable toggle.
+  Future<ApiResult<SmartAnalysisResult<String>>> saveFallbackServer({
+    required DanmuFallbackServer server,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigFallback,
+        data: server.toJson(), fromJsonT: (json) => json?.toString() ?? '');
+  }
+
+  /// Upserts the dandanplay open-network credentials and their enable switch.
+  Future<ApiResult<SmartAnalysisResult<String>>> saveDandanAccount({
+    required DandanAccount account,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandanAccount,
+        data: account.toJson(), fromJsonT: (json) => json?.toString() ?? '');
+  }
+
+  /// Picks which dandan channel is tried first; the server writes both rows so
+  /// exactly one of them holds priority 0.
+  Future<ApiResult<SmartAnalysisResult<String>>> setDandanPreferred({
+    required bool officialPreferred,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandanPreferred,
+        data: <String, dynamic>{'official_preferred': officialPreferred},
+        fromJsonT: (json) => json?.toString() ?? '');
+  }
+
+  /// Probes the official open API with [account]'s credentials (or the stored
+  /// ones when a field is blank). Returns the server-side result as
+  /// `{ok, detail}` — the signature can only be computed server-side.
+  Future<ApiResult<SmartAnalysisResult<Map<String, dynamic>>>>
+      testDandanAccount({required DandanAccount account}) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandanAccountTest,
+        data: account.toJson(),
+        fromJsonT: (json) =>
+            json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{});
+  }
+
+  Future<ApiResult<SmartAnalysisResult<String>>> deleteFallbackServer(int id) {
+    return _delete(
+        '${ApiEndpoints.flyNarwhalDanmuSourceConfigFallback}/$id',
+        fromJsonT: (json) => json?.toString() ?? '');
   }
 
   Future<ApiResult<Map<String, List<Danmaku>>>> getDanmaku(
@@ -212,6 +299,30 @@ class FlyNarwhalRemoteDataSource {
         error: error,
         stackTrace: stackTrace,
         message: 'POST 请求失败: $path',
+      );
+      return ResultFailure(_wrapFailureInfo(error));
+    }
+  }
+
+  Future<ApiResult<SmartAnalysisResult<T>>> _delete<T>(String path,
+      {required T Function(Object? json) fromJsonT}) async {
+    try {
+      final url = _buildFullUrl(path);
+      final response = await _dio.delete<String>(url,
+          options: Options(
+              headers: await _buildHeaders(signaturePath: path),
+              responseType: ResponseType.plain));
+      return Success(await _decodeSmartResult(
+        response.data ?? '',
+        fromJsonT,
+        requestPath: path,
+      ));
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'FlyNarwhal',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'DELETE 请求失败: $path',
       );
       return ResultFailure(_wrapFailureInfo(error));
     }
@@ -434,6 +545,13 @@ class FlyNarwhalRemoteDataSource {
         authCode: authCode,
       ),
     };
+    // The server enforces a minimum client version via this header on all
+    // /api/** endpoints except /api/config/**; omitting it keeps legacy
+    // behavior (always allowed).
+    final clientVersion = getClientVersion?.call() ?? '';
+    if (clientVersion.isNotEmpty) {
+      headers['X-Client-Version'] = clientVersion;
+    }
     final token = getToken();
     final cookie = getCookie();
     if (token.isNotEmpty) {
@@ -459,6 +577,11 @@ class FlyNarwhalRemoteDataSource {
       (json) => json,
     );
     if (!result.isSuccess()) {
+      if (result.code == clientVersionTooLowCode) {
+        // The server rejected this client version; surface its message once
+        // (the category keeps fast polling loops from stacking duplicates).
+        onClientVersionTooLow?.call(result.msg);
+      }
       throw FailureInfo(
         message: result.msg,
         code: result.code,
@@ -503,7 +626,7 @@ class FlyNarwhalRemoteDataSource {
   Map<String, List<Danmaku>> _parseDanmakuPayload(String data) {
     final decoded = jsonDecode(data);
     if (decoded is List) {
-      return <String, List<Danmaku>>{'default': _parseDanmakuList(decoded)};
+      return <String, List<Danmaku>>{danmakuWholeWorkKey: _parseDanmakuList(decoded)};
     }
     if (decoded is Map) {
       return decoded.map((key, value) {

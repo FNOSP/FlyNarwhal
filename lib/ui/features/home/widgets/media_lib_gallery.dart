@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -73,12 +74,13 @@ class MediaLibGallery extends ConsumerWidget {
               itemSpacing: 16 * scaleFactor,
               itemCount: data.list.length,
               itemBuilder: (context, index) {
+                final l10n = AppLocalizations.of(context);
                 final item = data.list[index];
                 final isDirectory =
                     MediaType.tryParse(item.type) == MediaType.directory;
                 return MoviePoster(
                   title: item.title,
-                  subtitle: buildPosterSubtitle(item),
+                  subtitle: buildPosterSubtitle(item, l10n),
                   posterPath: item.effectivePoster,
                   score: item.voteAverage,
                   resolutions: item.mediaStream?.resolutions,

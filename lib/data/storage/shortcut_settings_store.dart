@@ -154,13 +154,11 @@ class ShortcutBinding {
 
 class ShortcutActionDefinition {
   final ShortcutActionId id;
-  final String title;
   final ShortcutCategory category;
   final ShortcutBinding defaultBinding;
 
   const ShortcutActionDefinition({
     required this.id,
-    required this.title,
     required this.category,
     required this.defaultBinding,
   });
@@ -176,7 +174,6 @@ class ShortcutSettingsStore {
   static final definitions = <ShortcutActionDefinition>[
     ShortcutActionDefinition(
       id: ShortcutActionId.focusSearch,
-      title: '聚焦搜索输入框',
       category: ShortcutCategory.search,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.keyF.keyId),
@@ -184,7 +181,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.togglePlayPause,
-      title: '播放/暂停',
       category: ShortcutCategory.playback,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.space.keyId),
@@ -193,7 +189,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.mute,
-      title: '静音/取消静音',
       category: ShortcutCategory.playback,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.keyM.keyId),
@@ -202,7 +197,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.seekBackward,
-      title: '快退 10 秒',
       category: ShortcutCategory.playback,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.arrowLeft.keyId),
@@ -212,7 +206,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.seekForward,
-      title: '快进 10 秒',
       category: ShortcutCategory.playback,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.arrowRight.keyId),
@@ -221,7 +214,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.volumeUp,
-      title: '音量增加',
       category: ShortcutCategory.playback,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.arrowUp.keyId),
@@ -230,7 +222,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.volumeDown,
-      title: '音量减少',
       category: ShortcutCategory.playback,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.arrowDown.keyId),
@@ -239,7 +230,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.toggleFullscreen,
-      title: '切换全屏',
       category: ShortcutCategory.playback,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.keyF.keyId),
@@ -247,7 +237,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.exitFullscreen,
-      title: '退出全屏',
       category: ShortcutCategory.playback,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.escape.keyId),
@@ -255,7 +244,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.searchNext,
-      title: '下一个搜索项',
       category: ShortcutCategory.search,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.arrowDown.keyId),
@@ -263,7 +251,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.searchPrev,
-      title: '上一个搜索项',
       category: ShortcutCategory.search,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.arrowUp.keyId),
@@ -271,7 +258,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.searchSelect,
-      title: '选中搜索项',
       category: ShortcutCategory.search,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.enter.keyId),
@@ -280,7 +266,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.searchSwitchTab,
-      title: '切换搜索分类',
       category: ShortcutCategory.search,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.tab.keyId),
@@ -288,7 +273,6 @@ class ShortcutSettingsStore {
     ),
     ShortcutActionDefinition(
       id: ShortcutActionId.searchExit,
-      title: '退出搜索',
       category: ShortcutCategory.search,
       defaultBinding: ShortcutBinding(
         primary: ShortcutKeyBinding(LogicalKeyboardKey.escape.keyId),

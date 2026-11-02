@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/network/api_result.dart';
@@ -39,47 +41,73 @@ class SeasonAnalysisStatusController
   final PollingDelay _pollingDelay;
   final Map<String, int> _generations = <String, int>{};
 
+  /// Seasons whose owning page has gone away. Polling started on their behalf
+  /// from outside the page (a slow analysis submission finishing after the user
+  /// left) must not resurrect them: publishing to a defunct element trips
+  /// Element.markNeedsBuild's lifecycle assertion. Cleared only when a page
+  /// itself starts polling that season again.
+  final Set<String> _stoppedSeasons = <String>{};
+
   SeasonAnalysisStatusController(
     this._remoteDataSource, {
     PollingDelay? pollingDelay,
   })  : _pollingDelay = pollingDelay ?? Future<void>.delayed,
         super(const <String, SeasonAnalysisStatusEntry>{});
 
+  /// Starts (or restarts) polling because the season's own page is present.
+  ///
+  /// Only this entry point clears the stopped flag: the page is the authority
+  /// on whether its season should be published to.
   Future<void> startPolling(String seasonGuid) async {
     if (seasonGuid.trim().isEmpty) return;
-    final generation = _nextGeneration(seasonGuid);
-    _setEntry(SeasonAnalysisStatusEntry(
-      seasonGuid: seasonGuid,
-      phase: SeasonAnalysisViewPhase.loading,
-      isPolling: true,
-    ));
-    await _poll(
-      seasonGuid,
-      generation,
-      forced: false,
-      hasObservedRunningStatus: false,
-      remainingStartupRetries: 0,
-    );
+    _stoppedSeasons.remove(seasonGuid);
+    _start(seasonGuid, forced: false);
   }
 
+  /// Starts polling on behalf of a season whose page may be gone — an analysis
+  /// submission that finished (or reached PREPARING) after the user navigated
+  /// away. Never clears the stopped flag, and is a no-op for a stopped season,
+  /// so a slow submission cannot publish into a defunct page.
+  Future<void> startBackgroundPolling(String seasonGuid) async {
+    if (seasonGuid.trim().isEmpty) return;
+    if (_stoppedSeasons.contains(seasonGuid)) return;
+    _start(seasonGuid, forced: false);
+  }
+
+  /// Background counterpart of [startForcedPolling].
+  Future<void> startForcedBackgroundPolling(String seasonGuid) async {
+    if (seasonGuid.trim().isEmpty) return;
+    if (_stoppedSeasons.contains(seasonGuid)) return;
+    _start(seasonGuid, forced: true);
+  }
+
+  /// Force-restarts polling for a season, treating the request as coming from
+  /// the page itself (used when the user explicitly submits an analysis from
+  /// that season's page while it is still open).
   Future<void> startForcedPolling(String seasonGuid) async {
     if (seasonGuid.trim().isEmpty) return;
+    _stoppedSeasons.remove(seasonGuid);
+    _start(seasonGuid, forced: true);
+  }
+
+  void _start(String seasonGuid, {required bool forced}) {
     final generation = _nextGeneration(seasonGuid);
     _setEntry(SeasonAnalysisStatusEntry(
       seasonGuid: seasonGuid,
       phase: SeasonAnalysisViewPhase.loading,
       isPolling: true,
     ));
-    await _poll(
+    unawaited(_poll(
       seasonGuid,
       generation,
-      forced: true,
+      forced: forced,
       hasObservedRunningStatus: false,
-      remainingStartupRetries: startupRetryCount,
-    );
+      remainingStartupRetries: forced ? startupRetryCount : 0,
+    ));
   }
 
   void stopPolling(String seasonGuid, {bool notifyListeners = true}) {
+    _stoppedSeasons.add(seasonGuid);
     _nextGeneration(seasonGuid);
     final entry = state[seasonGuid];
     if (!notifyListeners || entry == null) return;
@@ -200,6 +228,11 @@ class SeasonAnalysisStatusController
   }
 
   void _setEntry(SeasonAnalysisStatusEntry entry) {
+    // A stopped season's in-flight response must not reach listeners: the page
+    // that started the poll may already have been removed from the tree.
+    if (_stoppedSeasons.contains(entry.seasonGuid)) {
+      return;
+    }
     state = <String, SeasonAnalysisStatusEntry>{
       ...state,
       entry.seasonGuid: entry,

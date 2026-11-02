@@ -8,7 +8,7 @@ class GenresParams {
   final bool force;
 
   const GenresParams({
-    this.language = 'zh-CN',
+    this.language,
     this.force = false,
   });
 }
@@ -36,7 +36,7 @@ class TagParams {
 
   const TagParams({
     required this.tag,
-    this.language = 'zh-CN',
+    this.language,
     this.force = false,
   });
 }

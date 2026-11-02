@@ -85,8 +85,21 @@ class ApiEndpoints {
   static const String flyNarwhalSeasonStatus = '/api/analysis/season/status';
   static const String flyNarwhalAnalysisStatus = '/api/analysis/status';
   static const String flyNarwhalSegments = '/api/analysis/segments';
+  static const String flyNarwhalSmartSkipConfig =
+      '/api/analysis/smart-skip-config';
   static const String flyNarwhalFnBaseUrl = '/api/config/fn-base-url';
   static const String flyNarwhalDanmaku = '/api/danmu/get';
+  static const String flyNarwhalDanmuSourceConfig = '/api/danmu/source-config';
+  static const String flyNarwhalDanmuSourceConfigDandan =
+      '/api/danmu/source-config/dandan';
+  static const String flyNarwhalDanmuSourceConfigFallback =
+      '/api/danmu/source-config/fallback';
+  static const String flyNarwhalDanmuSourceConfigDandanAccount =
+      '/api/danmu/source-config/dandan-account';
+  static const String flyNarwhalDanmuSourceConfigDandanPreferred =
+      '/api/danmu/source-config/dandan-preferred';
+  static const String flyNarwhalDanmuSourceConfigDandanAccountTest =
+      '/api/danmu/source-config/dandan-account/test';
 
   // Favorite & Watched
   static const String favorite = '/v/api/v1/item/favorite';

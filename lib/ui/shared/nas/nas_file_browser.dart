@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/log/app_talker.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/file_providers.dart';
 import '../common/app_loading_progress_ring.dart';
 
@@ -230,10 +231,10 @@ class _NasFileBrowserState extends ConsumerState<NasFileBrowser> {
     }
 
     if (_isEmptyView) {
-      return const Center(
+      return Center(
         child: Text(
-          '空空如也',
-          style: TextStyle(color: _browserTextColor, fontSize: 13),
+          AppLocalizations.of(context).nasBrowserEmpty,
+          style: const TextStyle(color: _browserTextColor, fontSize: 13),
         ),
       );
     }
