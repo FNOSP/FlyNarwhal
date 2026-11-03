@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart'
+    hide DragToMoveArea, WindowCaption;
 import '../../../l10n/generated/app_localizations.dart';
 import '../home/home_view_model.dart';
 import '../../../providers/providers.dart';
@@ -32,10 +34,15 @@ class MainLayout extends ConsumerStatefulWidget {
   ConsumerState<MainLayout> createState() => _MainLayoutState();
 }
 
-class _MainLayoutState extends ConsumerState<MainLayout> {
+class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'global-search');
   final FocusNode _shortcutFocusNode =
       FocusNode(debugLabel: 'global-shortcuts');
+
+  /// Whether the macOS window is in native full screen. The traffic lights
+  /// leave the title bar in full screen, so the compact caption buttons can
+  /// pull left to fill the gap they leave behind.
+  bool _isWindowFullScreen = false;
 
   /// Direct handle to the [NavigationView] so the title bar's hamburger
   /// button (which lives outside the [NavigationView]'s subtree) can call
@@ -65,7 +72,26 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     // keys while a player page is on top.
     if (!kIsWeb && Platform.isMacOS) {
       HardwareKeyboard.instance.addHandler(_handleOpenSettingsKey);
+      windowManager.addListener(this);
+      _syncWindowFullScreenState();
     }
+  }
+
+  Future<void> _syncWindowFullScreenState() async {
+    final isFullScreen = await windowManager.isFullScreen();
+    if (mounted && isFullScreen != _isWindowFullScreen) {
+      setState(() => _isWindowFullScreen = isFullScreen);
+    }
+  }
+
+  @override
+  void onWindowEnterFullScreen() {
+    setState(() => _isWindowFullScreen = true);
+  }
+
+  @override
+  void onWindowLeaveFullScreen() {
+    setState(() => _isWindowFullScreen = false);
   }
 
   bool _handleFocusSearchKey(KeyEvent event) {
@@ -133,6 +159,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     HardwareKeyboard.instance.removeHandler(_handleFocusSearchKey);
     if (!kIsWeb && Platform.isMacOS) {
       HardwareKeyboard.instance.removeHandler(_handleOpenSettingsKey);
+      windowManager.removeListener(this);
     }
     _searchFocusNode.dispose();
     _shortcutFocusNode.dispose();
@@ -522,8 +549,11 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       return PaneDisplayMode.compact;
     }
 
+    final effectiveDisplayMode = resolveEffectiveDisplayMode();
     final isMinimalDisplayMode =
-        resolveEffectiveDisplayMode() == PaneDisplayMode.minimal;
+        effectiveDisplayMode == PaneDisplayMode.minimal;
+    final isCompactDisplayMode =
+        effectiveDisplayMode == PaneDisplayMode.compact;
 
     void handleNavToggle() {
       _navigationViewKey.currentState?.togglePane();
@@ -545,6 +575,26 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     const double kCaptionButtonSpacing = 4.0;
     // Nudge the refresh button slightly lower to match the traffic lights.
     const double kRefreshButtonTopPadding = kTrafficLightTopPadding + 6.0;
+    // In macOS full screen the traffic lights leave the window, so the
+    // leading reservation collapses and the caption buttons pull left to
+    // fill the gap. In compact mode the back button then lines up with the
+    // rail's hamburger glyph below (rail width 50, 14px glyph centered ->
+    // left edge at 18; the back button's 14px glyph sits 3px inside its
+    // 20px hit box), and the minimal layout's nav toggle starts from the
+    // same left edge so both layouts agree.
+    const double kFullScreenCaptionButtonLeftEdge = 15.0;
+    // Slide the caption buttons when the leading reservation changes on
+    // entering or leaving full screen instead of jumping.
+    const Duration kCaptionShiftDuration = Duration(milliseconds: 250);
+
+    final bool pullCaptionButtonsForFullScreen =
+        (isMinimalDisplayMode || isCompactDisplayMode) &&
+        _isWindowFullScreen;
+    final double captionLeadingWidth = pullCaptionButtonsForFullScreen
+        ? kFullScreenCaptionButtonLeftEdge - kCaptionButtonSpacing
+        : kTrafficLightLeftPadding +
+            kTrafficLightAreaWidth -
+            kRefreshButtonLeftOffset;
 
     final Widget titleBarWidget = isMacOS
         ? Container(
@@ -555,10 +605,10 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(
-                        width: kTrafficLightLeftPadding +
-                            kTrafficLightAreaWidth -
-                            kRefreshButtonLeftOffset,
+                      AnimatedContainer(
+                        duration: kCaptionShiftDuration,
+                        curve: Curves.easeOut,
+                        width: captionLeadingWidth,
                       ),
                       if (isMinimalDisplayMode)
                         Padding(
