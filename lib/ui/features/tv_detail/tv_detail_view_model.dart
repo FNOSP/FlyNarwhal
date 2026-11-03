@@ -6,7 +6,9 @@ import '../../../core/network/api_result.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/season_list_response.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/providers.dart';
+import '../../settings/app_language.dart';
 
 part 'tv_detail_view_model.g.dart';
 
@@ -101,6 +103,8 @@ class TvDetailNotifier extends _$TvDetailNotifier {
   @override
   FutureOr<TvDetailState> build(String guid) async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
+    // Watch so tag requests (and their labels) reload when the UI language changes.
+    ref.watch(settingsProvider.select((s) => s.language));
     final tagRepo = ref.read(iTagRepositoryProvider);
 
     Future<T?> safeApiRequest<T>(
@@ -142,14 +146,16 @@ class TvDetailNotifier extends _$TvDetailNotifier {
   }
 
   Future<void> refresh() async {
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(guid);
     ref.invalidateSelf();
     await future;
   }
 
   Future<ActionResult> toggleFavorite() async {
+    final l10n = lookupAppLocalizations(AppLanguage.localeFromValue(ref.read(settingsProvider).language));
     final item = state.value?.item;
     if (item == null) {
-      return const ActionResult(success: false, message: '未找到剧集信息');
+      return ActionResult(success: false, message: l10n.tvDetailNotFound);
     }
 
     try {
@@ -163,11 +169,15 @@ class TvDetailNotifier extends _$TvDetailNotifier {
       if (response.getOrElse(false)) {
         await _refreshState();
         return ActionResult(
-            success: true, message: isFavorite ? '已取消收藏' : '已收藏');
+            success: true,
+            message: isFavorite
+                ? l10n.toastFavoriteRemoved
+                : l10n.toastFavoriteAdded);
       }
       return ActionResult(
         success: false,
-        message: response.failureOrNull?.displayMessage ?? '操作失败',
+        message:
+            response.failureOrNull?.displayMessage ?? l10n.toastOperationFailed,
       );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());
@@ -175,9 +185,10 @@ class TvDetailNotifier extends _$TvDetailNotifier {
   }
 
   Future<ActionResult> toggleWatched() async {
+    final l10n = lookupAppLocalizations(AppLanguage.localeFromValue(ref.read(settingsProvider).language));
     final item = state.value?.item;
     if (item == null) {
-      return const ActionResult(success: false, message: '未找到剧集信息');
+      return ActionResult(success: false, message: l10n.tvDetailNotFound);
     }
 
     try {
@@ -191,11 +202,15 @@ class TvDetailNotifier extends _$TvDetailNotifier {
       if (response.getOrElse(false)) {
         await _refreshState(refreshPlayInfo: true, refreshSeasonList: true);
         return ActionResult(
-            success: true, message: isWatched ? '标记为未观看' : '标记为已观看');
+            success: true,
+            message: isWatched
+                ? l10n.toastMarkedUnwatched
+                : l10n.toastMarkedWatched);
       }
       return ActionResult(
         success: false,
-        message: response.failureOrNull?.displayMessage ?? '操作失败',
+        message:
+            response.failureOrNull?.displayMessage ?? l10n.toastOperationFailed,
       );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());
@@ -204,6 +219,7 @@ class TvDetailNotifier extends _$TvDetailNotifier {
 
   Future<ActionResult> toggleSeasonWatched(
       String seasonGuid, bool currentWatchedState) async {
+    final l10n = lookupAppLocalizations(AppLanguage.localeFromValue(ref.read(settingsProvider).language));
     try {
       final remote = ref.read(mediaRemoteDataSourceProvider);
       final response = await remote.toggleWatched(
@@ -214,11 +230,15 @@ class TvDetailNotifier extends _$TvDetailNotifier {
       if (response.getOrElse(false)) {
         await _refreshState(refreshPlayInfo: true, refreshSeasonList: true);
         return ActionResult(
-            success: true, message: currentWatchedState ? '标记为未观看' : '标记为已观看');
+            success: true,
+            message: currentWatchedState
+                ? l10n.toastMarkedUnwatched
+                : l10n.toastMarkedWatched);
       }
       return ActionResult(
         success: false,
-        message: response.failureOrNull?.displayMessage ?? '操作失败',
+        message:
+            response.failureOrNull?.displayMessage ?? l10n.toastOperationFailed,
       );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());

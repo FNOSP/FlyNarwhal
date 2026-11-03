@@ -20,11 +20,14 @@ import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/toast.dart';
 
 import '../../../core/error/login_exception.dart';
+import '../../../core/input/desktop_ime_service.dart';
+import '../../../core/network/access_code_session.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/ssl/ssl_error_detector.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
 import '../../../data/storage/preferences_manager.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import 'widgets/history_sidebar.dart';
@@ -49,8 +52,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _fnIdController = TextEditingController();
+  final _accessCodeDialogController = TextEditingController();
+  final _accessCodeFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
 
   bool _isHttps = false;
+  bool _accessCodeDialogVisible = false;
   bool _rememberPassword = false;
   bool _isNasLogin = false;
   bool _showHistorySidebar = false;
@@ -76,6 +83,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    _accessCodeFocusNode.addListener(_syncImeEnglishOnly);
+    _passwordFocusNode.addListener(_syncImeEnglishOnly);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final history = ref.read(loginHistoryNotifierProvider);
       if (history.isNotEmpty) {
@@ -97,7 +106,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _fnIdController.dispose();
+    _accessCodeDialogController.dispose();
+    _accessCodeFocusNode.removeListener(_syncImeEnglishOnly);
+    _accessCodeFocusNode.dispose();
+    _passwordFocusNode.removeListener(_syncImeEnglishOnly);
+    _passwordFocusNode.dispose();
     super.dispose();
+  }
+
+  /// Keeps the OS input method in English while a credential field (the login
+  /// password or the access code) holds focus, restoring it afterwards, so a
+  /// CJK input method cannot be used to type into them.
+  void _syncImeEnglishOnly() {
+    final shouldForceEnglish =
+        _passwordFocusNode.hasFocus || _accessCodeFocusNode.hasFocus;
+    unawaited(
+      const DesktopImeService().setEnglishOnly(shouldForceEnglish),
+    );
   }
 
   Future<bool> _populateFields(
@@ -163,7 +188,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       AppTalker.info('Login', 'nas login: normalizedUrl="$url"');
       if (url.isEmpty) {
         AppTalker.warning('Login', 'nas login: empty url, abort');
-        _showToast('请输入 IP:Port、域名或 FN ID');
+        _showToast(AppLocalizations.of(context).loginHostOrFnIdPlaceholder);
         return;
       }
       final shouldAutoLogin =
@@ -187,7 +212,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       AppTalker.info('Login', 'probe: normalizedUrl="$probeUrl"');
       if (probeUrl.isEmpty) {
         AppTalker.warning('Login', 'probe: empty url, abort');
-        _showToast('请输入正确的 IP、域名或 FN ID');
+        _showToast(AppLocalizations.of(context).loginHostValidationMessage);
         return;
       }
       await _openFnConnectWebView(url: probeUrl, isProbe: true);
@@ -195,15 +220,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     if (host.trim().isEmpty) {
-      _showToast('请输入 IP、域名或 FN ID');
+      _showToast(AppLocalizations.of(context).loginHostRequiredMessage);
       return;
     }
     if (username.trim().isEmpty) {
-      _showToast('请输入用户名');
+      _showToast(AppLocalizations.of(context).loginUsernameRequiredMessage);
       return;
     }
     if (password.isEmpty) {
-      _showToast('请输入密码');
+      _showToast(AppLocalizations.of(context).loginPasswordRequiredMessage);
       return;
     }
 
@@ -211,23 +236,124 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _displayHost = host.trim();
       _displayPort = port;
       AppTalker.info('Login', 'direct login start');
-      await ref.read(loginViewModelProvider.notifier).login(
-            host: host,
-            port: port,
-            username: username,
-            password: password,
-            isHttps: _isHttps,
-            rememberPassword: _rememberPassword,
-            isNasLogin: false,
-            fnId: null,
-            displayHost: _displayHost,
-            displayPort: _displayPort,
-          );
+      final loggedIn = await _attemptDirectLogin(
+        host: host,
+        port: port,
+        username: username,
+        password: password,
+        displayHost: _displayHost,
+        displayPort: _displayPort,
+      );
+      if (!loggedIn) return;
       AppTalker.info('Login', 'direct login success, navigate');
       if (mounted) context.go('/home');
     } catch (e) {
       AppTalker.warning('Login', 'direct login error: $e');
       _handleLoginError(e);
+    }
+  }
+
+  /// Runs a direct login. When the server turns out to be access-code
+  /// protected, prompts for the code on the login screen and retries.
+  /// Returns true when logged in, false when the user dismissed the prompt.
+  Future<bool> _attemptDirectLogin({
+    required String host,
+    required int port,
+    required String username,
+    required String password,
+    required String displayHost,
+    required int displayPort,
+  }) async {
+    final notifier = ref.read(loginViewModelProvider.notifier);
+    final l10n = AppLocalizations.of(context);
+    String? accessCode;
+    while (true) {
+      try {
+        await notifier.login(
+          host: host,
+          port: port,
+          username: username,
+          password: password,
+          isHttps: _isHttps,
+          rememberPassword: _rememberPassword,
+          isNasLogin: false,
+          fnIdEmptyMessage: l10n.loginFnIdEmpty,
+          displayHost: displayHost,
+          displayPort: displayPort,
+          accessCode: accessCode,
+        );
+        return true;
+      } on AccessCodeRequiredException {
+        if (!mounted) return false;
+        final code = await _promptAccessCode();
+        if (code == null) return false;
+        accessCode = code;
+      } on AccessCodeVerificationException catch (e) {
+        if (!mounted) return false;
+        _showToast(e.isRejected
+            ? l10n.loginAccessCodeInvalid
+            : l10n.loginFailedCheckNetwork);
+        final code = await _promptAccessCode();
+        if (code == null) return false;
+        accessCode = code;
+      }
+    }
+  }
+
+  /// Prompts for the NAS access code, returning null when the user cancels.
+  Future<String?> _promptAccessCode() async {
+    final l10n = AppLocalizations.of(context);
+    _accessCodeDialogController.clear();
+    _accessCodeDialogVisible = false;
+    try {
+      final action = await showAppDialog<String>(
+        context: context,
+        title: l10n.loginAccessCodeTitle,
+        content: StatefulBuilder(
+          builder: (context, setDialogState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextBox(
+                key: const ValueKey('login-access-code-input'),
+                controller: _accessCodeDialogController,
+                focusNode: _accessCodeFocusNode,
+                obscureText: !_accessCodeDialogVisible,
+                // Access codes are plain ASCII; reject CJK/IME input so a
+                // Chinese input method can never fill this field.
+                inputFormatters: const [_AsciiOnlyTextInputFormatter()],
+                onSubmitted: (_) =>
+                    Navigator.of(context, rootNavigator: true).pop('confirm'),
+                suffix: AppIconButton(
+                  icon: Icon(
+                    _accessCodeDialogVisible
+                        ? FluentIcons.hide3
+                        : FluentIcons.view,
+                  ),
+                  onPressed: () => setDialogState(() {
+                    _accessCodeDialogVisible = !_accessCodeDialogVisible;
+                  }),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(l10n.loginAccessCodeHint,
+                  style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+        ),
+        secondaryButtonText: l10n.commonCancel,
+        primaryButtonText: l10n.commonConfirm,
+        primaryResult: 'confirm',
+        secondaryResult: 'cancel',
+        autoDismiss: true,
+      );
+      if (action != 'confirm') return null;
+      final code = _accessCodeDialogController.text.trim();
+      return code.isEmpty ? null : code;
+    } finally {
+      // The dialog can close while its field is still focused, so re-derive
+      // the input mode from the fields that actually hold focus.
+      _syncImeEnglishOnly();
     }
   }
 
@@ -246,7 +372,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _capturedUsername = '';
     _capturedPassword = '';
     _capturedRememberPassword = false;
-
     try {
       // Create a shared Windows environment before accessing its cookie store.
       if (!kIsWeb && Platform.isWindows) {
@@ -264,7 +389,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         'LoginBridge',
         'prepare WebView environment failed: $error',
       );
-      _showToast('浏览器组件初始化失败，请稍后重试。');
+      _showToast(AppLocalizations.of(context).loginWebViewInitFailed);
       return;
     }
 
@@ -300,6 +425,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Initialize network processor for NAS auth flow
     AppTalker.info('LoginBridge', 'prepare network processor');
     _networkMessageProcessor = _NetworkMessageProcessor(
+      l10n: AppLocalizations.of(context),
       dioClient: dioClient,
       preferencesManager: prefs,
       onError: _showToast,
@@ -335,6 +461,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required String placeholder,
     Widget? suffixIcon,
     VoidCallback? onSuffixTap,
+    FocusNode? focusNode,
     bool obscureText = false,
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
@@ -343,6 +470,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return GlassTextField(
       controller: controller,
       placeholder: placeholder,
+      focusNode: focusNode,
       obscureText: obscureText,
       keyboardType: keyboardType,
       onChanged: onChanged,
@@ -393,6 +521,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       autoLoginPasswordLiteral: jsonEncode(_autoLoginPassword),
       allowAutoLogin: _allowAutoLogin,
       usernameHistoryJsonLiteral: jsonEncode(_buildUsernameHistory(history)),
+      rememberPasswordLabel:
+          jsonEncode(AppLocalizations.of(context).loginRememberPassword),
     ).build();
     await controller.evaluateJavascript(source: script);
   }
@@ -407,19 +537,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_isProbeMode) {
       final baseUrl = _extractBaseUrlFromLogin(normalized);
       if (baseUrl == null) return;
-      final uri = Uri.tryParse(baseUrl);
-      if (uri == null || uri.host.isEmpty) return;
-      final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
-      _isProbeMode = false;
-      setState(() {
-        _showFnConnectWebView = false;
-      });
-      _disposeWebView();
-      _hostController.text = uri.host;
-      _portController.text = (uri.hasPort ? uri.port : 0).toString();
-      _isHttps = scheme == 'https';
-      _finalizeLogin();
+      _completeProbe(baseUrl);
     }
+  }
+
+  /// Finishes probe mode once the real base URL is known: hide the webview and
+  /// continue with the direct login using the form's credentials.
+  void _completeProbe(String baseUrl) {
+    final uri = Uri.tryParse(baseUrl);
+    if (uri == null || uri.host.isEmpty) return;
+    final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+    _isProbeMode = false;
+    setState(() {
+      _showFnConnectWebView = false;
+    });
+    _disposeWebView();
+    _hostController.text = uri.host;
+    _portController.text = (uri.hasPort ? uri.port : 0).toString();
+    _isHttps = scheme == 'https';
+    _finalizeLogin();
   }
 
   bool _handleBridgeMessageFromUrl(String url) {
@@ -489,6 +625,68 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (method == 'LogNetwork') {
       AppTalker.info('LoginBridge', 'receive network log payload');
       _handleNetworkLog(params);
+      return;
+    }
+    if (method == 'CaptureAccessCode') {
+      unawaited(_handleAccessCodeCaptured(params));
+      return;
+    }
+    if (method == 'ReportGateState') {
+      try {
+        final data = jsonDecode(params);
+        if (data is Map) {
+          _networkMessageProcessor?.reportWebViewGateState(
+            gated: data['gated'] == true,
+            cleared: data['cleared'] == true,
+          );
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Verifies the fnOS access code captured from the webview and stores the
+  /// gateway session so native NAS API requests are authorized (the gateway
+  /// otherwise answers API paths with the HTML page, stalling the login).
+  Future<void> _handleAccessCodeCaptured(String params) async {
+    String code = '';
+    try {
+      final data = jsonDecode(params);
+      if (data is Map) {
+        code = (data['code'] ?? '').toString().trim();
+      }
+    } catch (_) {}
+    if (code.isEmpty || _baseUrl.isEmpty) return;
+    AppTalker.info(
+      'LoginBridge',
+      'access code captured for "$_baseUrl" length=${code.length}',
+    );
+    try {
+      final result = await AccessCodeSession.establish(
+        dio: ref.read(dioClientProvider).dio,
+        baseUrl: _baseUrl,
+        accessCode: code,
+      );
+      AppTalker.info(
+        'LoginBridge',
+        'access code session established origin="${result.baseUrl}"',
+      );
+      if (_isProbeMode) {
+        // Probe mode only needs the real base URL. The access code was entered
+        // in the webview and captured into the gateway session, so finish the
+        // probe and log in with the form's credentials.
+        _completeProbe(result.baseUrl);
+        return;
+      }
+      // The native sys/config fallback may already have run (and been rejected)
+      // before the grant was ready; retry it now so the flow can continue.
+      await _networkMessageProcessor?.retrySysConfig(result.baseUrl);
+    } on AccessCodeVerificationException catch (e) {
+      AppTalker.warning('LoginBridge', 'access code verify failed: $e');
+      if (mounted && e.isRejected) {
+        _showToast(AppLocalizations.of(context).loginAccessCodeInvalid);
+      }
+    } catch (e) {
+      AppTalker.warning('LoginBridge', 'access code session error: $e');
     }
   }
 
@@ -546,7 +744,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _onNasLoginSuccess(_NasLoginResult result) async {
     final prefs = ref.read(preferencesManagerProvider);
     await prefs.saveToken(result.token);
-    await prefs.saveCookie(result.cookie);
+    // Fold any access-code gateway session into the persisted cookie so media
+    // API requests keep working after the app restarts.
+    final persistedCookie = mergeCookies([
+      getAccessCookieHeader(result.baseUrl),
+      result.cookie,
+    ]);
+    await prefs.saveCookie(persistedCookie);
     await prefs.saveBaseUrl(result.baseUrl);
     await prefs.saveLoginHistory(result.history);
     ref.invalidate(loginHistoryNotifierProvider);
@@ -681,7 +885,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               key: const ValueKey('login-history-button'),
                               child: _buildGlassField(
                                 controller: _fnIdController,
-                                placeholder: '请输入 IP:Port、域名或 FN ID',
+                                placeholder: AppLocalizations.of(context)
+                                    .loginHostOrFnIdPlaceholder,
                                 onChanged: (_) => _autoLoginFromHistory = false,
                                 suffixIcon: const Icon(
                                   material.Icons.history,
@@ -698,7 +903,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   flex: 2,
                                   child: _buildGlassField(
                                     controller: _hostController,
-                                    placeholder: '请输入 IP、域名或 FN ID',
+                                    placeholder: AppLocalizations.of(context)
+                                        .loginHostPlaceholder,
                                     onChanged: (_) =>
                                         _autoLoginFromHistory = false,
                                     suffixIcon: const Icon(
@@ -713,7 +919,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   flex: 1,
                                   child: _buildGlassField(
                                     controller: _portController,
-                                    placeholder: '端口',
+                                    placeholder: AppLocalizations.of(context)
+                                        .loginPortPlaceholder,
                                     keyboardType: TextInputType.number,
                                     inputFormatters: [
                                       FilteringTextInputFormatter.digitsOnly,
@@ -728,13 +935,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             const SizedBox(height: 16),
                             _buildGlassField(
                               controller: _usernameController,
-                              placeholder: '用户名',
+                              placeholder: AppLocalizations.of(context)
+                                  .loginUsernameLabel,
                               onChanged: (_) => _autoLoginFromHistory = false,
                             ),
                             const SizedBox(height: 16),
                             _buildGlassField(
                               controller: _passwordController,
-                              placeholder: '密码',
+                              placeholder: AppLocalizations.of(context)
+                                  .loginPasswordLabel,
+                              focusNode: _passwordFocusNode,
                               obscureText: !_passwordVisible,
                               onChanged: (_) => _autoLoginFromHistory = false,
                               suffixIcon: Icon(
@@ -760,9 +970,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     activeColor: _primaryBlue,
                                   ),
                                 ),
-                                const Expanded(
-                                  child: Text('记住密码',
-                                      style: TextStyle(color: _textColor)),
+                                Expanded(
+                                  child: Text(
+                                      AppLocalizations.of(context)
+                                          .loginRememberPassword,
+                                      style: const TextStyle(color: _textColor)),
                                 ),
                                 _withClickCursor(
                                   material.TextButton(
@@ -771,7 +983,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       enabledMouseCursor:
                                           SystemMouseCursors.click,
                                     ),
-                                    child: const Text('忘记密码'),
+                                    child: Text(AppLocalizations.of(context)
+                                        .forgotPasswordTitle),
                                   ),
                                 ),
                               ],
@@ -780,9 +993,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Expanded(
-                                child: Text('使用 NAS 登录',
-                                    style: TextStyle(color: _hintColor)),
+                              Expanded(
+                                child: Text(
+                                    AppLocalizations.of(context)
+                                        .loginUseNasLogin,
+                                    style: const TextStyle(color: _hintColor)),
                               ),
                               _withClickCursor(
                                 GlassSwitch(
@@ -801,9 +1016,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Expanded(
-                                child: Text('HTTPS 安全访问',
-                                    style: TextStyle(color: _hintColor)),
+                              Expanded(
+                                child: Text(
+                                    AppLocalizations.of(context)
+                                        .loginHttpsSecureAccess,
+                                    style: const TextStyle(color: _hintColor)),
                               ),
                               _withClickCursor(
                                 GlassSwitch(
@@ -831,7 +1048,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       child: AppLoadingProgressRing(
                                           size: 22, strokeWidth: 2),
                                     )
-                                  : Text(_isNasLogin ? '下一步' : '登录',
+                                  : Text(
+                                      _isNasLogin
+                                          ? AppLocalizations.of(context)
+                                              .loginNext
+                                          : AppLocalizations.of(context)
+                                              .loginSignIn,
                                       style: const TextStyle(fontSize: 16)),
                             ),
                           ),
@@ -922,7 +1144,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             const SizedBox(width: kMacOSTrafficLightInset),
                           _withClickCursor(
                             AppButton(
-                              child: const Text('关闭'),
+                              child: Text(
+                                  AppLocalizations.of(context).commonCancel),
                               onPressed: () {
                                 setState(() {
                                   _showFnConnectWebView = false;
@@ -932,8 +1155,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          const Text('正在验证服务器...',
-                              style: TextStyle(color: Colors.grey)),
+                          Text(AppLocalizations.of(context).loginVerifyingServer,
+                              style: const TextStyle(color: Colors.grey)),
                         ],
                       ),
                     ),
@@ -967,6 +1190,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               if (arguments.isNotEmpty) {
                                 unawaited(
                                   _handleNetworkLog(arguments.first.toString()),
+                                );
+                              }
+                              return null;
+                            },
+                          );
+                          controller.addJavaScriptHandler(
+                            handlerName: 'CaptureAccessCode',
+                            callback: (arguments) {
+                              if (arguments.isNotEmpty) {
+                                unawaited(
+                                  _handleAccessCodeCaptured(
+                                    arguments.first.toString(),
+                                  ),
+                                );
+                              }
+                              return null;
+                            },
+                          );
+                          controller.addJavaScriptHandler(
+                            handlerName: 'ReportGateState',
+                            callback: (arguments) {
+                              if (arguments.isNotEmpty) {
+                                _handleJsBridgeMessage(
+                                  'ReportGateState',
+                                  arguments.first.toString(),
                                 );
                               }
                               return null;
@@ -1009,19 +1257,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final host = slashIndex == -1 ? raw : raw.substring(0, slashIndex);
     final path = slashIndex == -1 ? '' : raw.substring(slashIndex);
     final normalizedHost = host.contains('.') ? host : '5ddd.com/$host';
-    final protocolPrefix = normalizedHost.contains('5ddd.com') ||
-            normalizedHost.contains('fnos.net')
-        ? 'https://'
-        : (https ? 'https://' : 'http://');
+    // A bare token is an FN ID and maps to the 5ddd.com portal; the FN Connect
+    // family always uses HTTPS.
+    final isFnConnect = !host.contains('.') || isFnConnectHost(host);
+    final protocolPrefix =
+        isFnConnect ? 'https://' : (https ? 'https://' : 'http://');
     return '$protocolPrefix$normalizedHost$path';
   }
 
   bool _needsProbe(String host) {
     final h = host.trim().toLowerCase();
     if (h.isEmpty) return false;
-    if (!h.contains('.')) return true;
-    if (h.contains('5ddd.com') || h.contains('fnos.net')) return true;
-    return false;
+    // A bare token is an FN ID; an FN Connect domain also needs the webview.
+    return !h.contains('.') || isFnConnectHost(h);
   }
 
   String _stripQuotes(String url) {
@@ -1056,6 +1304,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         'Login',
         'finalize login start: host="$host" port=$port isHttps=$_isHttps',
       );
+      // The FN ID / FN domain probe already ran in the webview: the access
+      // code (if any) was entered there and captured into the gateway session,
+      // so finish with a plain direct login using the form's credentials.
       await ref.read(loginViewModelProvider.notifier).login(
             host: host,
             port: port,
@@ -1064,6 +1315,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             isHttps: _isHttps,
             rememberPassword: _rememberPassword,
             isNasLogin: false,
+            fnIdEmptyMessage: AppLocalizations.of(context).loginFnIdEmpty,
             displayHost: displayHost ?? _displayHost,
             displayPort: displayPort ?? _displayPort,
           );
@@ -1093,7 +1345,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _handleLoginError(Object error) {
     if (error is LoginException) {
       if (error.code == -15) {
-        _showToast('用户名或密码错误');
+        _showToast(AppLocalizations.of(context).loginInvalidCredentials);
         return;
       }
       _showToast(error.message);
@@ -1102,38 +1354,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _showToast(_humanizeLoginError(error));
   }
 
-  /// Translates low-level network errors into plain Chinese text for users.
+  /// Translates low-level network errors into plain text for users.
   /// Keep the original class names out of the toast; release obfuscation makes
   /// them unreadable anyway (e.g. `Instance of 'wNa'`).
   String _humanizeLoginError(Object error) {
+    final l10n = AppLocalizations.of(context);
     if (error is DioException) {
       final statusCode = error.response?.statusCode;
       if (statusCode != null) {
-        return '服务器返回错误（HTTP $statusCode），请检查服务状态。';
+        return l10n.loginServerHttpError('$statusCode');
       }
       // A TLS failure normally arrives as `DioExceptionType.unknown` wrapping a
       // HandshakeException, not as `badCertificate`, so inspect the cause chain
       // before falling through to the generic messages.
       if (isCertificateException(error.error ?? error)) {
-        return 'SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。';
+        return l10n.loginSslCertificateFailed;
       }
       switch (error.type) {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.receiveTimeout:
-          return '连接服务器超时，请确认服务器地址或网络状态。';
+          return l10n.loginConnectionTimeout;
         case DioExceptionType.connectionError:
-          return '无法连接到服务器，请检查地址、端口或网络。';
+          return l10n.loginConnectionFailed;
         case DioExceptionType.badCertificate:
-          return 'SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。';
+          return l10n.loginSslCertificateFailed;
         case DioExceptionType.cancel:
-          return '登录请求已取消。';
+          return l10n.loginRequestCancelled;
         case DioExceptionType.unknown:
         case DioExceptionType.badResponse:
-          return '登录失败，请检查服务器地址或稍后再试。';
+          return l10n.loginFailedCheckServer;
       }
     }
-    return '登录失败，请检查网络或服务器设置。';
+    return l10n.loginFailedCheckNetwork;
   }
 
   void _showToast(String message) {
@@ -1147,16 +1400,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _showForgotPasswordDialog() {
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     showAppDialog<void>(
       context: context,
-      title: '忘记密码？',
-      content: const Text(
-        '1. 如果您是 NAS 用户，请尝试 NAS 帐号登录；\n2. 请联系管理员修改密码。',
-      ),
-      primaryButtonText: '确认',
+      title: l10n.forgotPasswordTitle,
+      content: Text(l10n.forgotPasswordBody),
+      primaryButtonText: l10n.commonConfirm,
       onPrimaryPressed: () {},
       autoDismiss: true,
     );
+  }
+}
+
+/// Keeps a text field to printable ASCII, so CJK/IME input is simply dropped
+/// instead of being inserted.
+class _AsciiOnlyTextInputFormatter extends TextInputFormatter {
+  const _AsciiOnlyTextInputFormatter();
+
+  static final RegExp _printableAscii = RegExp(r'^[\x20-\x7E]*$');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return _printableAscii.hasMatch(newValue.text) ? newValue : oldValue;
   }
 }
 
@@ -1176,6 +1444,7 @@ class _NasLoginResult {
 
 class _NetworkMessageProcessor {
   _NetworkMessageProcessor({
+    required this.l10n,
     required this.dioClient,
     required this.preferencesManager,
     required this.onError,
@@ -1188,6 +1457,7 @@ class _NetworkMessageProcessor {
     required this.autoLoginUsername,
   });
 
+  final AppLocalizations l10n;
   final DioClient dioClient;
   final PreferencesManager preferencesManager;
   final void Function(String message) onError;
@@ -1203,6 +1473,34 @@ class _NetworkMessageProcessor {
   bool _isAuthRequested = false;
   bool _isSysConfigInFlight = false;
   bool _isSysConfigLoaded = false;
+  String _lastSysCookie = '';
+
+  /// The WebView page is showing the fnOS access-code gate.
+  bool _isWebViewAccessCodeGated = false;
+
+  /// The WebView page cleared its own access-code gate.
+  bool _isWebViewGateCleared = false;
+
+  /// Signin URL held back until the WebView page clears its gateway gate.
+  String? _pendingSigninUrl;
+
+  /// Records the WebView page's access-code gate state, reported by the
+  /// in-page script. Navigating to `/signin` while the page is still gated
+  /// would reload the gate with an empty field. The page clears the gate by
+  /// running its own `/access_code_verify`; that is reported as `cleared`.
+  void reportWebViewGateState({required bool gated, required bool cleared}) {
+    if (gated) {
+      _isWebViewAccessCodeGated = true;
+    }
+    if (cleared) {
+      _isWebViewAccessCodeGated = false;
+      _isWebViewGateCleared = true;
+    }
+    final pending = _pendingSigninUrl;
+    if (pending == null || !_isWebViewGateCleared) return;
+    _pendingSigninUrl = null;
+    unawaited(loadUrl(pending));
+  }
 
   // Route network logs to NAS OAuth flow handlers
   Future<void> process({
@@ -1267,7 +1565,16 @@ class _NetworkMessageProcessor {
     final cookie = _extractCookie(payload);
     if (cookie == null || cookie.isEmpty) return;
     final normalizedCookie = _normalizeRelayCookie(cookie, baseUrl);
+    _lastSysCookie = normalizedCookie;
     await _fetchSysConfig(baseUrl, normalizedCookie);
+  }
+
+  /// Re-runs the native sys/config lookup once the access-code gateway session
+  /// is available (the first attempt may have run before the grant existed).
+  Future<void> retrySysConfig(String baseUrl) async {
+    if (_isSysConfigLoaded) return;
+    _isSysConfigInFlight = false;
+    await _fetchSysConfig(baseUrl, _lastSysCookie);
   }
 
   Future<void> _handleSysConfigMessage(
@@ -1297,6 +1604,7 @@ class _NetworkMessageProcessor {
   Future<void> _fetchSysConfig(String baseUrl, String cookie) async {
     if (baseUrl.isEmpty) return;
     _isSysConfigInFlight = true;
+    _lastSysCookie = cookie;
     try {
       // Authx is injected by the AuthInterceptor.
       final response = await dioClient.dio.get(
@@ -1353,6 +1661,17 @@ class _NetworkMessageProcessor {
     }
     _isSysConfigLoaded = true;
     _isSysConfigInFlight = false;
+    // The fnOS page runs its own access-code gate in the WebView, and the
+    // WebView uses its own (incognito) cookie jar, so the native grant does
+    // not authorize the page. Navigating to /signin while the page is still
+    // gated reloads it back onto the access-code prompt with an empty field,
+    // forcing the user to re-enter the code. Wait for the page to clear its
+    // own gate (its /access_code_verify succeeded) before navigating.
+    if (_isWebViewAccessCodeGated && !_isWebViewGateCleared) {
+      _pendingSigninUrl = targetUrl;
+      return;
+    }
+    _pendingSigninUrl = null;
     await loadUrl(targetUrl);
   }
 
@@ -1415,7 +1734,7 @@ class _NetworkMessageProcessor {
       final token = await _exchangeCodeForToken(resolvedBaseUrl, code);
       if (token.isEmpty) {
         _isAuthRequested = false;
-        onError('登录失败: Token 为空');
+        onError(l10n.loginFailedTokenEmpty);
         return;
       }
       final relayCookie =
@@ -1459,7 +1778,7 @@ class _NetworkMessageProcessor {
       );
     } catch (e) {
       _isAuthRequested = false;
-      onError('登录失败: $e');
+      onError(l10n.loginFailedWithError('$e'));
     }
   }
 
@@ -1497,7 +1816,8 @@ class _NetworkMessageProcessor {
       );
       final codeValue = data['code'];
       if (codeValue is int && codeValue != 0) {
-        final msg = data['msg']?.toString() ?? '认证失败';
+        final msg = data['msg']?.toString() ??
+            l10n.loginAuthFailed;
         throw Exception(msg);
       }
       final body = data['data'];
@@ -1532,13 +1852,17 @@ class _NetworkMessageProcessor {
 
   String? _extractCookie(Map<String, dynamic> payload) {
     final direct = payload['cookie']?.toString();
-    if (direct != null && direct.isNotEmpty) return direct;
+    if (direct != null && direct.isNotEmpty) {
+      return direct;
+    }
     final headers = payload['headers'];
     if (headers is Map) {
       final lowered = headers.map((key, value) =>
           MapEntry(key.toString().toLowerCase(), value.toString()));
       final cookie = lowered['set-cookie'] ?? lowered['cookie'];
-      if (cookie != null && cookie.isNotEmpty) return cookie;
+      if (cookie != null && cookie.isNotEmpty) {
+        return cookie;
+      }
     }
     if (headers is String) {
       final lines = headers.split('\n');
@@ -1548,7 +1872,9 @@ class _NetworkMessageProcessor {
         final key = parts.first.trim().toLowerCase();
         final value = parts.sublist(1).join(':').trim();
         if (key == 'set-cookie' || key == 'cookie') {
-          if (value.isNotEmpty) return value;
+          if (value.isNotEmpty) {
+            return value;
+          }
         }
       }
     }
@@ -1556,7 +1882,8 @@ class _NetworkMessageProcessor {
   }
 
   String _normalizeRelayCookie(String cookie, String baseUrl) {
-    if (!baseUrl.contains('5ddd.com') && !baseUrl.contains('fnos.net')) {
+    final host = Uri.tryParse(baseUrl)?.host ?? '';
+    if (!isFnConnectHost(host)) {
       return cookie;
     }
     if (cookie.contains('mode=relay')) {

@@ -36,7 +36,7 @@ jobs:
             goarch: amd64
             libname: libfly_narwhal_obfuscator.dylib
             artifact: macos-x64
-          - runner: macos-14
+          - runner: macos-15
             platform: macos
             architecture: arm64
             goarch: arm64

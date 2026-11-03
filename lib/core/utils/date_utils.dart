@@ -1,3 +1,5 @@
+import '../../l10n/generated/app_localizations.dart';
+
 /// Date utility functions
 class DateTimeUtils {
   const DateTimeUtils._();
@@ -26,7 +28,20 @@ class DateTimeUtils {
 
   /// Format seconds to Chinese readable duration
   /// Example: 3661 -> "1 小时 1 分钟 1 秒"
-  static String formatSecondsToCNDateTime(int seconds) {
+  static String formatSecondsToCNDateTime(
+    int seconds, {
+    AppLocalizations? l10n,
+  }) {
+    if (l10n != null) {
+      if (seconds <= 0) return l10n.durationZeroMinutes;
+      final h = seconds ~/ 3600;
+      final m = (seconds % 3600) ~/ 60;
+      final rs = seconds % 60;
+      if (h > 0 && m > 0) return l10n.durationHoursMinutes('$h', '$m');
+      if (h > 0) return l10n.durationHours('$h');
+      if (m > 0 && rs > 0) return l10n.durationMinutesSeconds('$m', '$rs');
+      return l10n.durationMinutes('$m');
+    }
     if (seconds <= 0) return '0 分钟';
     final hours = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
@@ -65,12 +80,32 @@ class DateTimeUtils {
   }
 
   /// Get relative time string (e.g., "2 hours ago", "just now")
-  static String getRelativeTime(int timestamp, {String locale = 'zh'}) {
+  static String getRelativeTime(
+    int timestamp, {
+    String locale = 'zh',
+    AppLocalizations? l10n,
+  }) {
     if (timestamp == 0) return '';
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
     final now = DateTime.now();
     final difference = now.difference(date);
 
+    if (l10n != null) {
+      if (difference.inSeconds < 60) return l10n.timeJustNow;
+      if (difference.inMinutes < 60) {
+        return l10n.timeMinutesAgo('${difference.inMinutes}');
+      } else if (difference.inHours < 24) {
+        return l10n.timeHoursAgo('${difference.inHours}');
+      } else if (difference.inDays < 7) {
+        return l10n.timeDaysAgo('${difference.inDays}');
+      } else if (difference.inDays < 30) {
+        return l10n.timeWeeksAgo('${difference.inDays ~/ 7}');
+      } else if (difference.inDays < 365) {
+        return l10n.timeMonthsAgo('${difference.inDays ~/ 30}');
+      } else {
+        return l10n.timeYearsAgo('${difference.inDays ~/ 365}');
+      }
+    }
     if (locale == 'zh') {
       if (difference.inSeconds < 60) {
         return '刚刚';

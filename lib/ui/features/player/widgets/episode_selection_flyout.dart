@@ -8,6 +8,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import '../../../../core/utils/date_utils.dart';
 import '../../../../data/models/episode_list_response.dart';
 import '../../../../domain/entities/media_type.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../shared/common/episode_view_mode_toggle.dart';
 import '../../../shared/common/media_poster_placeholder.dart';
 
@@ -335,6 +336,7 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -352,7 +354,7 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Text(
-            '选集',
+            l10n.tvDetailEpisodeSectionTitle,
             style: TextStyle(
               color: _isButtonHovered ? Colors.white : _episodeDefaultTextColor,
               fontSize: 17,
@@ -578,16 +580,17 @@ class _EpisodeListRowState extends State<_EpisodeListRow> {
     return '$normalizedBaseUrl/v/api/v1/sys/img$posterPath$suffix';
   }
 
-  String _buildTitle() {
+  String _buildTitle(AppLocalizations l10n) {
     final title = widget.episode.title.trim();
     if (title.isEmpty) {
-      return '第 ${widget.episode.episodeNumber} 集';
+      return l10n.playerEpisodeNumber('${widget.episode.episodeNumber}');
     }
     return '${widget.episode.episodeNumber.toString().padLeft(2, '0')}. $title';
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final episode = widget.episode;
     final imageUrl = _buildImageUrl();
     final progress = episode.duration > 0
@@ -676,7 +679,7 @@ class _EpisodeListRowState extends State<_EpisodeListRow> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _buildTitle(),
+                      _buildTitle(l10n),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

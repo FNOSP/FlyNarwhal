@@ -112,10 +112,10 @@ class DesktopPseudoFullscreenController {
     }
   }
 
-  Future<bool> exitForRouteLeave() async {
+  Future<bool> exitForRouteLeave({bool keepFullscreen = false}) async {
     if (_isMacOS) {
       final isFullscreen = await windowManager.isFullScreen();
-      if (isFullscreen) {
+      if (isFullscreen && !keepFullscreen) {
         await windowManager.setFullScreen(false);
       }
       return false;

@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/network/api_result.dart';
 import '../../../data/models/person_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/global_refresh.dart';
 import '../../shared/common/fn_cached_image.dart';
 import '../../shared/common/app_load_error_view.dart';
@@ -95,7 +96,7 @@ class _PersonNoData extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '无数据',
+            AppLocalizations.of(context).personNoData,
             style: FluentTheme.of(context).typography.body?.copyWith(
                   color:
                       FluentTheme.of(context).resources.textFillColorSecondary,
@@ -114,6 +115,7 @@ class _PersonDetailContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final person = state.person;
     return Stack(
       children: [
@@ -126,11 +128,14 @@ class _PersonDetailContent extends ConsumerWidget {
               ),
             ),
             if (state.actorWorks.isNotEmpty)
-              _buildSection(context, ref, '作为演员', state.actorWorks),
+              _buildSection(context, ref, l10n.personSectionActor,
+                  state.actorWorks),
             if (state.directorWorks.isNotEmpty)
-              _buildSection(context, ref, '作为导演', state.directorWorks),
+              _buildSection(context, ref, l10n.personSectionDirector,
+                  state.directorWorks),
             if (state.screenplayWorks.isNotEmpty)
-              _buildSection(context, ref, '作为编剧', state.screenplayWorks),
+              _buildSection(context, ref, l10n.personSectionWriter,
+                  state.screenplayWorks),
             const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
         ),
@@ -313,9 +318,10 @@ class _BiographyTextState extends State<_BiographyText> {
                     child: GestureDetector(
                       key: const ValueKey('person-biography-more'),
                       onTap: () => _showFullBiography(context),
-                      child: const Padding(
-                        padding: EdgeInsets.only(left: 4),
-                        child: Text('更多', style: _BiographyText._moreStyle),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text(AppLocalizations.of(context).personMore,
+                            style: _BiographyText._moreStyle),
                       ),
                     ),
                   ),
@@ -344,7 +350,9 @@ class _BiographyTextState extends State<_BiographyText> {
     }
 
     final morePainter = TextPainter(
-      text: const TextSpan(text: '更多', style: _BiographyText._moreStyle),
+      text: TextSpan(
+          text: AppLocalizations.of(context).personMore,
+          style: _BiographyText._moreStyle),
       textDirection: TextDirection.ltr,
     )..layout();
     final reserved = morePainter.width + 4; // 4px gap before the link.
@@ -393,7 +401,7 @@ class _BiographyTextState extends State<_BiographyText> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AppDialog<void>(
-        title: '演员简介',
+        title: AppLocalizations.of(dialogContext).personBiographyTitle,
         constraints: const BoxConstraints(
           minWidth: 560,
           maxWidth: 744,

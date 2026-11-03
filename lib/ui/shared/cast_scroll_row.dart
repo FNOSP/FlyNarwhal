@@ -5,11 +5,12 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/models/movie_detail_models.dart';
+import '../../l10n/generated/app_localizations.dart';
 import '../../providers/providers.dart';
 import '../shared/common/scroll_row.dart';
 
 class CastScrollRow extends StatelessWidget {
-  final String title;
+  final String? title;
   final List<PersonList> persons;
   final String baseUrl;
   final Map<String, String>? httpHeaders;
@@ -31,7 +32,7 @@ class CastScrollRow extends StatelessWidget {
     required this.baseUrl,
     required this.httpHeaders,
     required this.cacheManager,
-    this.title = '演职人员',
+    this.title,
     this.height = 112,
     this.itemSpacing = defaultItemSpacing,
     this.padding = const EdgeInsets.symmetric(horizontal: 32),
@@ -43,13 +44,14 @@ class CastScrollRow extends StatelessWidget {
     if (persons.isEmpty) {
       return const SizedBox.shrink();
     }
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 32, bottom: 12),
           child: Text(
-            title,
+            title ?? l10n.castTitle,
             style: FluentTheme.of(context).typography.subtitle?.copyWith(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -102,14 +104,16 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
   bool _hovered = false;
 
   // Mirrors the web personJobMap (common.person.job.*): known jobs are shown
-  // localized, anything else falls back to the raw job string.
-  static const Map<String, String> _jobLabels = {
-    'Director': '导演',
-    'Screenplay': '编剧',
-    'Writer': '编剧',
-    'Producer': '制片人',
-    'Actor': '演员',
-  };
+  // localized, anything else falls back to the raw job string. The raw API
+  // job identifiers are lookup keys (logic) and stay untranslated.
+  String? _localizedJob(AppLocalizations l10n, String job) {
+    return switch (job) {
+      'Director' => l10n.castRoleDirector,
+      'Screenplay' || 'Writer' => l10n.castRoleWriter,
+      'Producer' => l10n.castRoleProducer,
+      _ => null,
+    };
+  }
 
   // Navigate to person detail page, mirroring Compose CastAvatar
   void _handleTap() {
@@ -129,6 +133,7 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final imageUrl = _buildImageUrl(widget.baseUrl, widget.person.profilePath);
     final nameColor = _hovered
         ? FluentTheme.of(context).accentColor
@@ -139,8 +144,8 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
         : person.originalName.trim();
     // Web: actors show "饰 <role>", other jobs show the localized job label.
     final role = person.job == 'Actor'
-        ? '饰 ${person.role}'
-        : _jobLabels[person.job] ?? person.job;
+        ? l10n.castCharacter(person.role)
+        : _localizedJob(l10n, person.job) ?? person.job;
 
     return SizedBox(
       width: CastScrollRow.itemWidth,

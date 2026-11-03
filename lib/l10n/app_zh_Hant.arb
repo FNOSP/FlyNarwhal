@@ -1,0 +1,3754 @@
+{
+  "@@locale": "zh_Hant",
+  "appTitle": "飛鯨影視",
+  "settingsTitle": "設定",
+  "settingsSectionAccount": "帳號",
+  "settingsSectionAppearance": "外觀",
+  "settingsSectionGeneral": "一般",
+  "settingsLanguageTitle": "語言",
+  "settingsLanguageCaption": "選擇應用介面的顯示語言",
+  "settingsSectionServer": "伺服器",
+  "@settingsSectionServer": {
+    "description": "Settings section header for the server rows."
+  },
+  "settingsSectionPrivacy": "隱私與安全",
+  "@settingsSectionPrivacy": {
+    "description": "Settings section header for privacy rows."
+  },
+  "settingsSectionAbout": "關於",
+  "@settingsSectionAbout": {
+    "description": "Settings section header for the about rows."
+  },
+  "settingsAccountUnloaded": "未載入使用者資訊",
+  "@settingsAccountUnloaded": {
+    "description": "Account row heading shown before user info loads."
+  },
+  "settingsAccountUnloadedCaption": "登入後將在首頁自動完成使用者資訊驗證",
+  "@settingsAccountUnloadedCaption": {
+    "description": "Caption for the unloaded account row."
+  },
+  "settingsAccountAdminBadge": "管理員",
+  "@settingsAccountAdminBadge": {
+    "description": "Badge shown next to an administrator's name."
+  },
+  "settingsAccountSignOut": "登出",
+  "@settingsAccountSignOut": {
+    "description": "Row heading for signing out."
+  },
+  "settingsAccountSignOutCaption": "登出目前帳號",
+  "@settingsAccountSignOutCaption": {
+    "description": "Caption for the sign-out row."
+  },
+  "settingsAccountSignOutConfirm": "確認登出目前帳號？",
+  "@settingsAccountSignOutConfirm": {
+    "description": "Confirmation shown before signing out."
+  },
+  "settingsAppearanceThemeMode": "佈景模式",
+  "@settingsAppearanceThemeMode": {
+    "description": "Row heading for the theme mode setting."
+  },
+  "settingsAppearanceThemeModeCaption": "是否跟隨系統佈景",
+  "@settingsAppearanceThemeModeCaption": {
+    "description": "Caption for the theme mode row."
+  },
+  "settingsAppearanceFollowSystem": "跟隨系統",
+  "@settingsAppearanceFollowSystem": {
+    "description": "Theme switch label when following the system theme."
+  },
+  "settingsAppearanceManual": "手動設定",
+  "@settingsAppearanceManual": {
+    "description": "Theme switch label when the theme is set manually."
+  },
+  "settingsAppearanceColor": "顏色",
+  "@settingsAppearanceColor": {
+    "description": "Row heading for the light/dark toggle."
+  },
+  "settingsAppearanceColorCaption": "請選擇佈景顏色",
+  "@settingsAppearanceColorCaption": {
+    "description": "Caption for the theme color row."
+  },
+  "settingsAppearanceDark": "深色",
+  "@settingsAppearanceDark": {
+    "description": "Dark mode label."
+  },
+  "settingsAppearanceLight": "淺色",
+  "@settingsAppearanceLight": {
+    "description": "Light mode label."
+  },
+  "settingsAppearanceNavStyle": "導覽列樣式",
+  "@settingsAppearanceNavStyle": {
+    "description": "Row heading for the navigation pane style."
+  },
+  "settingsAppearanceNavStyleCaption": "請選擇導覽檢視版面",
+  "@settingsAppearanceNavStyleCaption": {
+    "description": "Caption for the navigation style row."
+  },
+  "settingsAppearanceDetailsLiquidGlass": "播放詳細資訊面板啟用液態玻璃效果",
+  "@settingsAppearanceDetailsLiquidGlass": {
+    "description": "Row heading for the playback details panel animation style."
+  },
+  "settingsAppearanceDetailsLiquidGlassCaption": "開啟後播放詳細資訊面板使用帶動畫的液態玻璃樣式，關閉則使用靜態毛玻璃樣式",
+  "@settingsAppearanceDetailsLiquidGlassCaption": {
+    "description": "Caption for the playback details panel animation style row."
+  },
+  "settingsGeneralFontSize": "字型大小",
+  "@settingsGeneralFontSize": {
+    "description": "Row heading for the UI font size."
+  },
+  "settingsGeneralFontSizeCaption": "調整應用程式整體文字大小",
+  "@settingsGeneralFontSizeCaption": {
+    "description": "Caption for the font size row."
+  },
+  "settingsGeneralShortcuts": "快速鍵設定",
+  "@settingsGeneralShortcuts": {
+    "description": "Row heading for shortcut settings."
+  },
+  "settingsGeneralShortcutsCaption": "自訂快速鍵",
+  "@settingsGeneralShortcutsCaption": {
+    "description": "Caption for the shortcut settings row."
+  },
+  "settingsGeneralCustomize": "自訂",
+  "@settingsGeneralCustomize": {
+    "description": "Button that opens the shortcut dialog."
+  },
+  "settingsGeneralResetImageCache": "重置圖片快取",
+  "@settingsGeneralResetImageCache": {
+    "description": "Row heading for resetting the image cache."
+  },
+  "settingsGeneralResetImageCacheCaption": "清理已快取的圖片，瀏覽時將重新從伺服器載入圖片",
+  "@settingsGeneralResetImageCacheCaption": {
+    "description": "Caption for the reset image cache row."
+  },
+  "settingsGeneralResetImageCacheButton": "重置",
+  "@settingsGeneralResetImageCacheButton": {
+    "description": "Button that clears the image cache."
+  },
+  "settingsGeneralResetImageCacheSuccess": "圖片快取已重置",
+  "@settingsGeneralResetImageCacheSuccess": {
+    "description": "Toast shown after the image cache has been cleared."
+  },
+  "settingsServerEnable": "啟用飛鯨伺服器",
+  "@settingsServerEnable": {
+    "description": "Toggle that enables the FlyNarwhal server features."
+  },
+  "settingsServerEnableCaption": "啟用後可連接飛鯨伺服器，實現智慧辨識片頭／片尾、彈幕等功能支援",
+  "@settingsServerEnableCaption": {
+    "description": "Caption for the server enable toggle."
+  },
+  "settingsServerAddress": "飛鯨伺服器位址",
+  "@settingsServerAddress": {
+    "description": "Row heading for the server base URL."
+  },
+  "settingsServerAddressHttpsRequired": "必須使用 HTTPS 位址",
+  "@settingsServerAddressHttpsRequired": {
+    "description": "Validation message for the server address."
+  },
+  "settingsServerAddressIncomplete": "請填寫完整的伺服器 URL",
+  "@settingsServerAddressIncomplete": {
+    "description": "Validation message for an incomplete server URL."
+  },
+  "settingsServerAuthCode": "授權碼",
+  "@settingsServerAuthCode": {
+    "description": "Row heading for the server auth code."
+  },
+  "settingsServerAuthCodePlaceholder": "填寫授權碼",
+  "@settingsServerAuthCodePlaceholder": {
+    "description": "Placeholder for the auth code field."
+  },
+  "settingsServerAuthCodeFilled": "已填寫飛鯨伺服器授權碼",
+  "@settingsServerAuthCodeFilled": {
+    "description": "Caption shown once an auth code is stored."
+  },
+  "settingsServerAuthCodePrompt": "填寫飛鯨伺服器授權碼",
+  "@settingsServerAuthCodePrompt": {
+    "description": "Heading for the auth code prompt."
+  },
+  "settingsServerAuthCodeLabel": "請輸入飛鯨伺服器授權碼：",
+  "@settingsServerAuthCodeLabel": {
+    "description": "Label above the auth code input."
+  },
+  "settingsServerAuthCodeHint": "請在飛鯨伺服器頁面點擊「取得授權碼」後貼到這裡。",
+  "@settingsServerAuthCodeHint": {
+    "description": "Hint under the auth code input."
+  },
+  "settingsServerAuthCodeHelp": "請在瀏覽器中前往部署於 NAS 的飛鯨伺服器位址（應用中心版請點擊飛牛 OS 桌面中的「飛鯨影視」），點擊右上角的「取得授權碼」按鈕，複製授權碼後貼到填寫授權碼的文字框中。\\n需要伺服器版本 >= 0.6.0，低於 0.6.0 版的伺服器不支援自動更新至 0.6.0 或以上版本，請手動更新至 0.6.0 或以上版本",
+  "@settingsServerAuthCodeHelp": {
+    "description": "Long help text explaining how to obtain the auth code."
+  },
+  "settingsServerTest": "測試",
+  "@settingsServerTest": {
+    "description": "Button that tests the server connection."
+  },
+  "settingsServerTesting": "測試中",
+  "@settingsServerTesting": {
+    "description": "Label while the connection test runs."
+  },
+  "settingsServerTestSuccess": "飛鯨伺服器連線成功，目前伺服器版本號：{version}",
+  "@settingsServerTestSuccess": {
+    "description": "Success message after a connection test.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsServerTestConnectFailed": "飛鯨伺服器連線失敗：{error}",
+  "@settingsServerTestConnectFailed": {
+    "description": "Failure message after a connection test.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsServerUnreachable": "飛鯨伺服器無法存取",
+  "@settingsServerUnreachable": {
+    "description": "Message when the server cannot be reached."
+  },
+    "settingsServerUpdateAvailable": "發現新的伺服器版本「{version}」，請到飛牛應用中心更新飛鯨影視伺服器，如發現應用中心沒有更新的版本，請耐心等待伺服器審核通過",
+  "@settingsServerUpdateAvailable": {
+    "description": "Toast telling the user the server has a newer release to install from the fnOS app center.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+"settingsServerVersionProbeFailed": "取得飛鯨伺服器版本失敗：{error}",
+  "@settingsServerVersionProbeFailed": {
+    "description": "Toast shown when the settings page fails to fetch the server version on entry.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPrivacySslTitle": "SSL 憑證信任清單",
+  "@settingsPrivacySslTitle": {
+    "description": "Row heading for the trusted certificate list."
+  },
+  "settingsPrivacySslCaption": "伺服器憑證驗證失敗時可加入信任，在此管理",
+  "@settingsPrivacySslCaption": {
+    "description": "Caption for the SSL trust list row."
+  },
+  "settingsPrivacySslTrustedCount": "已信任 {count} 張憑證",
+  "@settingsPrivacySslTrustedCount": {
+    "description": "Shows how many certificates are trusted.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPrivacyManage": "管理",
+  "@settingsPrivacyManage": {
+    "description": "Button that opens the certificate management dialog."
+  },
+  "settingsPrivacyStatement": "隱私聲明",
+  "@settingsPrivacyStatement": {
+    "description": "Row heading for the privacy statement."
+  },
+  "settingsPrivacyStatementBody": "為了改進軟體效能，我們會收集部分硬體資訊（如 CPU、GPU 型號等）作為參考依據。這些資訊僅用於最佳化軟體，不會涉及個人隱私。",
+  "@settingsPrivacyStatementBody": {
+    "description": "Body text of the privacy statement dialog."
+  },
+  "settingsPrivacyGitHubProxy": "GitHub 資源代理",
+  "@settingsPrivacyGitHubProxy": {
+    "description": "Row heading for the GitHub asset proxy."
+  },
+  "settingsPrivacyGitHubProxyCaption": "僅用於安裝檔下載",
+  "@settingsPrivacyGitHubProxyCaption": {
+    "description": "Caption for the GitHub proxy row."
+  },
+  "settingsPrivacyProxyAddress": "代理位址",
+  "@settingsPrivacyProxyAddress": {
+    "description": "Label for the proxy address field."
+  },
+  "settingsAboutVersion": "目前版本",
+  "@settingsAboutVersion": {
+    "description": "Row heading showing the current app version."
+  },
+  "settingsAboutCheckUpdate": "檢查更新",
+  "@settingsAboutCheckUpdate": {
+    "description": "Row heading for checking updates."
+  },
+  "settingsAboutChangelog": "更新日誌",
+  "@settingsAboutChangelog": {
+    "description": "Row heading for the changelog."
+  },
+  "settingsAboutChangelogCaption": "檢視各版本的更新內容",
+  "@settingsAboutChangelogCaption": {
+    "description": "Caption for the changelog row."
+  },
+  "settingsAboutPrerelease": "接收預先發行版本更新",
+  "@settingsAboutPrerelease": {
+    "description": "Toggle for opting into pre-release builds."
+  },
+  "settingsAboutPrereleaseEarly": "搶先體驗",
+  "@settingsAboutPrereleaseEarly": {
+    "description": "Label next to the pre-release toggle."
+  },
+  "settingsAboutAutoDownload": "自動下載更新",
+  "@settingsAboutAutoDownload": {
+    "description": "Toggle for automatic update downloads."
+  },
+  "settingsAboutAutoDownloadCaption": "發現更新後在背景下載並驗證安裝檔",
+  "@settingsAboutAutoDownloadCaption": {
+    "description": "Caption for the automatic download toggle."
+  },
+  "settingsAboutOpen": "開啟",
+  "@settingsAboutOpen": {
+    "description": "Toggle label for enabled."
+  },
+  "settingsAboutClose": "關閉",
+  "@settingsAboutClose": {
+    "description": "Toggle label for disabled."
+  },
+  "settingsAboutExportLogs": "匯出錯誤日誌",
+  "@settingsAboutExportLogs": {
+    "description": "Row heading for exporting error logs."
+  },
+  "settingsAboutExportLogsCaption": "支援匯出近三天的錯誤日誌，方便開發者排查問題",
+  "@settingsAboutExportLogsCaption": {
+    "description": "Caption for the export logs row."
+  },
+  "settingsAboutExport": "匯出",
+  "@settingsAboutExport": {
+    "description": "Button that exports the logs."
+  },
+  "settingsAboutExportError": "匯出錯誤",
+  "@settingsAboutExportError": {
+    "description": "Title shown when exporting logs fails."
+  },
+  "settingsAboutVersionLoading": "正在讀取版本資訊…",
+  "@settingsAboutVersionLoading": {
+    "description": "Shown while the version is loading."
+  },
+  "settingsAboutVersionUnavailable": "無法讀取版本資訊",
+  "@settingsAboutVersionUnavailable": {
+    "description": "Shown when the version cannot be resolved."
+  },
+  "commonLoading": "載入中",
+  "@commonLoading": {
+    "description": "Generic loading label."
+  },
+  "commonConfirm": "確定",
+  "@commonConfirm": {
+    "description": "Generic confirm button."
+  },
+  "commonCancel": "取消",
+  "@commonCancel": {
+    "description": "Generic cancel button."
+  },
+  "commonGotIt": "我知道了",
+  "@commonGotIt": {
+    "description": "Button that dismisses an informational dialog."
+  },
+  "commonUserInfoLoadFailed": "載入使用者資訊失敗",
+  "@commonUserInfoLoadFailed": {
+    "description": "Error message when user info cannot be loaded."
+  },
+  "commonUserInfoLoading": "正在載入使用者資訊…",
+  "@commonUserInfoLoading": {
+    "description": "Shown while user info is loading."
+  },
+  "shortcutsTitle": "快速鍵設定",
+  "@shortcutsTitle": {
+    "description": "Title of the shortcut settings dialog."
+  },
+  "shortcutsTabKeyboard": "快速鍵",
+  "@shortcutsTabKeyboard": {
+    "description": "Tab label for keyboard shortcuts."
+  },
+  "shortcutsTabPlayback": "播放",
+  "@shortcutsTabPlayback": {
+    "description": "Tab label for playback shortcuts."
+  },
+  "shortcutsTabHelp": "說明",
+  "@shortcutsTabHelp": {
+    "description": "Tab label for shortcut help."
+  },
+  "shortcutsRestoreDefaults": "還原預設",
+  "@shortcutsRestoreDefaults": {
+    "description": "Button that restores default shortcuts."
+  },
+  "shortcutsSearch": "搜尋",
+  "@shortcutsSearch": {
+    "description": "Placeholder of the shortcut search box."
+  },
+  "shortcutsPrompt": "請在鍵盤按下快速鍵或組合鍵",
+  "@shortcutsPrompt": {
+    "description": "Prompt shown while recording a shortcut."
+  },
+  "sslTrustedTitle": "SSL 憑證信任清單",
+  "@sslTrustedTitle": {
+    "description": "Title of the certificate trust dialog."
+  },
+  "sslTrustedEmpty": "尚無信任的憑證。當伺服器憑證驗證失敗時，可以在提示中選擇「信任此憑證」。",
+  "@sslTrustedEmpty": {
+    "description": "Empty state of the certificate trust list."
+  },
+  "sslTrustedAddedAt": "新增時間：{time}",
+  "@sslTrustedAddedAt": {
+    "description": "Shows when a certificate was trusted.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sslTrustedRemove": "移除",
+  "@sslTrustedRemove": {
+    "description": "Button that removes a trusted certificate."
+  },
+  "sslTrustedRemoveAll": "全部清除",
+  "@sslTrustedRemoveAll": {
+    "description": "Button that clears every trusted certificate."
+  },
+  "sslTrustedRemoveTitle": "移除信任的憑證",
+  "@sslTrustedRemoveTitle": {
+    "description": "Title of the remove-certificate confirmation."
+  },
+  "sslTrustedRemoveBody": "移除後，再次存取「{host}」時該憑證會重新驗證。",
+  "@sslTrustedRemoveBody": {
+    "description": "Body of the remove-certificate confirmation.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "sslTrustedClearTitle": "清除全部信任的憑證",
+  "@sslTrustedClearTitle": {
+    "description": "Title of the clear-all confirmation."
+  },
+  "sslTrustedClearBody": "清除後，所有伺服器的憑證都會重新驗證。",
+  "@sslTrustedClearBody": {
+    "description": "Body of the clear-all confirmation."
+  },
+  "supportAuthorTitle": "支持作者",
+  "@supportAuthorTitle": {
+    "description": "Title of the support-the-author dialog."
+  },
+  "supportAuthorBody": "您的支持就是我持續更新的動力，如果覺得好用，請給專案點一個 Star ⭐，謝謝！(^_−)☆",
+  "@supportAuthorBody": {
+    "description": "Body of the support-the-author dialog."
+  },
+  "supportAuthorIssues": "專案確實還有很多地方需要完善，如果遇到軟體問題或 Bug，歡迎提交 Issue 或 PR。",
+  "@supportAuthorIssues": {
+    "description": "Body text inviting bug reports."
+  },
+  "supportAuthorOpenRepo": "開啟 Github 儲存庫",
+  "@supportAuthorOpenRepo": {
+    "description": "Button that opens the GitHub repository."
+  },
+  "supportAuthorLater": "稍後再說",
+  "@supportAuthorLater": {
+    "description": "Button that dismisses the dialog."
+  },
+  "fontScaleSmall": "小",
+  "@fontScaleSmall": {
+    "description": "Font size option: small."
+  },
+  "fontScaleMedium": "中",
+  "@fontScaleMedium": {
+    "description": "Font size option: medium."
+  },
+  "fontScaleLarge": "大",
+  "@fontScaleLarge": {
+    "description": "Font size option: large."
+  },
+  "filterTitle": "篩選",
+  "@filterTitle": {
+    "description": "Label of the filter toggle button."
+  },
+  "filterReset": "重設",
+  "@filterReset": {
+    "description": "Chip that clears every selected filter."
+  },
+  "filterCollapse": "收合",
+  "@filterCollapse": {
+    "description": "Link that collapses the filter panel."
+  },
+  "filterOptionAll": "全部",
+  "@filterOptionAll": {
+    "description": "Generic 'all' option in a filter row."
+  },
+  "filterOptionMovie": "電影",
+  "@filterOptionMovie": {
+    "description": "Media type option: movie."
+  },
+  "filterOptionTv": "電視劇",
+  "@filterOptionTv": {
+    "description": "Media type option: TV series."
+  },
+  "filterOptionWatched": "已觀看",
+  "@filterOptionWatched": {
+    "description": "Watched-state option."
+  },
+  "filterOptionUnwatched": "未觀看",
+  "@filterOptionUnwatched": {
+    "description": "Watched-state option."
+  },
+  "filterOptionMatched": "已匹配",
+  "@filterOptionMatched": {
+    "description": "Recognition-status option."
+  },
+  "filterOptionUnmatched": "未匹配",
+  "@filterOptionUnmatched": {
+    "description": "Recognition-status option."
+  },
+  "filterOptionNfoMatched": "NFO 匹配",
+  "@filterOptionNfoMatched": {
+    "description": "Recognition-status option."
+  },
+  "filterOptionOthers": "其他",
+  "@filterOptionOthers": {
+    "description": "Catch-all option."
+  },
+  "filterOptionThisYear": "今年",
+  "@filterOptionThisYear": {
+    "description": "Decade option for recent releases."
+  },
+  "filterOptionDecade": "{decade} 年代",
+  "@filterOptionDecade": {
+    "description": "Decade option, e.g. 1990s.",
+    "placeholders": {
+      "decade": {
+        "type": "String"
+      }
+    }
+  },
+  "filterOptionDolbyVision": "杜比視界",
+  "@filterOptionDolbyVision": {
+    "description": "Dynamic-range option."
+  },
+  "filterOptionDolbySurround": "杜比環繞",
+  "@filterOptionDolbySurround": {
+    "description": "Audio option."
+  },
+  "filterOptionDolbyAtmos": "杜比全景聲",
+  "@filterOptionDolbyAtmos": {
+    "description": "Audio option."
+  },
+  "filterOptionStereo": "立體聲",
+  "@filterOptionStereo": {
+    "description": "Audio option."
+  },
+  "filterRowMediaType": "影視類型",
+  "@filterRowMediaType": {
+    "description": "Filter row label."
+  },
+  "filterRowGenre": "類型",
+  "@filterRowGenre": {
+    "description": "Filter row label."
+  },
+  "filterRowResolution": "解析度",
+  "@filterRowResolution": {
+    "description": "Filter row label."
+  },
+  "filterRowColorRange": "視訊動態範圍",
+  "@filterRowColorRange": {
+    "description": "Filter row label."
+  },
+  "filterRowAudioType": "音訊規格",
+  "@filterRowAudioType": {
+    "description": "Filter row label."
+  },
+  "filterRowLocation": "國家和地區",
+  "@filterRowLocation": {
+    "description": "Filter row label."
+  },
+  "filterRowDecade": "發行年份",
+  "@filterRowDecade": {
+    "description": "Filter row label."
+  },
+  "filterRowRecognitionStatus": "匹配狀態",
+  "@filterRowRecognitionStatus": {
+    "description": "Filter row label."
+  },
+  "filterRowWatched": "是否已觀看",
+  "@filterRowWatched": {
+    "description": "Filter row label."
+  },
+  "mediaInfoTitle": "檔案媒體資訊",
+  "@mediaInfoTitle": {
+    "description": "Title of the file media info dialog."
+  },
+  "mediaInfoEmpty": "暫無資料",
+  "@mediaInfoEmpty": {
+    "description": "Shown when there is no media information."
+  },
+  "mediaInfoSectionVideo": "視訊",
+  "@mediaInfoSectionVideo": {
+    "description": "Section heading for video streams."
+  },
+  "mediaInfoSectionAudio": "音訊",
+  "@mediaInfoSectionAudio": {
+    "description": "Section heading for audio streams."
+  },
+  "mediaInfoSectionSubtitle": "字幕",
+  "@mediaInfoSectionSubtitle": {
+    "description": "Section heading for subtitle streams."
+  },
+  "mediaInfoFieldResolution": "解析度",
+  "@mediaInfoFieldResolution": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldDynamicRange": "視訊動態範圍",
+  "@mediaInfoFieldDynamicRange": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldCodec": "編碼器",
+  "@mediaInfoFieldCodec": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldProfile": "設定檔",
+  "@mediaInfoFieldProfile": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldLevel": "等級",
+  "@mediaInfoFieldLevel": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldFrameRate": "影格率",
+  "@mediaInfoFieldFrameRate": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldBitRate": "位元率",
+  "@mediaInfoFieldBitRate": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldAspectRatio": "長寬比",
+  "@mediaInfoFieldAspectRatio": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldPixelFormat": "像素格式",
+  "@mediaInfoFieldPixelFormat": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldBitDepth": "位元深度",
+  "@mediaInfoFieldBitDepth": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldColorSpace": "色彩空間",
+  "@mediaInfoFieldColorSpace": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldColorPrimaries": "色彩原色",
+  "@mediaInfoFieldColorPrimaries": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldColorTransfer": "色彩轉換",
+  "@mediaInfoFieldColorTransfer": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldReferenceFrames": "參考影格",
+  "@mediaInfoFieldReferenceFrames": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldInterlaced": "交錯掃描",
+  "@mediaInfoFieldInterlaced": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldLayout": "聲道配置",
+  "@mediaInfoFieldLayout": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldChannels": "聲道",
+  "@mediaInfoFieldChannels": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldSampleRate": "取樣率",
+  "@mediaInfoFieldSampleRate": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldLanguage": "語言",
+  "@mediaInfoFieldLanguage": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldDefault": "預設",
+  "@mediaInfoFieldDefault": {
+    "description": "Media info field flag."
+  },
+  "mediaInfoFieldForced": "強制",
+  "@mediaInfoFieldForced": {
+    "description": "Media info field flag."
+  },
+  "mediaInfoFieldExternal": "外部",
+  "@mediaInfoFieldExternal": {
+    "description": "Media info field flag."
+  },
+  "mediaInfoYes": "是",
+  "@mediaInfoYes": {
+    "description": "Boolean media info value."
+  },
+  "mediaInfoNo": "否",
+  "@mediaInfoNo": {
+    "description": "Boolean media info value."
+  },
+  "subtitleUploadFileTypeName": "字幕檔案",
+  "@subtitleUploadFileTypeName": {
+    "description": "File-picker dialog title for choosing subtitle files."
+  },
+  "subtitleUploadSelect": "選擇",
+  "@subtitleUploadSelect": {
+    "description": "Button that opens the file picker."
+  },
+  "subtitleUploadAdded": "新增字幕成功",
+  "@subtitleUploadAdded": {
+    "description": "Toast after subtitles were added."
+  },
+  "subtitleUploadFailed": "新增字幕失敗，請重試",
+  "@subtitleUploadFailed": {
+    "description": "Toast when adding subtitles fails."
+  },
+  "subtitleUploadPartial": "部分字幕新增成功，其中 {count} 個失敗",
+  "@subtitleUploadPartial": {
+    "description": "Toast when only some subtitles were added.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "subtitleUploadTooMany": "最多選擇 {count} 個檔案",
+  "@subtitleUploadTooMany": {
+    "description": "Toast when too many files are chosen.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "subtitleUploadMissingUser": "目前使用者資訊缺失，無法還原檔案選擇器狀態",
+  "@subtitleUploadMissingUser": {
+    "description": "Error when the file picker state cannot be restored."
+  },
+  "subtitleUploadPickerFailed": "選擇字幕檔案失敗：{error}",
+  "@subtitleUploadPickerFailed": {
+    "description": "Error when the file picker fails.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subtitleUploadFormatSuffix": "{formats} 格式的檔案",
+  "@subtitleUploadFormatSuffix": {
+    "description": "Description of the accepted subtitle formats.",
+    "placeholders": {
+      "formats": {
+        "type": "String"
+      }
+    }
+  },
+  "captionBack": "返回",
+  "@captionBack": {
+    "description": "Window caption back button tooltip."
+  },
+  "captionRefresh": "重新整理",
+  "@captionRefresh": {
+    "description": "Window caption refresh button tooltip."
+  },
+  "captionToggleNav": "切換導覽列",
+  "@captionToggleNav": {
+    "description": "Window caption button tooltip."
+  },
+  "captionAlwaysOnTop": "視窗置頂",
+  "@captionAlwaysOnTop": {
+    "description": "Window caption pin button tooltip."
+  },
+  "captionUnpin": "取消置頂",
+  "@captionUnpin": {
+    "description": "Window caption unpin button tooltip."
+  },
+  "toastInfo": "資訊",
+  "@toastInfo": {
+    "description": "Toast title for informational messages."
+  },
+  "toastSuccess": "成功",
+  "@toastSuccess": {
+    "description": "Toast title for successes."
+  },
+  "toastWarning": "警告",
+  "@toastWarning": {
+    "description": "Toast title for warnings."
+  },
+  "toastError": "錯誤",
+  "@toastError": {
+    "description": "Toast title for errors."
+  },
+  "toastServerUrlRequired": "請填寫飛鯨伺服器 URL",
+  "@toastServerUrlRequired": {
+    "description": "Validation toast."
+  },
+  "toastServerAuthCodeRequired": "請填寫飛鯨伺服器授權碼",
+  "@toastServerAuthCodeRequired": {
+    "description": "Validation toast."
+  },
+  "toastServerCredentialsRequired": "請填寫飛鯨伺服器 URL 和授權碼",
+  "@toastServerCredentialsRequired": {
+    "description": "Validation toast."
+  },
+  "sslPromptTitle": "憑證驗證失敗",
+  "@sslPromptTitle": {
+    "description": "Title of the certificate trust prompt."
+  },
+  "sslPromptBody": "「{host}」的憑證驗證未通過，可能是憑證過期、網域不符或自簽憑證。",
+  "@sslPromptBody": {
+    "description": "Body of the certificate trust prompt.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "sslPromptFingerprint": "憑證指紋 SHA-256：{fingerprint}",
+  "@sslPromptFingerprint": {
+    "description": "Fingerprint line in the certificate prompt.",
+    "placeholders": {
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "sslPromptQuestion": "繼續存取將略過安全保護，是否繼續存取？",
+  "@sslPromptQuestion": {
+    "description": "Question shown in the certificate prompt."
+  },
+  "sslPromptTrustPersistent": "信任此憑證",
+  "@sslPromptTrustPersistent": {
+    "description": "Button that trusts the certificate permanently."
+  },
+  "sslPromptTrustOnce": "僅本次信任",
+  "@sslPromptTrustOnce": {
+    "description": "Button that trusts the certificate for this session only."
+  },
+  "sslPromptCancel": "取消存取",
+  "@sslPromptCancel": {
+    "description": "Button that cancels the connection."
+  },
+  "layoutTitle": "版面",
+  "@layoutTitle": {
+    "description": "Heading of the layout chooser."
+  },
+  "layoutPosterWall": "海報牆",
+  "@layoutPosterWall": {
+    "description": "Layout option."
+  },
+  "layoutVerticalPoster": "直幅海報",
+  "@layoutVerticalPoster": {
+    "description": "Layout option."
+  },
+  "layoutBannerPoster": "橫幅海報",
+  "@layoutBannerPoster": {
+    "description": "Layout option."
+  },
+  "layoutList": "清單",
+  "@layoutList": {
+    "description": "Layout option."
+  },
+  "castTitle": "演職人員",
+  "@castTitle": {
+    "description": "Heading of the cast row."
+  },
+  "castRoleDirector": "導演",
+  "@castRoleDirector": {
+    "description": "Cast role label."
+  },
+  "castRoleActor": "演員",
+  "@castRoleActor": {
+    "description": "Cast role label."
+  },
+  "castRoleWriter": "編劇",
+  "@castRoleWriter": {
+    "description": "Cast role label."
+  },
+  "castRoleProducer": "製片人",
+  "@castRoleProducer": {
+    "description": "Cast role label."
+  },
+  "castCharacter": "飾 {role}",
+  "@castCharacter": {
+    "description": "Shows the character an actor plays.",
+    "placeholders": {
+      "role": {
+        "type": "String"
+      }
+    }
+  },
+  "sortTitle": "標題",
+  "@sortTitle": {
+    "description": "Sort option."
+  },
+  "sortAddedDate": "新增日期",
+  "@sortAddedDate": {
+    "description": "Sort option."
+  },
+  "sortReleaseYear": "發行年份",
+  "@sortReleaseYear": {
+    "description": "Sort option."
+  },
+  "sortScore": "評分",
+  "@sortScore": {
+    "description": "Sort option."
+  },
+  "sortAscending": "升冪",
+  "@sortAscending": {
+    "description": "Sort direction."
+  },
+  "sortDescending": "降冪",
+  "@sortDescending": {
+    "description": "Sort direction."
+  },
+  "nasSubtitleStorageLocation": "視訊所在位置",
+  "@nasSubtitleStorageLocation": {
+    "description": "Label for the storage location picker."
+  },
+  "nasSubtitleSelectStorage": "請選擇儲存空間",
+  "@nasSubtitleSelectStorage": {
+    "description": "Placeholder of the storage picker."
+  },
+  "nasSubtitleTooMany": "最多選擇 {count} 個檔案",
+  "@nasSubtitleTooMany": {
+    "description": "Toast when too many files are chosen.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "loadFailedTitle": "載入失敗",
+  "@loadFailedTitle": {
+    "description": "Error view title."
+  },
+  "loadFailedUnknown": "未知錯誤",
+  "@loadFailedUnknown": {
+    "description": "Fallback error message."
+  },
+  "loadFailedRetry": "重試",
+  "@loadFailedRetry": {
+    "description": "Button that retries loading."
+  },
+  "episodeViewCard": "切換為卡片檢視",
+  "@episodeViewCard": {
+    "description": "Tooltip of the episode view toggle."
+  },
+  "episodeViewButton": "切換為序號檢視",
+  "@episodeViewButton": {
+    "description": "Tooltip of the episode view toggle."
+  },
+  "nasBrowserEmpty": "空空如也",
+  "@nasBrowserEmpty": {
+    "description": "Empty state of the NAS file browser."
+  },
+  "actionPlay": "播放",
+  "@actionPlay": {
+    "description": "Play button label."
+  },
+  "actionContinuePlay": "繼續播放",
+  "@actionContinuePlay": {
+    "description": "Play button label when resuming playback."
+  },
+  "actionFavoriteAdd": "加入收藏",
+  "@actionFavoriteAdd": {
+    "description": "Tooltip that adds the item to favorites."
+  },
+  "actionFavoriteRemove": "取消收藏",
+  "@actionFavoriteRemove": {
+    "description": "Tooltip that removes the item from favorites."
+  },
+  "actionMarkWatched": "標記為已看",
+  "@actionMarkWatched": {
+    "description": "Tooltip or menu item that marks the item watched."
+  },
+  "actionMarkUnwatched": "標記為未看",
+  "@actionMarkUnwatched": {
+    "description": "Tooltip or menu item that marks the item unwatched."
+  },
+  "actionMore": "更多操作",
+  "@actionMore": {
+    "description": "Tooltip of the more-actions button."
+  },
+  "actionMore2": "更多",
+  "@actionMore2": {
+    "description": "Inline link that expands a truncated description."
+  },
+  "toastFavoriteAdded": "已收藏",
+  "@toastFavoriteAdded": {
+    "description": "Toast shown after adding to favorites."
+  },
+  "toastFavoriteRemoved": "已取消收藏",
+  "@toastFavoriteRemoved": {
+    "description": "Toast shown after removing from favorites."
+  },
+  "toastMarkedUnwatched": "標記為未觀看",
+  "@toastMarkedUnwatched": {
+    "description": "Toast shown after marking unwatched."
+  },
+  "toastMarkedWatched": "標記為已觀看",
+  "@toastMarkedWatched": {
+    "description": "Toast shown after marking watched."
+  },
+  "toastOperationFailed": "操作失敗",
+  "@toastOperationFailed": {
+    "description": "Generic failure message when an action fails."
+  },
+  "toastOperationFailedReason": "操作失敗，{message}",
+  "@toastOperationFailedReason": {
+    "description": "Failure toast that appends the underlying error.",
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaInfoNoOverview": "暫無介紹",
+  "@mediaInfoNoOverview": {
+    "description": "Fallback text when an overview is missing."
+  },
+  "mediaInfoNoInfo": "暫無信息",
+  "@mediaInfoNoInfo": {
+    "description": "Fallback text when media details are empty."
+  },
+  "mediaInfoNoContent": "無內容",
+  "@mediaInfoNoContent": {
+    "description": "Empty state of a stream selector flyout."
+  },
+  "mediaInfoFileInfo": "檔案資訊",
+  "@mediaInfoFileInfo": {
+    "description": "Heading of the file info section."
+  },
+  "mediaInfoFileLocation": "檔案位置",
+  "@mediaInfoFileLocation": {
+    "description": "Label of the file location row."
+  },
+  "mediaInfoFileSize": "檔案大小",
+  "@mediaInfoFileSize": {
+    "description": "Label of the file size row."
+  },
+  "mediaInfoCreatedDate": "建立日期",
+  "@mediaInfoCreatedDate": {
+    "description": "Label of the file creation date."
+  },
+  "mediaInfoAddedDate": "新增日期",
+  "@mediaInfoAddedDate": {
+    "description": "Label of the date the file was added."
+  },
+  "mediaInfoStreamSection": "影片/音訊資訊",
+  "@mediaInfoStreamSection": {
+    "description": "Heading of the video and audio info section."
+  },
+  "linkLabel": "連結:  ",
+  "@linkLabel": {
+    "description": "Prefix label before the IMDB link."
+  },
+  "imdbLinkLabel": "IMDB 連結",
+  "@imdbLinkLabel": {
+    "description": "Text of the IMDB link."
+  },
+  "defaultSuffix": "{title} - 預設",
+  "@defaultSuffix": {
+    "description": "Appends a default marker to a track name.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "actionViewAll": "查看全部",
+  "@actionViewAll": {
+    "description": "Link that opens the full media info dialog."
+  },
+  "movieDetailNotFound": "找不到電影資訊",
+  "@movieDetailNotFound": {
+    "description": "Error shown when the movie cannot be found."
+  },
+  "movieDetailDescriptionTitle": "電影簡介",
+  "@movieDetailDescriptionTitle": {
+    "description": "Title of the movie overview dialog."
+  },
+  "movieDetailEpisodeDescriptionTitle": "劇集簡介",
+  "@movieDetailEpisodeDescriptionTitle": {
+    "description": "Title of the episode overview dialog."
+  },
+  "movieDetailSubtitleAddTitle": "新增字幕",
+  "@movieDetailSubtitleAddTitle": {
+    "description": "Title of the add-subtitle dialog."
+  },
+  "movieDetailSubtitleAlreadyAdded": "該檔案已被新增為字幕",
+  "@movieDetailSubtitleAlreadyAdded": {
+    "description": "Toast shown when the file is already a subtitle."
+  },
+  "movieDetailSubtitleAddFailed": "新增字幕失敗",
+  "@movieDetailSubtitleAddFailed": {
+    "description": "Title of the add-subtitle failure dialog."
+  },
+  "movieDetailSubtitleRetry": "請稍後重試：{error}",
+  "@movieDetailSubtitleRetry": {
+    "description": "Add-subtitle failure message.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleSearchMissingFile": "目前檔案資訊缺失，無法搜尋字幕",
+  "@movieDetailSubtitleSearchMissingFile": {
+    "description": "Toast shown when the current file info is missing."
+  },
+  "movieDetailSubtitleUploadMissingFile": "目前檔案資訊缺失，無法上傳字幕",
+  "@movieDetailSubtitleUploadMissingFile": {
+    "description": "Toast shown when the current file info is missing."
+  },
+  "movieDetailSubtitleDownloadSuccess": "下載成功",
+  "@movieDetailSubtitleDownloadSuccess": {
+    "description": "Toast shown after a subtitle downloads successfully."
+  },
+  "movieDetailSubtitleDownloadFailed": "下載字幕失敗: {error}",
+  "@movieDetailSubtitleDownloadFailed": {
+    "description": "Toast shown when a subtitle download fails.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleTaskCreated": "已建立字幕下載任務",
+  "@movieDetailSubtitleTaskCreated": {
+    "description": "Toast shown after a subtitle download task is created."
+  },
+  "movieDetailSubtitleTaskFailed": "建立字幕下載任務失敗，請重試",
+  "@movieDetailSubtitleTaskFailed": {
+    "description": "Toast shown when creating a subtitle download task fails."
+  },
+  "movieDetailSubtitleExternalSuffix": " - 外掛",
+  "@movieDetailSubtitleExternalSuffix": {
+    "description": "Appends an external marker to a subtitle display name."
+  },
+  "movieDetailSubtitleDeleteTitle": "刪除外掛字幕",
+  "@movieDetailSubtitleDeleteTitle": {
+    "description": "Title of the delete-subtitle dialog."
+  },
+  "movieDetailSubtitleDeleteConfirm": "確定要刪除 {name} 外掛字幕嗎？",
+  "@movieDetailSubtitleDeleteConfirm": {
+    "description": "Confirmation body of the delete-subtitle dialog.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleDeleteSuccess": "刪除字幕成功",
+  "@movieDetailSubtitleDeleteSuccess": {
+    "description": "Toast shown after a subtitle is deleted."
+  },
+  "movieDetailSubtitleDeleteFailed": "刪除字幕失敗: {error}",
+  "@movieDetailSubtitleDeleteFailed": {
+    "description": "Toast shown when deleting a subtitle fails.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleNone": "無字幕",
+  "@movieDetailSubtitleNone": {
+    "description": "Subtitle selector label when subtitles are off."
+  },
+  "movieDetailSubtitleLanguageLabel": "{language}字幕",
+  "@movieDetailSubtitleLanguageLabel": {
+    "description": "Subtitle selector label that appends a language name.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailAudioLabel": "音訊",
+  "@movieDetailAudioLabel": {
+    "description": "Audio selector label."
+  },
+  "movieDetailAudioLanguageLabel": "{language}音訊",
+  "@movieDetailAudioLanguageLabel": {
+    "description": "Audio selector label that appends a language name.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailAudioStereo": "立體聲",
+  "@movieDetailAudioStereo": {
+    "description": "Audio type label for stereo."
+  },
+  "movieDetailRemaining": "剩餘 {time}",
+  "@movieDetailRemaining": {
+    "description": "Remaining playback time under the progress bar.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSmartAnalysisStatus": "智慧片頭/片尾偵測狀態：{status}",
+  "@movieDetailSmartAnalysisStatus": {
+    "description": "Tag showing the smart analysis status.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailDolbyVision": "杜比視界",
+  "@movieDetailDolbyVision": {
+    "description": "Color range label for Dolby Vision."
+  },
+  "movieDetailSubtitleLabel": "字幕",
+  "@movieDetailSubtitleLabel": {
+    "description": "Default label of the subtitle selector."
+  },
+  "tvDetailNotFound": "找不到劇集資訊",
+  "@tvDetailNotFound": {
+    "description": "Error shown when the TV series cannot be found."
+  },
+  "tvDetailSeasonNotFound": "找不到分季資訊",
+  "@tvDetailSeasonNotFound": {
+    "description": "Error shown when the season cannot be found."
+  },
+  "tvDetailDescriptionTitle": "劇集簡介",
+  "@tvDetailDescriptionTitle": {
+    "description": "Title of the series overview dialog."
+  },
+  "tvDetailSmartAnalysis": "智慧分析片頭/片尾",
+  "@tvDetailSmartAnalysis": {
+    "description": "Menu item that triggers smart intro/outro analysis."
+  },
+  "tvDetailSeasonListTitle": "季列表",
+  "@tvDetailSeasonListTitle": {
+    "description": "Heading of the season list section."
+  },
+  "tvDetailEpisodeNumber": "第 {number} 集",
+  "@tvDetailEpisodeNumber": {
+    "description": "Episode number label.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailSeasonNumber": "第 {number} 季",
+  "@tvDetailSeasonNumber": {
+    "description": "Season number label.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailSeasonEpisodeNumbers": "第 {season} 季 第 {episode} 集",
+  "@tvDetailSeasonEpisodeNumbers": {
+    "description": "Combined season and episode label.",
+    "placeholders": {
+      "season": {
+        "type": "String"
+      },
+      "episode": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailEpisodeCount": "共 {count} 集",
+  "@tvDetailEpisodeCount": {
+    "description": "Season subtitle showing the episode count.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailEpisodeSectionTitle": "選集",
+  "@tvDetailEpisodeSectionTitle": {
+    "description": "Heading of the episode selection section."
+  },
+  "tvDetailUnknownSeason": "未知季",
+  "@tvDetailUnknownSeason": {
+    "description": "Fallback season label."
+  },
+  "tvDetailSeasonTitleSummary": "《{title}》共 {count} 季",
+  "@tvDetailSeasonTitleSummary": {
+    "description": "Title of the season selection dialog.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailEpisodeNoneOverview": "暫無劇集簡介",
+  "@tvDetailEpisodeNoneOverview": {
+    "description": "Fallback text when an episode overview is missing."
+  },
+  "tvDetailEpisodeRuntime": "{minutes} 分鐘",
+  "@tvDetailEpisodeRuntime": {
+    "description": "Episode runtime in minutes.",
+    "placeholders": {
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailRuntimeUnknown": "時長未知",
+  "@tvDetailRuntimeUnknown": {
+    "description": "Fallback when the runtime is unknown."
+  },
+  "tvDetailScore": "{score} 分",
+  "@tvDetailScore": {
+    "description": "Rating score tag.",
+    "placeholders": {
+      "score": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailPlayEpisode": "播放本集",
+  "@tvDetailPlayEpisode": {
+    "description": "Menu item that plays the current episode."
+  },
+  "tvDetailSmartAnalysisStatus": "智慧分析：{status}",
+  "@tvDetailSmartAnalysisStatus": {
+    "description": "Label showing the season analysis status.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailAnalysisFetching": "取得中",
+  "@tvDetailAnalysisFetching": {
+    "description": "Season analysis status while loading."
+  },
+  "tvDetailAnalysisNotDetected": "未偵測",
+  "@tvDetailAnalysisNotDetected": {
+    "description": "Season analysis status when not detected."
+  },
+  "tvDetailAnalysisFailed": "取得失敗",
+  "@tvDetailAnalysisFailed": {
+    "description": "Season analysis status when fetching fails."
+  },
+  "tvDetailAnalysisPreparing": "準備中",
+  "@tvDetailAnalysisPreparing": {
+    "description": "Season analysis status while preparing."
+  },
+  "tvDetailAnalysisPending": "等待中",
+  "@tvDetailAnalysisPending": {
+    "description": "Season analysis status while pending."
+  },
+  "tvDetailAnalysisInProgress": "分析中",
+  "@tvDetailAnalysisInProgress": {
+    "description": "Season analysis status while running."
+  },
+  "tvDetailAnalysisPartialSuccess": "部分成功",
+  "@tvDetailAnalysisPartialSuccess": {
+    "description": "Season analysis status on partial success."
+  },
+  "tvDetailAnalysisCompleted": "已完成",
+  "@tvDetailAnalysisCompleted": {
+    "description": "Season analysis status when completed."
+  },
+  "tvDetailAnalysisStatusFailed": "失敗",
+  "@tvDetailAnalysisStatusFailed": {
+    "description": "Season analysis status when failed."
+  },
+  "mediaTypeMovie": "電影",
+  "@mediaTypeMovie": {
+    "description": "Media type label."
+  },
+  "mediaTypeTv": "電視節目",
+  "@mediaTypeTv": {
+    "description": "Media type label."
+  },
+  "mediaTypeDirectory": "目錄",
+  "@mediaTypeDirectory": {
+    "description": "Media type label."
+  },
+  "mediaTypeOther": "其他",
+  "@mediaTypeOther": {
+    "description": "Media type label."
+  },
+  "mediaTypeLive": "電視直播",
+  "@mediaTypeLive": {
+    "description": "Media type label."
+  },
+  "mediaTypeEpisode": "劇集",
+  "@mediaTypeEpisode": {
+    "description": "Media type label."
+  },
+  "mediaTypeSeason": "季",
+  "@mediaTypeSeason": {
+    "description": "Media type label."
+  },
+  "mediaSeasonCount": "共 {count} 季",
+  "@mediaSeasonCount": {
+    "description": "Poster subtitle for a show with several seasons.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaSeasonNumber": "第 {number} 季",
+  "@mediaSeasonNumber": {
+    "description": "Poster subtitle for a single season.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaEpisodeCount": "共 {count} 集",
+  "@mediaEpisodeCount": {
+    "description": "Poster subtitle for an episode count.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaEpisodeDetail": "第 {season} 季 · 第 {episode} 集",
+  "@mediaEpisodeDetail": {
+    "description": "Play detail subtitle for an episode.",
+    "placeholders": {
+      "season": {
+        "type": "String"
+      },
+      "episode": {
+        "type": "String"
+      }
+    }
+  },
+  "cloudStorageBaiduPan": "百度網盤",
+  "@cloudStorageBaiduPan": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorageAliyunDrive": "阿里雲盤",
+  "@cloudStorageAliyunDrive": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorage115": "115 生活",
+  "@cloudStorage115": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorageQuark": "夸克網盤",
+  "@cloudStorageQuark": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorage123": "123 雲盤",
+  "@cloudStorage123": {
+    "description": "Cloud storage provider name."
+  },
+  "loginRememberPassword": "記住密碼",
+  "@loginRememberPassword": {
+    "description": "Label of the remember-password checkbox on the login form."
+  },
+  "loginWebViewInjectedPlaceholder": "登入頁面",
+  "@loginWebViewInjectedPlaceholder": {
+    "description": "Fallback label for the injected remember-password checkbox on the NAS login web page."
+  },
+  "updateCurrentVersionLabel": "目前安裝版本",
+  "@updateCurrentVersionLabel": {
+    "description": "Fallback label shown when the installed app version is unknown."
+  },
+  "updateManualDownloadOpenFailed": "無法開啟手動下載頁面，請稍後重試。",
+  "@updateManualDownloadOpenFailed": {
+    "description": "Toast shown when opening the manual download page fails."
+  },
+  "updateOpenLinkFailed": "無法開啟連結，請稍後重試。",
+  "@updateOpenLinkFailed": {
+    "description": "Toast shown when opening an update link fails."
+  },
+  "updateBadgeSemanticLabel": "發現新版本 {version}，開啟更新詳情",
+  "@updateBadgeSemanticLabel": {
+    "description": "Accessibility label of the update badge in the title bar.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDialogTitleChecking": "檢查更新",
+  "@updateDialogTitleChecking": {
+    "description": "Update dialog title while checking for updates."
+  },
+  "updateDialogTitleAvailable": "發現新版本",
+  "@updateDialogTitleAvailable": {
+    "description": "Update dialog title when a new version is available."
+  },
+  "updateDialogTitleDownloading": "正在下載更新",
+  "@updateDialogTitleDownloading": {
+    "description": "Update dialog title while downloading."
+  },
+  "updateDialogTitleDownloaded": "下載完成",
+  "@updateDialogTitleDownloaded": {
+    "description": "Update dialog title after the download completes."
+  },
+  "updateDialogTitleVerifying": "正在校驗更新",
+  "@updateDialogTitleVerifying": {
+    "description": "Update dialog title while verifying the package."
+  },
+  "updateDialogTitleReadyToInstall": "更新已準備就緒",
+  "@updateDialogTitleReadyToInstall": {
+    "description": "Update dialog title when the update is ready to install."
+  },
+  "updateDialogTitleInstalling": "正在啟動安裝",
+  "@updateDialogTitleInstalling": {
+    "description": "Update dialog title while launching the installer."
+  },
+  "updateDialogTitleCheckFailed": "檢查更新失敗",
+  "@updateDialogTitleCheckFailed": {
+    "description": "Update dialog title when checking for updates failed."
+  },
+  "updateDialogTitleDownloadFailed": "下載更新失敗",
+  "@updateDialogTitleDownloadFailed": {
+    "description": "Update dialog title when the download failed."
+  },
+  "updateDialogTitleVerificationFailed": "更新包校驗失敗",
+  "@updateDialogTitleVerificationFailed": {
+    "description": "Update dialog title when package verification failed."
+  },
+  "updateDialogTitleInstallFailed": "啟動安裝失敗",
+  "@updateDialogTitleInstallFailed": {
+    "description": "Update dialog title when launching the installer failed."
+  },
+  "updateDialogTitleAutomaticDownloadExhausted": "自動下載未完成",
+  "@updateDialogTitleAutomaticDownloadExhausted": {
+    "description": "Update dialog title when the automatic download did not finish."
+  },
+  "updateDialogTitleNone": "應用程式更新",
+  "@updateDialogTitleNone": {
+    "description": "Update dialog title in the idle state."
+  },
+  "updateActionCheckInBackground": "背景下載",
+  "@updateActionCheckInBackground": {
+    "description": "Update dialog button to keep checking in the background."
+  },
+  "updateActionSkipVersion": "略過此版本",
+  "@updateActionSkipVersion": {
+    "description": "Update dialog button to skip this version."
+  },
+  "updateActionLater": "稍後再說",
+  "@updateActionLater": {
+    "description": "Update dialog button to postpone the update."
+  },
+  "updateActionDownload": "下載更新",
+  "@updateActionDownload": {
+    "description": "Update dialog button to download the update."
+  },
+  "updateActionDownloadInBackground": "背景下載",
+  "@updateActionDownloadInBackground": {
+    "description": "Update dialog button to continue downloading in the background."
+  },
+  "updateActionCancelDownload": "取消下載",
+  "@updateActionCancelDownload": {
+    "description": "Update dialog button to cancel the download."
+  },
+  "updateActionInstallLater": "稍後安裝",
+  "@updateActionInstallLater": {
+    "description": "Update dialog button to install later."
+  },
+  "updateActionQuitAndInstall": "結束並安裝",
+  "@updateActionQuitAndInstall": {
+    "description": "Update dialog button to quit and install now."
+  },
+  "updateActionRunInBackground": "背景執行",
+  "@updateActionRunInBackground": {
+    "description": "Update dialog button to let the update run in the background."
+  },
+  "updateActionRetryDownload": "重新下載",
+  "@updateActionRetryDownload": {
+    "description": "Update dialog button to download the update again."
+  },
+  "updateActionRetryInstall": "重試安裝",
+  "@updateActionRetryInstall": {
+    "description": "Update dialog button to retry the installation."
+  },
+  "updateActionManualDownload": "手動下載",
+  "@updateActionManualDownload": {
+    "description": "Update dialog button to open the manual download page."
+  },
+  "updateActionClose": "關閉",
+  "@updateActionClose": {
+    "description": "Update dialog button to close the dialog."
+  },
+  "updateStatusCheckingMessage": "正在從 GitHub Releases 取得更新資訊…",
+  "@updateStatusCheckingMessage": {
+    "description": "Update dialog status while fetching update information."
+  },
+  "updateStatusUpToDate": "目前已是最新版本。",
+  "@updateStatusUpToDate": {
+    "description": "Update dialog status when the app is up to date."
+  },
+  "updateStatusDownloadedMessage": "更新包已下載完成，可以稍後安裝或立即結束並安裝。",
+  "@updateStatusDownloadedMessage": {
+    "description": "Update dialog status after the download completes."
+  },
+  "updateStatusReadyMessage": "已找到可用的已下載更新包。",
+  "@updateStatusReadyMessage": {
+    "description": "Update dialog status when a downloaded update was found."
+  },
+  "updateStatusVerifyingMessage": "正在安全校驗更新包，請稍候…",
+  "@updateStatusVerifyingMessage": {
+    "description": "Update dialog status while verifying the package."
+  },
+  "updateStatusInstallingMessage": "正在啟動系統安裝程式，請勿重複操作。",
+  "@updateStatusInstallingMessage": {
+    "description": "Update dialog status while launching the installer."
+  },
+  "updateStatusIdleMessage": "尚未執行更新檢查。",
+  "@updateStatusIdleMessage": {
+    "description": "Update dialog status before any check has been run."
+  },
+  "updateVersionLine": "版本 {version}（目前 {current}）",
+  "@updateVersionLine": {
+    "description": "Update dialog line showing the new version and the current version.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "current": {
+        "type": "String"
+      }
+    }
+  },
+  "updatePackageSize": "安裝包大小 {size}",
+  "@updatePackageSize": {
+    "description": "Update dialog line showing the download size.",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "updateReleaseNotesHeader": "更新內容",
+  "@updateReleaseNotesHeader": {
+    "description": "Heading of the release-notes section in the update dialog."
+  },
+  "updateDownloadingPackage": "正在下載更新包",
+  "@updateDownloadingPackage": {
+    "description": "Fallback text used while downloading when the asset name is unknown."
+  },
+  "updateDownloadedSize": "已下載 {size}",
+  "@updateDownloadedSize": {
+    "description": "Update dialog text showing the downloaded size.",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloadProgress": "{received} / {total}",
+  "@updateDownloadProgress": {
+    "description": "Update dialog text showing download progress.",
+    "placeholders": {
+      "received": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "updateErrorRateLimited": "GitHub API 存取頻率超限，通常稍後會自動恢復，請稍後再試。",
+  "@updateErrorRateLimited": {
+    "description": "Failure summary when the GitHub API rate limit is reached."
+  },
+  "updateErrorVerificationFailed": "更新包未通過安全校驗，請重新下載。",
+  "@updateErrorVerificationFailed": {
+    "description": "Failure summary when the update package failed verification."
+  },
+  "updateErrorCheckFailed": "暫時無法取得更新資訊，請檢查網路後重試。",
+  "@updateErrorCheckFailed": {
+    "description": "Failure summary when checking for updates failed."
+  },
+  "updateErrorDownloadFailed": "更新包下載未完成，請稍後重試。",
+  "@updateErrorDownloadFailed": {
+    "description": "Failure summary when the update download failed."
+  },
+  "updateErrorInstallFailed": "無法啟動系統安裝程式，請稍後重試。",
+  "@updateErrorInstallFailed": {
+    "description": "Failure summary when launching the installer failed."
+  },
+  "updateErrorAutomaticDownloadExhausted": "自動下載多次未完成，你可以稍後重試或前往發佈頁手動下載。",
+  "@updateErrorAutomaticDownloadExhausted": {
+    "description": "Failure summary when the automatic download was exhausted."
+  },
+  "updateErrorGeneric": "更新操作未完成，請稍後重試。",
+  "@updateErrorGeneric": {
+    "description": "Generic failure summary for update operations."
+  },
+  "updateMarkdownEmpty": "本次更新未提供更新說明",
+  "@updateMarkdownEmpty": {
+    "description": "Placeholder shown when the release notes are empty."
+  },
+  "updateMarkdownRemoteImageAlt": "遠端圖片",
+  "@updateMarkdownRemoteImageAlt": {
+    "description": "Alt text for a blocked remote image in the release notes."
+  },
+  "updateMarkdownRemoteImageBlocked": "遠端圖片已封鎖：{alt}",
+  "@updateMarkdownRemoteImageBlocked": {
+    "description": "Label for a blocked remote image in the release notes.",
+    "placeholders": {
+      "alt": {
+        "type": "String"
+      }
+    }
+  },
+  "updateMarkdownTruncatedSuffix": "\n\n更新說明過長，已截斷顯示。",
+  "@updateMarkdownTruncatedSuffix": {
+    "description": "Suffix appended to release notes when they exceed the maximum length."
+  },
+  "loginHostOrFnIdPlaceholder": "請輸入 IP:Port、網域或 FN ID",
+  "@loginHostOrFnIdPlaceholder": {
+    "description": "Login field placeholder for the NAS host or FN ID."
+  },
+  "loginHostValidationMessage": "請輸入正確的 IP、網域或 FN ID",
+  "@loginHostValidationMessage": {
+    "description": "Toast shown when the entered host or FN ID is invalid."
+  },
+  "loginHostRequiredMessage": "請輸入 IP、網域或 FN ID",
+  "@loginHostRequiredMessage": {
+    "description": "Toast shown when the host field is empty."
+  },
+  "loginUsernameRequiredMessage": "請輸入使用者名稱",
+  "@loginUsernameRequiredMessage": {
+    "description": "Toast shown when the username field is empty."
+  },
+  "loginPasswordRequiredMessage": "請輸入密碼",
+  "@loginPasswordRequiredMessage": {
+    "description": "Toast shown when the password field is empty."
+  },
+  "loginWebViewInitFailed": "瀏覽器元件初始化失敗，請稍後重試。",
+  "@loginWebViewInitFailed": {
+    "description": "Toast shown when preparing the WebView for NAS login fails."
+  },
+  "loginHostPlaceholder": "請輸入 IP、網域或 FN ID",
+  "@loginHostPlaceholder": {
+    "description": "Login field placeholder for the host."
+  },
+  "loginPortPlaceholder": "連接埠",
+  "@loginPortPlaceholder": {
+    "description": "Login field placeholder for the port."
+  },
+  "loginUsernameLabel": "使用者名稱",
+  "@loginUsernameLabel": {
+    "description": "Login field placeholder for the username."
+  },
+  "loginPasswordLabel": "密碼",
+  "@loginPasswordLabel": {
+    "description": "Login field placeholder for the password."
+  },
+  "loginUseNasLogin": "使用 NAS 登入",
+  "@loginUseNasLogin": {
+    "description": "Login toggle label to sign in with a NAS account."
+  },
+  "loginHttpsSecureAccess": "HTTPS 安全存取",
+  "@loginHttpsSecureAccess": {
+    "description": "Login toggle label for enabling HTTPS."
+  },
+  "loginNext": "下一步",
+  "@loginNext": {
+    "description": "Login button label for the NAS probe step."
+  },
+  "loginSignIn": "登入",
+  "@loginSignIn": {
+    "description": "Login button label."
+  },
+  "loginVerifyingServer": "正在驗證伺服器...",
+  "@loginVerifyingServer": {
+    "description": "Login web view toolbar text while verifying the server."
+  },
+  "loginInvalidCredentials": "使用者名稱或密碼錯誤",
+  "@loginInvalidCredentials": {
+    "description": "Toast shown when the username or password is wrong."
+  },
+  "loginServerHttpError": "伺服器傳回錯誤（HTTP {status}），請檢查服務狀態。",
+  "@loginServerHttpError": {
+    "description": "Login error for a non-success HTTP response.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "loginSslCertificateFailed": "SSL 憑證驗證失敗，請檢查 HTTPS 設定或伺服器憑證。",
+  "@loginSslCertificateFailed": {
+    "description": "Login error for an SSL certificate failure."
+  },
+  "loginConnectionTimeout": "連線伺服器逾時，請確認伺服器位址或網路狀態。",
+  "@loginConnectionTimeout": {
+    "description": "Login error for a connection timeout."
+  },
+  "loginConnectionFailed": "無法連線到伺服器，請檢查位址、連接埠或網路。",
+  "@loginConnectionFailed": {
+    "description": "Login error when the server is unreachable."
+  },
+  "loginRequestCancelled": "登入要求已取消。",
+  "@loginRequestCancelled": {
+    "description": "Login error when the request was cancelled."
+  },
+  "loginFailedCheckServer": "登入失敗，請檢查伺服器位址或稍後再試。",
+  "@loginFailedCheckServer": {
+    "description": "Login error for an unknown or bad response."
+  },
+  "loginFailedCheckNetwork": "登入失敗，請檢查網路或伺服器設定。",
+  "@loginFailedCheckNetwork": {
+    "description": "Generic login error message."
+  },
+  "loginFailedTokenEmpty": "登入失敗：Token 為空",
+  "@loginFailedTokenEmpty": {
+    "description": "Login error when the NAS flow returns an empty token."
+  },
+  "loginFailedWithError": "登入失敗：{error}",
+  "@loginFailedWithError": {
+    "description": "Login error with the underlying error message.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginAuthFailed": "認證失敗",
+  "@loginAuthFailed": {
+    "description": "Fallback login error when the server rejects the token exchange."
+  },
+  "loginAccessCodeInvalid": "存取碼錯誤",
+  "@loginAccessCodeInvalid": {
+    "description": "Login error when the fnOS access-code gateway rejects the code."
+  },
+  "loginAccessCodeTitle": "請輸入存取碼",
+  "@loginAccessCodeTitle": {
+    "description": "Title of the dialog prompting for the NAS access code."
+  },
+  "loginAccessCodeHint": "此伺服器啟用了存取碼，請輸入後繼續。",
+  "@loginAccessCodeHint": {
+    "description": "Hint shown in the access-code dialog."
+  },
+  "loginFnIdEmpty": "FN ID 不能為空",
+  "@loginFnIdEmpty": {
+    "description": "Validation error when resolving an empty FN ID."
+  },
+  "loginHistoryTitle": "登入歷史",
+  "@loginHistoryTitle": {
+    "description": "Title of the login history sidebar."
+  },
+  "loginHistoryEmpty": "尚無歷史記錄",
+  "@loginHistoryEmpty": {
+    "description": "Empty state of the login history sidebar."
+  },
+  "homeRetryLoad": "載入失敗，點擊重試",
+  "@homeRetryLoad": {
+    "description": "Retry button shown when the media library row fails to load."
+  },
+  "homeTitle": "首頁",
+  "@homeTitle": {
+    "description": "Title of the home page."
+  },
+  "homeContinueWatching": "繼續觀看",
+  "@homeContinueWatching": {
+    "description": "Title of the continue-watching row on the home page."
+  },
+  "homeMediaLibrary": "媒體庫",
+  "@homeMediaLibrary": {
+    "description": "Heading of the media library card row on the home page."
+  },
+  "homeContinueRemoved": "已從「繼續觀看」中移除",
+  "@homeContinueRemoved": {
+    "description": "Toast shown after an item is removed from continue watching."
+  },
+  "homeContinueRemoveFailed": "移除失敗",
+  "@homeContinueRemoveFailed": {
+    "description": "Toast shown when removing an item from continue watching fails."
+  },
+  "homeContinueRemoveError": "移除失敗：{error}",
+  "@homeContinueRemoveError": {
+    "description": "Toast shown when removing an item from continue watching throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDeleteDialogTitle": "刪除 《{title}》",
+  "@homeDeleteDialogTitle": {
+    "description": "Title of the delete-video confirmation dialog.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDeleteDialogBody": "從媒體庫移除後，所選影片檔案將不再被掃描加入目前媒體庫中。請確認是否同時刪除關聯的影片檔案。",
+  "@homeDeleteDialogBody": {
+    "description": "Body text of the delete-video confirmation dialog."
+  },
+  "homeDeleteRemoveAndDeleteFile": "移除並刪除檔案",
+  "@homeDeleteRemoveAndDeleteFile": {
+    "description": "Delete dialog button to remove the entry and delete the files."
+  },
+  "homeDeleteRemoveOnly": "僅移除",
+  "@homeDeleteRemoveOnly": {
+    "description": "Delete dialog button to remove the entry but keep the files."
+  },
+  "homeDeleted": "已刪除",
+  "@homeDeleted": {
+    "description": "Toast shown after the video is deleted."
+  },
+  "homeDeleteFailed": "刪除失敗",
+  "@homeDeleteFailed": {
+    "description": "Toast shown when deleting the video fails."
+  },
+  "homeDeleteFailedWithError": "刪除失敗：{error}",
+  "@homeDeleteFailedWithError": {
+    "description": "Toast shown when deleting the video throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeFavoriteRemoved": "已取消收藏",
+  "@homeFavoriteRemoved": {
+    "description": "Toast shown after removing an item from favorites."
+  },
+  "homeFavorited": "已收藏",
+  "@homeFavorited": {
+    "description": "Toast shown after adding an item to favorites."
+  },
+  "homeMarkedUnwatched": "標記為未觀看",
+  "@homeMarkedUnwatched": {
+    "description": "Toast shown after marking an item as unwatched."
+  },
+  "homeMarkedWatched": "標記為已觀看",
+  "@homeMarkedWatched": {
+    "description": "Toast shown after marking an item as watched."
+  },
+  "homeActionFailed": "操作失敗",
+  "@homeActionFailed": {
+    "description": "Toast shown when a favorite or watched action fails."
+  },
+  "homeActionFailedWithError": "操作失敗，{error}",
+  "@homeActionFailedWithError": {
+    "description": "Toast shown when a favorite or watched action throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeMenuRemoveFromContinue": "從「繼續觀看」中移除",
+  "@homeMenuRemoveFromContinue": {
+    "description": "More-menu entry to remove an item from continue watching."
+  },
+  "homeMenuResume": "繼續播放",
+  "@homeMenuResume": {
+    "description": "More-menu entry to resume playback."
+  },
+  "homeMenuRestart": "從頭開始播放",
+  "@homeMenuRestart": {
+    "description": "More-menu entry to restart playback from the beginning."
+  },
+  "homeMenuDeleteVideo": "刪除影片",
+  "@homeMenuDeleteVideo": {
+    "description": "More-menu entry to delete the video."
+  },
+  "searchPlaceholder": "搜尋片名、演員",
+  "@searchPlaceholder": {
+    "description": "Placeholder of the capsule search box."
+  },
+  "searchTabAll": "全部",
+  "@searchTabAll": {
+    "description": "Search category tab: all."
+  },
+  "searchTabMovie": "電影",
+  "@searchTabMovie": {
+    "description": "Search category tab: movies."
+  },
+  "searchTabTv": "電視劇",
+  "@searchTabTv": {
+    "description": "Search category tab: TV series."
+  },
+  "searchTabLiveChannel": "電視直播",
+  "@searchTabLiveChannel": {
+    "description": "Search category tab: live channels."
+  },
+  "searchTabPerson": "人物",
+  "@searchTabPerson": {
+    "description": "Search category tab: people."
+  },
+  "searchTabOther": "其他",
+  "@searchTabOther": {
+    "description": "Search category tab: other."
+  },
+  "searchNoResults": "搜尋沒有結果",
+  "@searchNoResults": {
+    "description": "Empty state of the search dropdown after a search."
+  },
+  "searchEnterKeyword": "輸入關鍵字搜尋",
+  "@searchEnterKeyword": {
+    "description": "Empty state of the search dropdown before searching."
+  },
+  "searchWorkCount": "{count} 個作品",
+  "@searchWorkCount": {
+    "description": "Work count shown for a person in the search results.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "searchScoreSuffix": "分",
+  "@searchScoreSuffix": {
+    "description": "Suffix for the rating score in the search results."
+  },
+  "searchEpisodeCount": "共 {count} 集",
+  "@searchEpisodeCount": {
+    "description": "Episode count shown for a TV series in the search results.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "personNoData": "無資料",
+  "@personNoData": {
+    "description": "Empty state shown when a person has no record on the server."
+  },
+  "personSectionActor": "作為演員",
+  "@personSectionActor": {
+    "description": "Works section title for acting roles."
+  },
+  "personSectionDirector": "作為導演",
+  "@personSectionDirector": {
+    "description": "Works section title for directing roles."
+  },
+  "personSectionWriter": "作為編劇",
+  "@personSectionWriter": {
+    "description": "Works section title for writing roles."
+  },
+  "personMore": "更多",
+  "@personMore": {
+    "description": "Inline link that opens the full biography."
+  },
+  "personBiographyTitle": "演員簡介",
+  "@personBiographyTitle": {
+    "description": "Title of the full-biography dialog."
+  },
+  "commonDelete": "刪除",
+  "@commonDelete": {
+    "description": "Generic delete button label."
+  },
+  "forgotPasswordTitle": "忘記密碼？",
+  "@forgotPasswordTitle": {
+    "description": "Title and link label of the forgot-password dialog."
+  },
+  "storageExternal": "外接儲存",
+  "@storageExternal": {
+    "description": "Sidebar label for an external storage mount."
+  },
+  "storageRemoteMount": "遠端掛載",
+  "@storageRemoteMount": {
+    "description": "Sidebar label for a remote mount."
+  },
+  "storageVolumeName": "儲存空間 {number}",
+  "@storageVolumeName": {
+    "description": "Label for a numbered storage volume.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "durationHoursMinutes": "{hours} 小時 {minutes} 分鐘",
+  "@durationHoursMinutes": {
+    "description": "Duration with hours and minutes.",
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "durationHours": "{hours} 小時",
+  "@durationHours": {
+    "description": "Duration in hours.",
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      }
+    }
+  },
+  "durationMinutesSeconds": "{minutes} 分鐘 {seconds} 秒",
+  "@durationMinutesSeconds": {
+    "description": "Duration with minutes and seconds.",
+    "placeholders": {
+      "minutes": {
+        "type": "String"
+      },
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "durationMinutes": "{minutes} 分鐘",
+  "@durationMinutes": {
+    "description": "Duration in minutes.",
+    "placeholders": {
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "durationZeroMinutes": "0 分鐘",
+  "@durationZeroMinutes": {
+    "description": "Zero-length duration."
+  },
+  "authDirUserFiles": "{username} 的檔案",
+  "@authDirUserFiles": {
+    "description": "Label for a user's authorized directory.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "authDirUnknownUser": "使用者 {uid}",
+  "@authDirUnknownUser": {
+    "description": "Fallback label when the user name is unknown.",
+    "placeholders": {
+      "uid": {
+        "type": "String"
+      }
+    }
+  },
+  "authDirNone": "無",
+  "@authDirNone": {
+    "description": "Empty value placeholder."
+  },
+  "authDirUnknown": "未知",
+  "@authDirUnknown": {
+    "description": "Unknown value placeholder."
+  },
+  "mediaStreamAudio": "音訊",
+  "@mediaStreamAudio": {
+    "description": "Media stream kind label."
+  },
+  "mediaStreamVideo": "視訊",
+  "@mediaStreamVideo": {
+    "description": "Media stream kind label."
+  },
+  "mediaStreamSubtitle": "字幕",
+  "@mediaStreamSubtitle": {
+    "description": "Media stream kind label."
+  },
+  "forgotPasswordBody": "1. 如果您是 NAS 使用者，請嘗試以 NAS 帳號登入；\n2. 請聯絡管理員修改密碼。",
+  "@forgotPasswordBody": {
+    "description": "Body text of the forgot-password dialog."
+  },
+  "tvDetailEpisodeNumberTitle": "第 {number} 集 {title}",
+  "@tvDetailEpisodeNumberTitle": {
+    "description": "Episode card title combining the episode number and name.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      },
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleDefaultSuffix": " - 預設",
+  "@movieDetailSubtitleDefaultSuffix": {
+    "description": "Appends a default marker to a subtitle display name."
+  },
+  "timeJustNow": "剛剛",
+  "@timeJustNow": {
+    "description": "Relative time: now."
+  },
+  "timeMinutesAgo": "{count} 分鐘前",
+  "@timeMinutesAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeHoursAgo": "{count} 小時前",
+  "@timeHoursAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeDaysAgo": "{count} 天前",
+  "@timeDaysAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeWeeksAgo": "{count} 週前",
+  "@timeWeeksAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeMonthsAgo": "{count} 個月前",
+  "@timeMonthsAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeYearsAgo": "{count} 年前",
+  "@timeYearsAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "updateNotesEmpty": "暫無更新說明。",
+  "@updateNotesEmpty": {
+    "description": "Shown when a release has no notes."
+  },
+  "updateNotesTruncated": "\n\n> 更新說明已截斷。請前往 [Release 頁面]({url}) 查看完整內容。",
+  "@updateNotesTruncated": {
+    "description": "Appended when release notes exceed the size limit.",
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "navCategories": "分類",
+  "navFavorites": "收藏",
+  "navNoMediaLibrary": "暫無媒體庫",
+  "folderFallbackName": "資料夾",
+  "folderRescrap": "重新識別",
+  "folderRescrapStarted": "已發起重新識別",
+  "folderRescrapFailed": "重新識別失敗",
+  "folderRescrapFailedWithError": "重新識別失敗：{error}",
+  "folderRefreshMetadata": "重新整理中繼資料",
+  "folderRefreshMetadataStarted": "已發起重新整理中繼資料",
+  "folderRefreshMetadataFailed": "重新整理中繼資料失敗",
+  "folderRefreshMetadataFailedWithError": "重新整理中繼資料失敗：{error}",
+  "folderThisFolder": "該資料夾",
+  "folderDeleteConfirmTitle": "刪除",
+  "folderDeleteConfirmBody": "確定要從媒體庫刪除「{title}」嗎？\n僅移除媒體庫項目，不會刪除磁碟上的檔案。",
+  "folderDeleteFailedWithError": "刪除失敗：{error}",
+  "folderItemCount": "共 {count} 項",
+  "favoritesTabSingleEpisode": "單集",
+  "serverUpdateGetVersionFailed": "取得伺服器版本失敗",
+  "serverUpdateCheckFailed": "檢查伺服器更新異常",
+  "serverUpdateCheckFailedWithError": "檢查伺服器更新異常: {error}",
+  "serverUpdatePackageNotFound": "找不到伺服器更新套件",
+  "serverUpdateAssetMissing": "伺服器更新套件資產缺失",
+  "serverUpdateStarting": "開始伺服器更新...",
+  "serverUpdateFailed": "伺服器更新失敗",
+  "serverUpdateFailedWithError": "伺服器更新失敗: {error}",
+  "serverUpdateWaitingRestart": "等待伺服器重新啟動...",
+  "serverUpdateSucceeded": "伺服器已更新至 {version}",
+  "serverUpdateTimeout": "伺服器更新逾時，請檢查伺服器日誌",
+  "connectionTestInvalidUrl": "FlyNarwhal 伺服器位址無效",
+  "connectionTestNoVersion": "FlyNarwhal 伺服器未回傳版本號",
+  "smartAnalysisQueued": "已加入分析佇列",
+  "smartAnalysisSubmitted": "分析請求已提交",
+  "smartAnalysisFailedSeasons": "失敗劇季：{seasons}",
+  "smartAnalysisSubmitFailed": "分析請求提交失敗",
+  "shortcutFocusSearch": "聚焦搜尋輸入框",
+  "@shortcutFocusSearch": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutTogglePlayPause": "播放／暫停",
+  "@shortcutTogglePlayPause": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutMute": "靜音／取消靜音",
+  "@shortcutMute": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSeekBackward": "倒轉 10 秒",
+  "@shortcutSeekBackward": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSeekForward": "快轉 10 秒",
+  "@shortcutSeekForward": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutVolumeUp": "提高音量",
+  "@shortcutVolumeUp": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutVolumeDown": "降低音量",
+  "@shortcutVolumeDown": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutToggleFullscreen": "切換全螢幕",
+  "@shortcutToggleFullscreen": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutExitFullscreen": "結束全螢幕",
+  "@shortcutExitFullscreen": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchNext": "下一個搜尋項目",
+  "@shortcutSearchNext": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchPrev": "上一個搜尋項目",
+  "@shortcutSearchPrev": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchSelect": "選取搜尋項目",
+  "@shortcutSearchSelect": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchSwitchTab": "切換搜尋分類",
+  "@shortcutSearchSwitchTab": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchExit": "結束搜尋",
+  "@shortcutSearchExit": {
+    "description": "Keyboard shortcut action name."
+  },
+  "playerSubtitleExternalSuffix": " - 外掛",
+  "@playerSubtitleExternalSuffix": {
+    "description": "Suffix appended to a subtitle language name when the subtitle is external."
+  },
+  "playerSubtitleDefaultSuffix": " - 預設",
+  "@playerSubtitleDefaultSuffix": {
+    "description": "Suffix appended to a subtitle language name when the subtitle is the default track."
+  },
+  "playerVolumeLabel": "目前音量：{value}%",
+  "@playerVolumeLabel": {
+    "description": "Toast shown when the volume changes, with the new volume percentage.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVolumeUnmuteLabel": "解除靜音：{value}%",
+  "@playerVolumeUnmuteLabel": {
+    "description": "Toast shown when unmuting, with the restored volume percentage.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVolumeMute": "靜音",
+  "@playerVolumeMute": {
+    "description": "Toast shown when muting the player."
+  },
+  "playerSeekRewindTo": "倒轉至",
+  "@playerSeekRewindTo": {
+    "description": "Toast prefix shown when rewinding, followed by the target timestamp."
+  },
+  "playerSeekForwardTo": "快進至",
+  "@playerSeekForwardTo": {
+    "description": "Toast prefix shown when fast-forwarding, followed by the target timestamp."
+  },
+  "playerSeekTimeToast": "{label}：{time}",
+  "@playerSeekTimeToast": {
+    "description": "Toast shown when seeking via keyboard, combining the rewind/forward label and the target timestamp.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerForceH264Disabled": "目前影片為 H.264",
+  "@playerForceH264Disabled": {
+    "description": "Reason shown when the force-H.264 transcoding switch is disabled because the video is already H.264."
+  },
+  "playerForceSdrDisabled": "目前影片為 SDR",
+  "@playerForceSdrDisabled": {
+    "description": "Reason shown when the force-SDR color switch is disabled because the video is already SDR."
+  },
+  "playerCloudModeDirect": "網盤直連播放",
+  "@playerCloudModeDirect": {
+    "description": "Label for the netdisk direct-link cloud playback mode."
+  },
+  "playerCloudModeNasProxy": "NAS 代理播放",
+  "@playerCloudModeNasProxy": {
+    "description": "Label for the NAS proxy cloud playback mode."
+  },
+  "playerCloudModeSwitchedToast": "播放方式切換至 {label}",
+  "@playerCloudModeSwitchedToast": {
+    "description": "Toast shown after the cloud playback mode is switched, with the new mode label.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "playerCloudProxyFailedFallbackDirect": "NAS 代理播放失敗，正在切換為網盤直連播放",
+  "@playerCloudProxyFailedFallbackDirect": {
+    "description": "Toast shown when NAS proxy negotiation fails and playback falls back to the netdisk direct link."
+  },
+  "playerInfoMissingSearchSubtitle": "目前檔案資訊缺失，無法搜尋字幕",
+  "@playerInfoMissingSearchSubtitle": {
+    "description": "Toast shown when subtitle search is invoked but the current file info is missing."
+  },
+  "playerInfoMissingAddNasSubtitle": "目前檔案資訊缺失，無法新增 NAS 字幕",
+  "@playerInfoMissingAddNasSubtitle": {
+    "description": "Toast shown when adding a NAS subtitle is invoked but the current file info is missing."
+  },
+  "playerInfoMissingUploadSubtitle": "目前檔案資訊缺失，無法上傳字幕",
+  "@playerInfoMissingUploadSubtitle": {
+    "description": "Toast shown when uploading a local subtitle is invoked but the current file info is missing."
+  },
+  "playerSubtitleDeleteTitle": "刪除外掛字幕",
+  "@playerSubtitleDeleteTitle": {
+    "description": "Title of the confirm dialog for deleting an external subtitle."
+  },
+  "playerSubtitleDeleteConfirm": "確定要刪除 {displayName} 外掛字幕嗎？",
+  "@playerSubtitleDeleteConfirm": {
+    "description": "Body of the confirm dialog for deleting an external subtitle, with the subtitle display name.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleDeleteSuccess": "刪除字幕成功",
+  "@playerSubtitleDeleteSuccess": {
+    "description": "Toast shown after a subtitle is deleted successfully."
+  },
+  "playerSubtitleDeleteFailed": "刪除字幕失敗: {error}",
+  "@playerSubtitleDeleteFailed": {
+    "description": "Toast shown when deleting a subtitle fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleAddNasTitle": "新增 NAS 字幕檔案",
+  "@playerSubtitleAddNasTitle": {
+    "description": "Title of the dialog for adding a NAS subtitle file."
+  },
+  "playerSubtitleAddNasSuccess": "NAS 字幕新增成功",
+  "@playerSubtitleAddNasSuccess": {
+    "description": "Toast shown after a NAS subtitle is added successfully."
+  },
+  "playerSubtitleAlreadyMarked": "該檔案已被新增為字幕",
+  "@playerSubtitleAlreadyMarked": {
+    "description": "Toast shown when the selected file has already been added as a subtitle."
+  },
+  "playerSubtitleAddNasFailed": "新增 NAS 字幕失敗: {error}",
+  "@playerSubtitleAddNasFailed": {
+    "description": "Toast shown when adding a NAS subtitle fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleDownloadSuccess": "下載成功",
+  "@playerSubtitleDownloadSuccess": {
+    "description": "Toast shown after a subtitle is downloaded successfully."
+  },
+  "playerSubtitleDownloadFailed": "下載字幕失敗: {error}",
+  "@playerSubtitleDownloadFailed": {
+    "description": "Toast shown when downloading a subtitle fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleTaskCreated": "已建立字幕下載任務",
+  "@playerSubtitleTaskCreated": {
+    "description": "Toast shown after a subtitle download task is created."
+  },
+  "playerSubtitleTaskFailed": "建立字幕下載任務失敗，請重試",
+  "@playerSubtitleTaskFailed": {
+    "description": "Toast shown when creating a subtitle download task fails."
+  },
+  "playerSubtitleSwitchFailed": "切換字幕失敗: {error}",
+  "@playerSubtitleSwitchFailed": {
+    "description": "Toast shown when switching subtitles fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchOriginalQualityFailed": "切換原畫失敗: {error}",
+  "@playerSwitchOriginalQualityFailed": {
+    "description": "Toast shown when switching back to the original quality fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerLoadFailed": "載入失敗: {error}",
+  "@playerLoadFailed": {
+    "description": "Toast shown when loading media fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerToggleFullscreenFailed": "切換全螢幕失敗: {error}",
+  "@playerToggleFullscreenFailed": {
+    "description": "Toast shown when toggling fullscreen fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchPlaybackSettingsFailed": "切換播放設定失敗: {error}",
+  "@playerSwitchPlaybackSettingsFailed": {
+    "description": "Toast shown when restarting for transcode settings fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerNotReady": "播放器尚未準備完成",
+  "@playerNotReady": {
+    "description": "Toast shown when a player action is requested before the player is ready."
+  },
+  "playerEnterPipFailed": "進入子母畫面失敗: {error}",
+  "@playerEnterPipFailed": {
+    "description": "Toast shown when entering picture-in-picture fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerExitPipFailed": "結束子母畫面失敗: {error}",
+  "@playerExitPipFailed": {
+    "description": "Toast shown when exiting picture-in-picture fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchQualityFailed": "切換畫質失敗: {error}",
+  "@playerSwitchQualityFailed": {
+    "description": "Toast shown when switching video quality fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchPlayModeFailed": "切換播放方式失敗: {error}",
+  "@playerSwitchPlayModeFailed": {
+    "description": "Toast shown when switching the cloud playback mode fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchAudioFailed": "切換音訊失敗: {error}",
+  "@playerSwitchAudioFailed": {
+    "description": "Toast shown when switching audio tracks fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleSwitchingTo": "字幕正在切換至：{language}",
+  "@playerSubtitleSwitchingTo": {
+    "description": "Toast shown when switching to a subtitle, with the language name only.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleSwitchingToFormat": "字幕正在切換至：{language} {format}",
+  "@playerSubtitleSwitchingToFormat": {
+    "description": "Toast shown when switching to a subtitle, with the language name and uppercased format.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "playerClose": "關閉",
+  "@playerClose": {
+    "description": "Tooltip for the close button."
+  },
+  "playerBack": "返回",
+  "@playerBack": {
+    "description": "Tooltip for the back button."
+  },
+  "playerRewindTenSeconds": "倒轉 10 秒",
+  "@playerRewindTenSeconds": {
+    "description": "Tooltip for the rewind 10 seconds button."
+  },
+  "playerForwardTenSeconds": "快進 10 秒",
+  "@playerForwardTenSeconds": {
+    "description": "Tooltip for the forward 10 seconds button."
+  },
+  "playerPlayPause": "播放/暫停",
+  "@playerPlayPause": {
+    "description": "Tooltip for the play/pause button."
+  },
+  "playerPip": "子母畫面",
+  "@playerPip": {
+    "description": "Tooltip for the picture-in-picture button."
+  },
+  "playerExitPip": "結束子母畫面",
+  "@playerExitPip": {
+    "description": "Tooltip for the exit picture-in-picture button."
+  },
+  "playerDanmakuClose": "關閉彈幕",
+  "@playerDanmakuClose": {
+    "description": "Tooltip for the danmaku button when danmaku is visible."
+  },
+  "playerDanmakuOpen": "開啟彈幕",
+  "@playerDanmakuOpen": {
+    "description": "Tooltip for the danmaku button when danmaku is hidden."
+  },
+  "playerPlaybackDetailsTooltip": "播放詳細資訊",
+  "@playerPlaybackDetailsTooltip": {
+    "description": "Tooltip for the playback details button."
+  },
+  "playerSkipConfigSaved": "設定成功",
+  "@playerSkipConfigSaved": {
+    "description": "Toast shown after the intro/credits skip configuration is saved successfully."
+  },
+  "playerSkipConfigSaveFailed": "設定失敗: {error}",
+  "@playerSkipConfigSaveFailed": {
+    "description": "Toast shown when saving the skip configuration fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuRequestFailed": "請求彈幕介面失敗，請檢查飛鯨服務端設定",
+  "@playerDanmakuRequestFailed": {
+    "description": "Toast shown when the danmaku API request fails."
+  },
+  "playerSmartSkipRequestFailed": "請求智慧片頭片尾介面失敗，請檢查飛鯨服務端設定",
+  "@playerSmartSkipRequestFailed": {
+    "description": "Toast shown when the smart intro/credits analysis API request fails."
+  },
+  "playerFeatureComingSoon": "{feature} 暫未接入",
+  "@playerFeatureComingSoon": {
+    "description": "Toast shown when a not-yet-implemented feature is invoked, with the feature name.",
+    "placeholders": {
+      "feature": {
+        "type": "String"
+      }
+    }
+  },
+  "playerPlayErrorRetrySwitch": "播放出錯,請嘗試切換線路",
+  "@playerPlayErrorRetrySwitch": {
+    "description": "Live player error message shown when playback fails, suggesting switching lines."
+  },
+  "playerNoPlayableLine": "該頻道沒有可用的播放線路",
+  "@playerNoPlayableLine": {
+    "description": "Live player error message shown when the channel has no available playback line."
+  },
+  "playerLoadFailedBackRetry": "載入失敗,請返回重試",
+  "@playerLoadFailedBackRetry": {
+    "description": "Live player error message shown when loading fails, suggesting going back and retrying."
+  },
+  "playerPlayFailedSwitchLine": "播放失敗,請嘗試切換線路",
+  "@playerPlayFailedSwitchLine": {
+    "description": "Live player error message shown when playback fails, suggesting switching lines."
+  },
+  "playerLive": "直播中",
+  "@playerLive": {
+    "description": "Badge text shown while a live stream is playing."
+  },
+  "playerPause": "暫停",
+  "@playerPause": {
+    "description": "Tooltip for the pause button."
+  },
+  "playerPlay": "播放",
+  "@playerPlay": {
+    "description": "Tooltip for the play button."
+  },
+  "playerDanmakuSettingsTooltip": "彈幕設定",
+  "@playerDanmakuSettingsTooltip": {
+    "description": "Tooltip for the danmaku settings control-bar button."
+  },
+  "playerDanmakuSettingsTitle": "彈幕設定",
+  "@playerDanmakuSettingsTitle": {
+    "description": "Title of the danmaku settings flyout."
+  },
+  "playerDanmakuAdvancedSettings": "進階設定",
+  "@playerDanmakuAdvancedSettings": {
+    "description": "Action label that opens the advanced danmaku settings page."
+  },
+  "playerDanmakuDisplayArea": "顯示區域 {value}%",
+  "@playerDanmakuDisplayArea": {
+    "description": "Label of the danmaku display-area slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuOpacity": "不透明度 {value}%",
+  "@playerDanmakuOpacity": {
+    "description": "Label of the danmaku opacity slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuFontSize": "字號 {value}%",
+  "@playerDanmakuFontSize": {
+    "description": "Label of the danmaku font-size slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuSpeed": "速度 {value}",
+  "@playerDanmakuSpeed": {
+    "description": "Label of the danmaku speed slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuSpeedVerySlow": "極慢",
+  "@playerDanmakuSpeedVerySlow": {
+    "description": "Danmaku speed label for the slowest speed step."
+  },
+  "playerDanmakuSpeedSlow": "較慢",
+  "@playerDanmakuSpeedSlow": {
+    "description": "Danmaku speed label for a slower-than-normal speed step."
+  },
+  "playerDanmakuSpeedNormal": "適中",
+  "@playerDanmakuSpeedNormal": {
+    "description": "Danmaku speed label for the normal speed step."
+  },
+  "playerDanmakuSpeedFast": "較快",
+  "@playerDanmakuSpeedFast": {
+    "description": "Danmaku speed label for a faster-than-normal speed step."
+  },
+  "playerDanmakuSpeedVeryFast": "極快",
+  "@playerDanmakuSpeedVeryFast": {
+    "description": "Danmaku speed label for the fastest speed step."
+  },
+  "playerDanmakuSyncPlaybackSpeed": "彈幕速度同步播放倍速",
+  "@playerDanmakuSyncPlaybackSpeed": {
+    "description": "Toggle title for syncing danmaku speed with playback rate."
+  },
+  "playerDanmakuShowDebugInfo": "顯示彈幕除錯資訊",
+  "@playerDanmakuShowDebugInfo": {
+    "description": "Toggle title for showing danmaku debug information."
+  },
+  "playerStrmDirectPlaying": "正在直連播放 STRM 檔案",
+  "@playerStrmDirectPlaying": {
+    "description": "Hover tip shown on the cloud icon for STRM media that is playing via direct link."
+  },
+  "playerCloudModeDirectDescription": "速度較快、省流",
+  "@playerCloudModeDirectDescription": {
+    "description": "Description under the direct-link play mode card (faster, saves bandwidth)."
+  },
+  "playerCloudModeNasProxyDescription": "色調或音訊異常時可嘗試切換",
+  "@playerCloudModeNasProxyDescription": {
+    "description": "Description under the NAS proxy play mode card (try switching when color or audio is abnormal)."
+  },
+  "playerCloudPlayRecommend": "推薦",
+  "@playerCloudPlayRecommend": {
+    "description": "Badge marking the recommended play mode card."
+  },
+  "playerCloudPlayingNotice": "正在播放網盤上的檔案，播放速度和畫質取決於網盤方規則。",
+  "@playerCloudPlayingNotice": {
+    "description": "Notice that a netdisk file is playing and that speed/quality follow the netdisk provider's rules."
+  },
+  "playerCloudSwitchNotice": "如遇播放異常，可嘗試切換播放方式。",
+  "@playerCloudSwitchNotice": {
+    "description": "Hint suggesting the user switch the play mode when playback is abnormal."
+  },
+  "playerPlayModeLabel": "播放方式",
+  "@playerPlayModeLabel": {
+    "description": "Section label of the play-mode selector flyout."
+  },
+  "playerCloudFallbackName": "網盤",
+  "@playerCloudFallbackName": {
+    "description": "Fallback account name shown in the cloud flyout when the masked nickname is empty."
+  },
+  "playerCloudPlayErrorTitle": "抱歉，播放出錯了",
+  "@playerCloudPlayErrorTitle": {
+    "description": "Generic title on the cloud playback error page."
+  },
+  "playerCloudSwitchQuality": "播放其他畫質",
+  "@playerCloudSwitchQuality": {
+    "description": "Error page action button that switches to another quality."
+  },
+  "playerCloudSwitchToProxy": "切換 NAS 代理播放",
+  "@playerCloudSwitchToProxy": {
+    "description": "Error page action button that switches to NAS proxy playback."
+  },
+  "playerStrmPlaybackErrorHint": "STRM 直連播放異常，可能原因：網盤掛載連線中斷、觸發網盤風控、網盤限制非會員操作、瀏覽器不支援該檔案類型。",
+  "@playerStrmPlaybackErrorHint": {
+    "description": "Cause hint on the STRM playback error page."
+  },
+  "playerChannelLineFallback": "線路",
+  "@playerChannelLineFallback": {
+    "description": "Fallback line label shown by the live channel selector when no channel name is available."
+  },
+  "playerFullscreenEnter": "進入全螢幕",
+  "@playerFullscreenEnter": {
+    "description": "Tooltip of the fullscreen button when the player is not in fullscreen mode."
+  },
+  "playerFullscreenExit": "退出全螢幕",
+  "@playerFullscreenExit": {
+    "description": "Tooltip of the fullscreen button when the player is in fullscreen mode."
+  },
+  "playerDetailSeparator": "：",
+  "@playerDetailSeparator": {
+    "description": "Separator placed between a playback details field label and its value."
+  },
+  "playerPlayType": "播放類型",
+  "@playerPlayType": {
+    "description": "Playback details field label for the current play type."
+  },
+  "playerPlayTypeStrmDirect": "STRM 直連播放",
+  "@playerPlayTypeStrmDirect": {
+    "description": "Play type value for a STRM file played via direct link."
+  },
+  "playerPlayTypeTranscode": "轉碼播放",
+  "@playerPlayTypeTranscode": {
+    "description": "Play type value for a transcoded playback session."
+  },
+  "playerPlayTypeDirect": "直接播放",
+  "@playerPlayTypeDirect": {
+    "description": "Play type value for direct playback of a local file."
+  },
+  "playerTranscodeReason": "轉碼原因",
+  "@playerTranscodeReason": {
+    "description": "Playback details field label for the transcoding reasons."
+  },
+  "playerTranscodeReasonSeparator": "；",
+  "@playerTranscodeReasonSeparator": {
+    "description": "Separator joining multiple transcoding reasons."
+  },
+  "playerPlaybackInfo": "播放資訊",
+  "@playerPlaybackInfo": {
+    "description": "Section heading for live playback statistics."
+  },
+  "playerMediaSourceInfo": "媒體源資訊",
+  "@playerMediaSourceInfo": {
+    "description": "Section heading for media source information."
+  },
+  "playerContainerFormat": "封裝容器",
+  "@playerContainerFormat": {
+    "description": "Playback details field label for the container format."
+  },
+  "playerBufferDuration": "緩衝時長",
+  "@playerBufferDuration": {
+    "description": "Playback details field label for the buffer duration."
+  },
+  "playerAudioCodec": "音訊編碼",
+  "@playerAudioCodec": {
+    "description": "Playback details field label for the audio codec."
+  },
+  "playerGpuEnabled": "啟用 GPU",
+  "@playerGpuEnabled": {
+    "description": "Playback details field label for the GPU in use."
+  },
+  "playerDecodeMethod": "解碼方式",
+  "@playerDecodeMethod": {
+    "description": "Playback details field label for the decode method."
+  },
+  "playerEncodeMethod": "編碼方式",
+  "@playerEncodeMethod": {
+    "description": "Playback details field label for the encode method."
+  },
+  "playerTranscodeFrameRate": "轉碼幀率",
+  "@playerTranscodeFrameRate": {
+    "description": "Playback details field label for the transcode frame rate."
+  },
+  "playerDroppedFrames": "丟幀",
+  "@playerDroppedFrames": {
+    "description": "Playback details field label for the dropped frame count."
+  },
+  "playerCorruptedFrames": "壞幀",
+  "@playerCorruptedFrames": {
+    "description": "Playback details field label for the corrupted frame count."
+  },
+  "playerCodec": "編碼",
+  "@playerCodec": {
+    "description": "Media source stream field label for the codec."
+  },
+  "playerDynamicRange": "動態範圍",
+  "@playerDynamicRange": {
+    "description": "Media source stream field label for the dynamic range."
+  },
+  "playerSubtitleAddDialogTitle": "新增字幕",
+  "@playerSubtitleAddDialogTitle": {
+    "description": "Title of the subtitle search dialog for adding subtitles."
+  },
+  "playerSubtitleSearchSortHint": "按相關度排序：",
+  "@playerSubtitleSearchSortHint": {
+    "description": "Hint shown above the subtitle search results explaining they are sorted by relevance."
+  },
+  "playerSubtitleSearchNoResults": "未搜尋到相關字幕",
+  "@playerSubtitleSearchNoResults": {
+    "description": "Empty-state text shown when a subtitle search returns no results."
+  },
+  "playerSubtitleSearchDownloadCount": "下載量 {count}",
+  "@playerSubtitleSearchDownloadCount": {
+    "description": "Download count shown next to a subtitle search result.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleSearchDownloading": "下載中",
+  "@playerSubtitleSearchDownloading": {
+    "description": "Label of the subtitle download button while a download is in progress."
+  },
+  "playerSubtitleSearchDownloadDone": "下載完成",
+  "@playerSubtitleSearchDownloadDone": {
+    "description": "Label of the subtitle download button once the download has finished."
+  },
+  "playerSubtitleSearchDownload": "下載字幕",
+  "@playerSubtitleSearchDownload": {
+    "description": "Label of the button that downloads a subtitle from the search results."
+  },
+  "playerSubtitleDownloadSimilarForEpisodes": "為其他集下載相似字幕",
+  "@playerSubtitleDownloadSimilarForEpisodes": {
+    "description": "Label of the button that downloads a similar subtitle for the other episodes of a series."
+  },
+  "playerSubtitleLanguageSimplifiedChinese": "簡體中文",
+  "@playerSubtitleLanguageSimplifiedChinese": {
+    "description": "Display label of the Simplified Chinese subtitle search language option."
+  },
+  "playerSubtitleLanguageEnglish": "英文",
+  "@playerSubtitleLanguageEnglish": {
+    "description": "Display label of the English subtitle search language option."
+  },
+  "playerSubtitleAdjust": "調整字幕",
+  "@playerSubtitleAdjust": {
+    "description": "Title of the subtitle adjustment panel."
+  },
+  "playerSubtitleReset": "重設",
+  "@playerSubtitleReset": {
+    "description": "Label of the button that resets subtitle adjustments to their defaults."
+  },
+  "playerSubtitleOffset": "偏移",
+  "@playerSubtitleOffset": {
+    "description": "Title of the subtitle timing offset adjustment slider."
+  },
+  "playerSubtitleOffsetMin": "-5秒",
+  "@playerSubtitleOffsetMin": {
+    "description": "Left label of the subtitle offset slider (minus five seconds)."
+  },
+  "playerSubtitleOffsetMax": "+5秒",
+  "@playerSubtitleOffsetMax": {
+    "description": "Right label of the subtitle offset slider (plus five seconds)."
+  },
+  "playerSubtitleSecondsSuffix": "秒",
+  "@playerSubtitleSecondsSuffix": {
+    "description": "Unit suffix shown next to the subtitle offset input value."
+  },
+  "playerSubtitlePosition": "位置",
+  "@playerSubtitlePosition": {
+    "description": "Title of the subtitle vertical position adjustment slider."
+  },
+  "playerSubtitlePositionBottom": "底部",
+  "@playerSubtitlePositionBottom": {
+    "description": "Left label of the subtitle position slider (bottom)."
+  },
+  "playerSubtitlePositionTop": "頂部",
+  "@playerSubtitlePositionTop": {
+    "description": "Right label of the subtitle position slider (top)."
+  },
+  "playerSubtitlePositionLockedHint": "當前字幕為彈幕/特效字幕（含定位標籤），位置調整不可用",
+  "@playerSubtitlePositionLockedHint": {
+    "description": "Hint shown when the subtitle position slider is disabled because the subtitle is a danmaku or ASS effect subtitle with positioning tags."
+  },
+  "playerSubtitleFontSize": "字號",
+  "@playerSubtitleFontSize": {
+    "description": "Title of the subtitle font size adjustment slider."
+  },
+  "playerSubtitleFontSizeMin": "最小",
+  "@playerSubtitleFontSizeMin": {
+    "description": "Left label of the subtitle font size slider (minimum)."
+  },
+  "playerSubtitleFontSizeMax": "最大",
+  "@playerSubtitleFontSizeMax": {
+    "description": "Right label of the subtitle font size slider (maximum)."
+  },
+  "playerSubtitlePanelTitle": "字幕",
+  "@playerSubtitlePanelTitle": {
+    "description": "Title of the subtitle selection panel."
+  },
+  "playerSubtitleAdjustButton": "調整",
+  "@playerSubtitleAdjustButton": {
+    "description": "Label of the button that opens the subtitle adjustment panel."
+  },
+  "playerSubtitleAddButton": "新增",
+  "@playerSubtitleAddButton": {
+    "description": "Label of the button that opens the add-subtitle menu."
+  },
+  "playerSubtitleOff": "關閉",
+  "@playerSubtitleOff": {
+    "description": "Label of the list row that turns off subtitles."
+  },
+  "playerSubtitleSearchMenu": "搜尋字幕",
+  "@playerSubtitleSearchMenu": {
+    "description": "Menu item that opens the subtitle search dialog."
+  },
+  "playerSubtitleAddNasFile": "新增 NAS 字幕檔案",
+  "@playerSubtitleAddNasFile": {
+    "description": "Menu item that adds a subtitle file stored on the NAS."
+  },
+  "playerSubtitleAddLocalFile": "新增電腦字幕檔案",
+  "@playerSubtitleAddLocalFile": {
+    "description": "Menu item that adds a subtitle file stored on the local computer."
+  },
+  "playerSubtitleDirectLinkMissingTitle": "直連播放缺失內建字幕",
+  "@playerSubtitleDirectLinkMissingTitle": {
+    "description": "Label shown at the bottom of the subtitle panel when built-in subtitles cannot be fetched during direct-link transcoded playback."
+  },
+  "playerSubtitleDirectLinkMissingContent": "由於網盤方的限制，直連轉碼播放時可能無法取得內建字幕列表。如需切換內建字幕，請切換播放方式為「NAS 代理播放」。",
+  "@playerSubtitleDirectLinkMissingContent": {
+    "description": "Bubble hint explaining why built-in subtitles are missing and how to switch playback mode."
+  },
+  "playerNextVideo": "下一個影片",
+  "@playerNextVideo": {
+    "description": "Label and tooltip of the next-episode button in the player."
+  },
+  "playerEpisodeNumber": "第 {number} 集",
+  "@playerEpisodeNumber": {
+    "description": "Episode number label shown in the player episode list.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "playerReplay": "重播",
+  "@playerReplay": {
+    "description": "Label of the replay button on the playback end overlay."
+  },
+  "playerUndo": "復原",
+  "@playerUndo": {
+    "description": "Label of the undo action on the auto-skipped intro prompt."
+  },
+  "playerSkipIntroAutoSkipped": "已自動跳過片頭",
+  "@playerSkipIntroAutoSkipped": {
+    "description": "Message shown on the prompt after the intro was auto-skipped."
+  },
+  "playerSkipOutroInSeconds": "{seconds} 秒後跳過片尾",
+  "@playerSkipOutroInSeconds": {
+    "description": "Outro prompt message shown when autoplay is off or credits have post-credits content.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerSkipOutroNextEpisodeInSeconds": "{seconds} 秒後播放下一集",
+  "@playerSkipOutroNextEpisodeInSeconds": {
+    "description": "Outro prompt message shown when the next episode is ready to autoplay.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerSkipOutroEndInSeconds": "{seconds} 秒後結束播放",
+  "@playerSkipOutroEndInSeconds": {
+    "description": "Outro prompt message shown when playback will simply stop.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerUnknown": "未知",
+  "@playerUnknown": {
+    "description": "Fallback label for an unknown audio track language or episode title."
+  },
+  "playerAudioDefaultSuffix": "{language} - 預設",
+  "@playerAudioDefaultSuffix": {
+    "description": "Audio track primary label suffix marking the track as the default one.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsWindowAspectRatioFollowVideo": "跟隨影片比例",
+  "@playerSettingsWindowAspectRatioFollowVideo": {
+    "description": "Value of the window aspect ratio setting when it follows the video."
+  },
+  "playerSettingsAspectRatioDefault": "預設",
+  "@playerSettingsAspectRatioDefault": {
+    "description": "Value of the video fill mode setting meaning the original aspect ratio."
+  },
+  "playerSettingsAdvanced": "進階",
+  "@playerSettingsAdvanced": {
+    "description": "Title of the player settings main panel; opens the advanced settings."
+  },
+  "playerSettingsAutoNext": "自動連播",
+  "@playerSettingsAutoNext": {
+    "description": "Player setting label for automatically playing the next episode."
+  },
+  "playerSettingsSkipIntroOutro": "跳過片頭/片尾",
+  "@playerSettingsSkipIntroOutro": {
+    "description": "Player setting label for the skip intro and outro configuration."
+  },
+  "playerSettingsWindowRatio": "視窗比例",
+  "@playerSettingsWindowRatio": {
+    "description": "Player setting label and screen title for the window aspect ratio."
+  },
+  "playerSettingsAspectRatio": "畫面比例",
+  "@playerSettingsAspectRatio": {
+    "description": "Player setting label and screen title for the video fill mode."
+  },
+  "playerSettingsClientDecodeMode": "客戶端解碼模式",
+  "@playerSettingsClientDecodeMode": {
+    "description": "Player setting label and screen title for the decode mode."
+  },
+  "playerSettingsAudio": "音訊",
+  "@playerSettingsAudio": {
+    "description": "Player settings audio option label and audio screen title."
+  },
+  "playerSettingsAudioPassthrough": "音訊直通",
+  "@playerSettingsAudioPassthrough": {
+    "description": "Audio screen top-right entry label and the audio-passthrough switch title."
+  },
+  "playerSettingsAudioPassthroughTitle": "音訊直通",
+  "@playerSettingsAudioPassthroughTitle": {
+    "description": "Header title of the audio-passthrough settings screen."
+  },
+  "playerSettingsAudioPassthroughDescription": "將 AC3/DTS/EAC3/TrueHD 等壓縮音訊流原樣輸出到 HDMI/S-PDIF 外接裝置解碼。僅對原始音軌的直連播放生效，轉碼音軌會自動回落為本機解碼。",
+  "@playerSettingsAudioPassthroughDescription": {
+    "description": "Description under the audio-passthrough switch."
+  },
+  "playerSettingsAudioOutputDevice": "輸出裝置",
+  "@playerSettingsAudioOutputDevice": {
+    "description": "Audio output device entry label and sub-page title."
+  },
+  "playerSettingsAudioOutputDeviceAuto": "自動（預設）",
+  "@playerSettingsAudioOutputDeviceAuto": {
+    "description": "Label of the automatic (system default) audio output device option."
+  },
+  "playerSettingsAudioOutputDeviceEmpty": "未偵測到可用的音訊輸出裝置",
+  "@playerSettingsAudioOutputDeviceEmpty": {
+    "description": "Shown when mpv enumerates no audio output devices."
+  },
+  "playerSettingsAdvancedTitle": "進階設定",
+  "@playerSettingsAdvancedTitle": {
+    "description": "Header title of the player advanced settings screen."
+  },
+  "playerSettingsHevcToH264": "HEVC 轉為 H.264",
+  "@playerSettingsHevcToH264": {
+    "description": "Advanced player setting title toggling HEVC to H.264 transcoding."
+  },
+  "playerSettingsHevcToH264Description": "播放有聲音無畫面時可嘗試開啟",
+  "@playerSettingsHevcToH264Description": {
+    "description": "Description of the HEVC to H.264 advanced player setting."
+  },
+  "playerSettingsForceSdr": "色調強制映射為 SDR",
+  "@playerSettingsForceSdr": {
+    "description": "Advanced player setting title forcing tone mapping to SDR."
+  },
+  "playerSettingsForceSdrDescription": "畫面偏暗時可嘗試開啟，適用於不支援 HDR 的裝置",
+  "@playerSettingsForceSdrDescription": {
+    "description": "Description of the force SDR advanced player setting."
+  },
+  "playerSettingsQuarkCdnSegment": "夸克 CDN 分片直連",
+  "@playerSettingsQuarkCdnSegment": {
+    "description": "Advanced player setting title enabling Quark CDN segment direct link."
+  },
+  "playerSettingsQuarkCdnSegmentDescription": "開啟後按分片預取夸克網盤直連流；關閉則使用原有直連方式",
+  "@playerSettingsQuarkCdnSegmentDescription": {
+    "description": "Description of the Quark CDN segment direct link advanced player setting."
+  },
+  "playerSettingsSmartSkip": "智能跳過",
+  "@playerSettingsSmartSkip": {
+    "description": "Value shown when smart skip is enabled for the intro/outro configuration."
+  },
+  "playerSettingsSkipIntroOutroBoth": "跳過片頭片尾",
+  "@playerSettingsSkipIntroOutroBoth": {
+    "description": "Value shown when both a manual intro and outro are configured."
+  },
+  "playerSettingsIntroConfigured": "已設定片頭",
+  "@playerSettingsIntroConfigured": {
+    "description": "Value shown when only a manual intro is configured."
+  },
+  "playerSettingsOutroConfigured": "已設定片尾",
+  "@playerSettingsOutroConfigured": {
+    "description": "Value shown when only a manual outro is configured."
+  },
+  "playerSettingsNotSet": "未設定",
+  "@playerSettingsNotSet": {
+    "description": "Value shown when no intro/outro configuration exists."
+  },
+  "playerSettingsSkipScope": "生效範圍: 《{title}》 第 {season} 季",
+  "@playerSettingsSkipScope": {
+    "description": "Scope line of the skip intro/outro settings, with the series title and season number.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "season": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsSmartSkipIntroOutro": "智能跳過片頭/片尾",
+  "@playerSettingsSmartSkipIntroOutro": {
+    "description": "Toggle title enabling smart intro/outro skipping."
+  },
+  "playerSettingsIntroDuration": "片頭時長",
+  "@playerSettingsIntroDuration": {
+    "description": "Label of the intro duration slider."
+  },
+  "playerSettingsOutroDuration": "片尾時長",
+  "@playerSettingsOutroDuration": {
+    "description": "Label of the outro duration slider."
+  },
+  "playerSettingsSetOutroToRemaining": "將當前剩餘時長 {time} 設為片尾",
+  "@playerSettingsSetOutroToRemaining": {
+    "description": "One-click shortcut button label setting the outro to the current remaining time.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsSetIntroToCurrent": "將當前時間 {time} 設為片頭",
+  "@playerSettingsSetIntroToCurrent": {
+    "description": "One-click shortcut button label setting the intro to the current time.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsTenMinutes": "10 分鐘",
+  "@playerSettingsTenMinutes": {
+    "description": "Slider boundary caption for a ten minute range."
+  },
+  "playerSettingsSliderStart": "開始",
+  "@playerSettingsSliderStart": {
+    "description": "Slider start boundary caption."
+  },
+  "playerSettingsSliderEnd": "結束",
+  "@playerSettingsSliderEnd": {
+    "description": "Slider end boundary caption."
+  },
+  "playerSettingsDecodeAutoTip": "自動選擇硬體解碼，失敗時回退到軟體解碼。推薦。",
+  "@playerSettingsDecodeAutoTip": {
+    "description": "Tooltip describing the automatic decode mode."
+  },
+  "playerSettingsDecodeSoftwareTip": "強制使用軟體解碼，相容性最好；硬解花屏/黑屏時的兜底方案。",
+  "@playerSettingsDecodeSoftwareTip": {
+    "description": "Tooltip describing the software decode mode."
+  },
+  "playerSettingsDecodeCopyTip": "硬體解碼但將幀拷回記憶體，可與所有濾鏡/彈幕/截圖功能共存；略費 CPU。",
+  "@playerSettingsDecodeCopyTip": {
+    "description": "Tooltip describing the copy-back decode mode."
+  },
+  "playerSettingsSoftwareDecode": "軟體解碼",
+  "@playerSettingsSoftwareDecode": {
+    "description": "Decode mode option using software decoding."
+  },
+  "playerSettingsCopyBackMode": "回拷模式",
+  "@playerSettingsCopyBackMode": {
+    "description": "Decode mode option copying hardware-decoded frames back to memory."
+  },
+  "playerSettingsSpecifyHwdec": "指定硬體解碼器",
+  "@playerSettingsSpecifyHwdec": {
+    "description": "Decode mode option and screen title for choosing a specific hardware decoder."
+  },
+  "playerSettingsNoHwdecAvailable": "未偵測到可用的硬體解碼器",
+  "@playerSettingsNoHwdecAvailable": {
+    "description": "Empty-state message when no hardware decoder was probed as usable."
+  },
+  "playerQualityTitle": "影片畫質",
+  "@playerQualityTitle": {
+    "description": "Header of the video quality selection panel in the player."
+  },
+  "playerQualityOriginal": "原畫",
+  "@playerQualityOriginal": {
+    "description": "Label for the original (highest) video quality option."
+  },
+  "playerQualityCustom": "自訂",
+  "@playerQualityCustom": {
+    "description": "Label for the custom video quality entry that opens the fine-grained picker."
+  },
+  "playerQualityCustomTitle": "自訂影片畫質",
+  "@playerQualityCustomTitle": {
+    "description": "Title of the custom video quality selection page."
+  },
+  "playerQualityDirectUnsupported": "直連播放暫不支援此畫質",
+  "@playerQualityDirectUnsupported": {
+    "description": "Tooltip shown on a disabled quality option that direct-link playback does not support."
+  },
+  "playerQualityLowRiskHint": "此選項風控機率相對較低，建議優先選擇",
+  "@playerQualityLowRiskHint": {
+    "description": "Hint in the cloud direct-link quality panel explaining the low-risk marked option."
+  },
+  "playerQualityOriginalNoAudioHint": "直連播放原畫無聲音",
+  "@playerQualityOriginalNoAudioHint": {
+    "description": "Short hint title warning that the original quality may have no sound in direct-link playback."
+  },
+  "playerQualityOriginalNoAudioTooltip": "由於播放器對音訊編碼格式的支援有限，直連播放原畫可能出現無聲音的情況。可嘗試切換播放方式為「NAS 代理播放」。",
+  "@playerQualityOriginalNoAudioTooltip": {
+    "description": "Tooltip explaining why the original quality may have no sound in direct-link playback and how to work around it."
+  },
+  "playerSpeedLabel": "倍速",
+  "@playerSpeedLabel": {
+    "description": "Neutral label for the playback speed control at the default speed."
+  },
+  "playerSettingsAuto": "自動",
+  "@playerSettingsAuto": {
+    "description": "Decode mode option that automatically selects hardware decoding."
+  },
+  "playerTranscodeReasonLowerQuality": "依影片畫質設定降低畫質",
+  "@playerTranscodeReasonLowerQuality": {
+    "description": "Lower quality per video quality setting"
+  },
+  "playerTranscodeReasonSubtitleBurn": "字幕燒錄",
+  "@playerTranscodeReasonSubtitleBurn": {
+    "description": "Subtitle burn-in"
+  },
+  "playerTranscodeReasonSubtitleToVtt": "字幕轉為 vtt 切片",
+  "@playerTranscodeReasonSubtitleToVtt": {
+    "description": "Subtitle converted to vtt segments"
+  },
+  "playerTranscodeReasonVideoFormat": "視訊格式轉換",
+  "@playerTranscodeReasonVideoFormat": {
+    "description": "Video format conversion"
+  },
+  "playerTranscodeReasonAudioFormat": "音訊格式轉換",
+  "@playerTranscodeReasonAudioFormat": {
+    "description": "Audio format conversion"
+  },
+  "playerTranscodeReasonToneMapping": "色調映射",
+  "@playerTranscodeReasonToneMapping": {
+    "description": "Tone mapping"
+  },
+  "playerDecodeMethodSoftware": "軟解碼",
+  "@playerDecodeMethodSoftware": {
+    "description": "Software decoding"
+  },
+  "playerDecodeMethodQsv": "QSV 解碼",
+  "@playerDecodeMethodQsv": {
+    "description": "QSV decoding"
+  },
+  "playerDecodeMethodVaapi": "VAAPI 解碼",
+  "@playerDecodeMethodVaapi": {
+    "description": "VAAPI decoding"
+  },
+  "playerDecodeMethodNvdec": "NVDEC 解碼",
+  "@playerDecodeMethodNvdec": {
+    "description": "NVDEC decoding"
+  },
+  "playerDecodeMethodRkmpp": "RKMPP 解碼",
+  "@playerDecodeMethodRkmpp": {
+    "description": "RKMPP decoding"
+  },
+  "playerEncodeMethodSoftware": "軟編碼",
+  "@playerEncodeMethodSoftware": {
+    "description": "Software encoding"
+  },
+  "playerEncodeMethodQsv": "QSV 編碼",
+  "@playerEncodeMethodQsv": {
+    "description": "QSV encoding"
+  },
+  "playerEncodeMethodQsvLowPower": "QSV 低電壓編碼",
+  "@playerEncodeMethodQsvLowPower": {
+    "description": "QSV low-power encoding"
+  },
+  "playerEncodeMethodVaapi": "VAAPI 編碼",
+  "@playerEncodeMethodVaapi": {
+    "description": "VAAPI encoding"
+  },
+  "playerEncodeMethodNvenc": "NVENC 編碼",
+  "@playerEncodeMethodNvenc": {
+    "description": "NVENC encoding"
+  },
+  "playerEncodeMethodRkmpp": "RKMPP 編碼",
+  "@playerEncodeMethodRkmpp": {
+    "description": "RKMPP encoding"
+  },
+  "smartAnalysisQueuedLoading": "片頭／片尾分析任務已提交",
+  "@smartAnalysisQueuedLoading": {
+    "description": "Toast shown immediately after queueing a season analysis."
+  },
+  "smartAnalysisCloudOrStrmRejected": "網盤或 STRM 影片無法使用「智慧分析片頭／片尾」功能",
+  "@smartAnalysisCloudOrStrmRejected": {
+    "description": "Rejection message when the media backend cannot be analyzed."
+  },
+  "playerSkipSegmentIntro": "片頭",
+  "@playerSkipSegmentIntro": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentRecap": "前情提要",
+  "@playerSkipSegmentRecap": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentOutro": "片尾",
+  "@playerSkipSegmentOutro": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentPreview": "下集預告",
+  "@playerSkipSegmentPreview": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentCommercial": "廣告",
+  "@playerSkipSegmentCommercial": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentGeneric": "片段",
+  "@playerSkipSegmentGeneric": {
+    "description": "Fallback skip-segment kind name."
+  },
+  "playerSkipSegmentJoined": "{parts}",
+  "@playerSkipSegmentJoined": {
+    "description": "Joins several skip-segment names; keep the connector language-specific.",
+    "placeholders": {
+      "parts": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSkipSegmentInSeconds": "{seconds} 秒後跳過{subject}",
+  "@playerSkipSegmentInSeconds": {
+    "description": "Countdown before auto-skipping a segment.",
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      },
+      "subject": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSkipAutoSkipped": "已自動跳過{subject}",
+  "@playerSkipAutoSkipped": {
+    "description": "Toast after automatically skipping a segment.",
+    "placeholders": {
+      "subject": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsSkipRecap": "跳過前情提要",
+  "@playerSettingsSkipRecap": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSkipPreview": "跳過下集預告",
+  "@playerSettingsSkipPreview": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSkipCommercial": "跳過廣告",
+  "@playerSettingsSkipCommercial": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSmartSkipConfig": "智慧跳過設定",
+  "@playerSettingsSmartSkipConfig": {
+    "description": "Menu entry that opens the smart-skip config dialog."
+  },
+  "playerSettingsSkipIntroOnly": "跳過片頭",
+  "@playerSettingsSkipIntroOnly": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSkipOutroOnly": "跳過片尾",
+  "@playerSettingsSkipOutroOnly": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSkipSegmentConnector": "與",
+  "@playerSkipSegmentConnector": {
+    "description": "Separator joining several skip-segment names."
+  },
+  "smartSkipConfigTitle": "智慧跳過設定",
+  "@smartSkipConfigTitle": {
+    "description": "Title of the smart-skip configuration dialog."
+  },
+  "smartSkipSave": "儲存",
+  "@smartSkipSave": {
+    "description": "Dialog primary action."
+  },
+  "smartSkipSaved": "智慧跳過設定已儲存",
+  "@smartSkipSaved": {
+    "description": "Toast after saving the configuration."
+  },
+  "smartSkipSaveFailed": "儲存失敗",
+  "@smartSkipSaveFailed": {
+    "description": "Title shown when saving fails."
+  },
+  "smartSkipLoginRequired": "請先登入後再設定",
+  "@smartSkipLoginRequired": {
+    "description": "Shown when the user is not signed in."
+  },
+  "smartSkipLoadFailed": "伺服器設定載入失敗，目前顯示預設設定",
+  "@smartSkipLoadFailed": {
+    "description": "Banner when server config cannot be loaded."
+  },
+  "smartSkipDetectMode": "偵測模式",
+  "@smartSkipDetectMode": {
+    "description": "Section heading."
+  },
+  "smartSkipAnimeMode": "動漫模式",
+  "@smartSkipAnimeMode": {
+    "description": "Detection-mode option."
+  },
+  "smartSkipPreferChromaprint": "優先指紋比對",
+  "@smartSkipPreferChromaprint": {
+    "description": "Detection-mode option."
+  },
+  "smartSkipAlternativeBlackFrame": "備用黑畫面分析器",
+  "@smartSkipAlternativeBlackFrame": {
+    "description": "Detection-mode option."
+  },
+  "smartSkipDetectIntro": "偵測片頭",
+  "@smartSkipDetectIntro": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectOutro": "偵測片尾",
+  "@smartSkipDetectOutro": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectRecap": "偵測前情提要",
+  "@smartSkipDetectRecap": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectPreview": "偵測下集預告",
+  "@smartSkipDetectPreview": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectCommercial": "偵測廣告",
+  "@smartSkipDetectCommercial": {
+    "description": "Detection toggle."
+  },
+  "smartSkipAdvanced": "進階",
+  "@smartSkipAdvanced": {
+    "description": "Heading of the advanced settings section."
+  },
+  "smartSkipDurationLimit": "時長限制（秒）",
+  "@smartSkipDurationLimit": {
+    "description": "Field label."
+  },
+  "smartSkipBoundaryOffset": "邊界偏移（秒）",
+  "@smartSkipBoundaryOffset": {
+    "description": "Field label."
+  },
+  "smartSkipIntroStartOffset": "片頭開始偏移",
+  "@smartSkipIntroStartOffset": {
+    "description": "Field label."
+  },
+  "smartSkipIntroEndOffset": "片頭結束偏移",
+  "@smartSkipIntroEndOffset": {
+    "description": "Field label."
+  },
+  "smartSkipIntroMinDuration": "片頭最短時長",
+  "@smartSkipIntroMinDuration": {
+    "description": "Field label."
+  },
+  "smartSkipIntroMaxDuration": "片頭最長時長",
+  "@smartSkipIntroMaxDuration": {
+    "description": "Field label."
+  },
+  "smartSkipOutroMinDuration": "片尾最短時長",
+  "@smartSkipOutroMinDuration": {
+    "description": "Field label."
+  },
+  "smartSkipOutroMaxDuration": "片尾最長時長",
+  "@smartSkipOutroMaxDuration": {
+    "description": "Field label."
+  },
+  "smartSkipOutroEndOffset": "片尾結束偏移",
+  "@smartSkipOutroEndOffset": {
+    "description": "Field label."
+  },
+  "smartSkipRestoreDefaults": "還原預設",
+  "@smartSkipRestoreDefaults": {
+    "description": "Dialog action."
+  },
+  "playerSettingsSmartSkipIntro": "跳過片頭",
+  "@playerSettingsSmartSkipIntro": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSmartSkipOutro": "跳過片尾",
+  "@playerSettingsSmartSkipOutro": {
+    "description": "Smart-skip switch label."
+  },
+  "smartSkipAnalysisFailedRetry": "分析請求提交失敗，請稍後重試",
+  "@smartSkipAnalysisFailedRetry": {
+    "description": "Toast when submitting season analysis fails."
+  },
+  "smartSkipLoadConfigFailed": "載入智慧跳過設定失敗",
+  "@smartSkipLoadConfigFailed": {
+    "description": "Error shown when loading the config fails."
+  },
+  "smartSkipSaveConfigFailed": "儲存智慧跳過設定失敗",
+  "@smartSkipSaveConfigFailed": {
+    "description": "Error shown when saving the config fails."
+  },
+  "smartSkipConfigConfigure": "設定",
+  "@smartSkipConfigConfigure": {
+    "description": "Button that opens the smart skip config dialog."
+  },
+  "settingsSmartSkipConfigCaption": "伺服器智慧分析片頭片尾的參數",
+  "@settingsSmartSkipConfigCaption": {
+    "description": "Caption under the smart skip config row."
+  },
+  "settingsDanmuDandanSource": "彈彈play 彈幕來源",
+  "@settingsDanmuDandanSource": { "description": "Heading of the dandanplay danmu source card in server settings." },
+  "settingsDanmuDandanSourceCaption": "設定彈彈play官方服務與中繼服務，可分別啟用並指定優先使用的來源",
+  "@settingsDanmuDandanSourceCaption": { "description": "Caption under the dandanplay source card." },
+  "settingsDanmuFallbackServers": "備援彈幕伺服器",
+  "@settingsDanmuFallbackServers": { "description": "Heading of the fallback danmu servers card." },
+  "settingsDanmuFallbackServersCaption": "所有直連彈幕來源為空時，依序嘗試已啟用的第三方伺服器",
+  "@settingsDanmuFallbackServersCaption": { "description": "Caption under the fallback servers card." },
+  "settingsDanmuFallbackServersHelp": "當伺服器為影片找不到任何彈幕時，會依這裡加入的順序嘗試第三方彈幕伺服器。請填入相容彈彈play協定的彈幕服務位址（以 http:// 或 https:// 開頭的完整網址），只有開啟的伺服器才會被嘗試。沒有現成位址的話，可以在 NAS 上自行部署開源專案 danmu_api 或 misaka_danmu_server，再把部署好的位址填進來。",
+  "@settingsDanmuFallbackServersHelp": { "description": "Hover tip explaining what to add and when fallback servers are used." },
+  "danmuSourceConfigure": "設定",
+  "@danmuSourceConfigure": { "description": "Button that opens the fallback servers dialog." },
+  "danmuSourceSave": "儲存",
+  "@danmuSourceSave": { "description": "Save button in danmu source config UI." },
+  "danmuSourceSaved": "已儲存",
+  "@danmuSourceSaved": { "description": "Toast after a successful save." },
+  "danmuSourceDeleted": "已刪除",
+  "@danmuSourceDeleted": { "description": "Toast after a successful delete." },
+  "danmuSourceFallbackDialogTitle": "備援彈幕伺服器",
+  "@danmuSourceFallbackDialogTitle": { "description": "Title of the fallback servers management dialog." },
+  "danmuSourceFallbackAdd": "新增伺服器",
+  "@danmuSourceFallbackAdd": { "description": "Button to add a fallback server." },
+  "danmuSourceFallbackEdit": "編輯伺服器",
+  "@danmuSourceFallbackEdit": { "description": "Sub-dialog title when editing a fallback server." },
+  "danmuSourceFallbackNameHint": "名稱（選填）",
+  "@danmuSourceFallbackNameHint": { "description": "Placeholder of the name field." },
+  "danmuSourceFallbackUrlHint": "伺服器位址",
+  "@danmuSourceFallbackUrlHint": { "description": "Placeholder of the URL field." },
+  "danmuSourceFallbackEmpty": "尚無備援伺服器",
+  "@danmuSourceFallbackEmpty": { "description": "Empty state of the fallback list." },
+  "danmuSourceFallbackDeleteTitle": "刪除伺服器",
+  "@danmuSourceFallbackDeleteTitle": { "description": "Title of the delete confirmation dialog." },
+  "danmuSourceFallbackDeleteMessage": "確定刪除「{name}」？",
+  "@danmuSourceFallbackDeleteMessage": { "description": "Message of the delete confirmation dialog.", "placeholders": { "name": { "type": "String" } } },
+  "danmuSourceDelete": "刪除",
+  "@danmuSourceDelete": { "description": "Destructive confirm button." },
+  "danmuSourceUrlInvalid": "位址需以 http:// 或 https:// 開頭",
+  "@danmuSourceUrlInvalid": { "description": "Inline validation error for the URL field." },
+  "danmuSourceUrlMissingHost": "位址缺少主機名稱，請填寫完整網址，例如 http://192.168.1.10:7732",
+  "@danmuSourceUrlMissingHost": { "description": "Inline validation error when the URL has no host." },
+  "danmuSourceUrlRequired": "請填寫伺服器位址",
+  "@danmuSourceUrlRequired": { "description": "Validation error when the URL field is empty." },
+  "danmuSourceUrlMalformed": "位址格式不正確",
+  "@danmuSourceUrlMalformed": { "description": "Validation error when the URL cannot be parsed." },
+  "danmuSourceLoadFailed": "讀取彈幕來源設定失敗",
+  "@danmuSourceLoadFailed": { "description": "Error when loading the config fails." },
+  "danmuSourceSaveFailed": "儲存彈幕來源設定失敗",
+  "@danmuSourceSaveFailed": { "description": "Fallback error when saving fails." },
+  "danmuSourceDeleteFailed": "刪除備援伺服器失敗",
+  "@danmuSourceDeleteFailed": { "description": "Fallback error when deleting fails." },
+  "danmuSourceEnabled": "啟用",
+  "@danmuSourceEnabled": { "description": "Label of the per-server enable toggle." },
+  "danmuSourceRelayRequired": "請輸入彈彈play中繼位址",
+  "@danmuSourceRelayRequired": { "description": "Warning when testing the relay with an empty address." },
+  "danmuSourceAppIdRequired": "請填寫 AppId",
+  "@danmuSourceAppIdRequired": { "description": "Warning when testing the official service with an empty AppId." },
+  "danmuSourceAppSecretRequired": "請填寫 AppSecret",
+  "@danmuSourceAppSecretRequired": { "description": "Warning when testing the official service with an empty AppSecret." },
+  "danmuSourceRelayReachable": "彈彈play中繼可連線",
+  "@danmuSourceRelayReachable": { "description": "Toast when the relay connectivity test passes." },
+  "danmuSourceRelayUnreachable": "彈彈play中繼無法連線",
+  "@danmuSourceRelayUnreachable": { "description": "Toast when the relay connectivity test fails." },
+  "danmuDandanDialogTitle": "彈彈play 彈幕來源",
+  "@danmuDandanDialogTitle": { "description": "Title of the merged dandanplay source dialog." },
+  "danmuDandanOfficialTitle": "官方服務",
+  "@danmuDandanOfficialTitle": { "description": "Heading of the official open-network card." },
+  "danmuDandanOfficialCaption": "官方開放平台，彈幕更全（含部分美劇）",
+  "@danmuDandanOfficialCaption": { "description": "Caption under the official card." },
+  "danmuDandanRelayTitle": "中繼服務",
+  "@danmuDandanRelayTitle": { "description": "Heading of the relay card." },
+  "danmuDandanRelayCaption": "透過第三方 ddp 中繼存取彈彈play",
+  "@danmuDandanRelayCaption": { "description": "Caption under the relay card." },
+  "danmuDandanEnable": "啟用",
+  "@danmuDandanEnable": { "description": "Label of the per-source enable switch." },
+  "danmuDandanPreferred": "優先",
+  "@danmuDandanPreferred": { "description": "Label of the mutually exclusive preferred-source switch." },
+  "danmuDandanPreferredTooltip": "優先使用該來源搜尋，無符合結果時再嘗試另一個",
+  "@danmuDandanPreferredTooltip": { "description": "Explains what the preferred switch does." },
+  "danmuDandanPreferredNeedsEnable": "需先啟用該來源",
+  "@danmuDandanPreferredNeedsEnable": { "description": "Tooltip when the preferred switch is greyed out because the source is off." },
+  "danmuDandanOfficialAppIdHint": "AppId",
+  "@danmuDandanOfficialAppIdHint": { "description": "Placeholder of the AppId field." },
+  "danmuDandanOfficialAppSecretHint": "AppSecret",
+  "@danmuDandanOfficialAppSecretHint": { "description": "Placeholder of the AppSecret field." },
+  "danmuDandanOfficialHint": "在 doc.dandanplay.com/open 免費申請應用取得 AppId/AppSecret",
+  "@danmuDandanOfficialHint": { "description": "Hint telling where to register the app." },
+  "danmuDandanRelayUrlHint": "https://example.com/ddp/v1",
+  "@danmuDandanRelayUrlHint": { "description": "Placeholder of the relay address field." },
+  "danmuDandanTest": "測試連線",
+  "@danmuDandanTest": { "description": "Connectivity test button on either source card." },
+  "danmuDandanTesting": "測試中…",
+  "@danmuDandanTesting": { "description": "Label of the test button while a probe runs." },
+  "danmuDandanOfficialTestOk": "官方服務連線正常",
+  "@danmuDandanOfficialTestOk": { "description": "Toast when the official API accepts the credentials." },
+  "danmuDandanOfficialTestFailed": "官方服務無法使用",
+  "@danmuDandanOfficialTestFailed": { "description": "Toast when the official credentials probe fails." },
+  "danmuDandanRelayTestOk": "中繼服務連線正常",
+  "@danmuDandanRelayTestOk": { "description": "Toast when the relay probe passes." },
+  "danmuDandanRelayTestFailed": "中繼服務無法使用",
+  "@danmuDandanRelayTestFailed": { "description": "Toast when the relay probe fails." },
+  "danmuDandanStatusEnabled": "已啟用",
+  "@danmuDandanStatusEnabled": { "description": "Source state in the settings card summary." },
+  "danmuDandanStatusDisabled": "已停用",
+  "@danmuDandanStatusDisabled": { "description": "Source state in the settings card summary." },
+  "danmuDandanStatusPreferred": "優先",
+  "@danmuDandanStatusPreferred": { "description": "Marks the preferred source in the settings card summary." },
+  "danmuDandanNoneEnabled": "未啟用任何彈彈play來源",
+  "@danmuDandanNoneEnabled": { "description": "Summary shown when both dandan sources are off." }
+}

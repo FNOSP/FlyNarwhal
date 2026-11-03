@@ -7,6 +7,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 
 import '../../../../data/models/episode_list_response.dart';
 import '../../../../domain/entities/media_type.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../shared/common/media_poster_placeholder.dart';
 import 'player_action_button.dart';
 
@@ -262,6 +263,7 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -277,7 +279,7 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
         child: PlayerActionButton.svg(
           svgAssetPath: 'assets/images/next_episode.svg',
           onPressed: widget.onClick,
-          tooltip: '下一个视频',
+          tooltip: l10n.playerNextVideo,
           size: 30,
           iconSize: 20,
           padding: const EdgeInsets.all(4),
@@ -334,16 +336,17 @@ class _NextEpisodeFlyoutContent extends StatelessWidget {
     return '$normalizedBaseUrl/v/api/v1/sys/img$posterPath$suffix';
   }
 
-  String _buildEpisodeTitle() {
+  String _buildEpisodeTitle(AppLocalizations l10n) {
     final title = episode.title.trim();
     if (title.isEmpty) {
-      return '第${episode.episodeNumber}集';
+      return l10n.playerEpisodeNumber('${episode.episodeNumber}');
     }
     return '${episode.episodeNumber.toString().padLeft(2, '0')}. $title';
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final imageUrl = _buildImageUrl();
     return Container(
       width: _flyoutWidth,
@@ -391,16 +394,16 @@ class _NextEpisodeFlyoutContent extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              '下一个视频',
-              style: TextStyle(
+            Text(
+              l10n.playerNextVideo,
+              style: const TextStyle(
                 color: _secondaryTextColor,
                 fontSize: 12,
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              _buildEpisodeTitle(),
+              _buildEpisodeTitle(l10n),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(

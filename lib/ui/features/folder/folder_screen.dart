@@ -15,6 +15,7 @@ import '../../../domain/entities/tag_entity.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../shared/filter_box.dart';
 import '../../shared/layout_flyout.dart';
 import '../../shared/movie_poster.dart';
@@ -69,9 +70,25 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   @override
   void initState() {
     super.initState();
+    // Tag labels are language-dependent; reload them on a language switch.
+    ref.listenManual(
+      settingsProvider.select((s) => s.language),
+      (previous, next) {
+        if (previous != next) {
+          _loadStaticTags();
+        }
+      },
+    );
     _loadFolderInfo();
     _loadStaticTags();
-    _refreshBrowse();
+    // refreshWithQuery 会修改 MediaLibrary 的 provider state；在 initState
+    // （widget 构建阶段）里同步调用会被 Riverpod 拒绝
+    // （"Tried to modify a provider while the widget tree was building"），
+    // 导致这次带 parentGuid 的浏览请求被中断、文件夹首次进入时列表为空、
+    // 需要手动刷新。延后到首帧之后再发起。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshBrowse();
+    });
   }
 
   @override
@@ -93,7 +110,10 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
       });
       _loadFolderInfo();
       _loadStaticTags();
-      _refreshBrowse();
+      // 同 initState：刷新命令会修改 provider state，须避开构建阶段。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshBrowse();
+      });
     }
   }
 
@@ -167,36 +187,36 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
     String? watched;
     filters.forEach((title, item) {
       switch (title) {
-        case '影视类型':
+        case FilterRowKey.mediaType:
           if (item.value != null) {
             types
               ..clear()
               ..add(item.value.toString());
           }
           break;
-        case '类型':
+        case FilterRowKey.genre:
           genres = item.value as int?;
           break;
-        case '分辨率':
+        case FilterRowKey.resolution:
           resolution = item.value as String?;
           break;
-        case '视频动态范围':
+        case FilterRowKey.colorRange:
           colorRange = item.value as String?;
           break;
-        case '音频规格':
+        case FilterRowKey.audioType:
           audioType = item.value as String?;
           break;
-        case '国家和地区':
+        case FilterRowKey.location:
           locate = item.value as String?;
           break;
-        case '发行年份':
+        case FilterRowKey.decade:
           decade = item.value as String?;
           break;
-        case '匹配状态':
+        case FilterRowKey.recognitionStatus:
           final v = item.value as int?;
           recognitionStatus = v?.toString();
           break;
-        case '是否已观看':
+        case FilterRowKey.watched:
           watched = item.value as String?;
           break;
       }
@@ -288,6 +308,9 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   Future<void> _handleGlobalRefresh(GlobalRefreshRequest request) async {
     await request.runBaseMediaLibraryRefresh();
     if (!mounted) return;
+    // _loadFolderInfo reads through the data source's detail cache, which
+    // outlives this page; drop it so a refresh shows fresh folder state.
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(widget.guid);
     setState(() {
       _isFilterOpen = false;
       _selectedFilters = {};
@@ -309,13 +332,15 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   void _onClearFilter(String title) {
     if (_selectedFilters.containsKey(title)) {
       setState(() {
-        _selectedFilters[title] = const FilterItem('全部', null);
+        // Placeholder whose label is replaced by FilterBox on rebuild;
+        // only the null value matters here.
+        _selectedFilters[title] = const FilterItem('', null);
       });
     } else {
       setState(() {
         _selectedFilters = {
           for (final e in _selectedFilters.entries)
-            e.key: const FilterItem('全部', null),
+            e.key: const FilterItem('', null),
         };
       });
     }
@@ -379,6 +404,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   // ── 「更多」菜单动作 ────────────────────────────────────────────────
 
   void _showMoreMenu() {
+    final l10n = AppLocalizations.of(context);
     if (_moreFlyoutController.isOpen) {
       _moreFlyoutController.close();
       return;
@@ -397,7 +423,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
           MenuFlyoutItem(
             key: ValueKey('folder-rescrap-${widget.guid}'),
             leading: const Icon(FluentIcons.refresh, size: 16),
-            text: const Text('重新识别'),
+            text: Text(l10n.folderRescrap),
             onPressed: _moreActionLoading
                 ? null
                 : () {
@@ -408,7 +434,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
           MenuFlyoutItem(
             key: ValueKey('folder-refresh-${widget.guid}'),
             leading: const Icon(FluentIcons.sync, size: 16),
-            text: const Text('刷新元数据'),
+            text: Text(l10n.folderRefreshMetadata),
             onPressed: _moreActionLoading
                 ? null
                 : () {
@@ -422,8 +448,8 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
               key: ValueKey('folder-delete-${widget.guid}'),
               leading: const Icon(FluentIcons.delete,
                   size: 16, color: kDangerDefaultColor),
-              text: const Text('删除',
-                  style: TextStyle(color: kDangerDefaultColor)),
+              text: Text(l10n.commonDelete,
+                  style: const TextStyle(color: kDangerDefaultColor)),
               onPressed: _moreActionLoading
                   ? null
                   : () {
@@ -438,6 +464,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   }
 
   Future<void> _rescrap() async {
+    final l10n = AppLocalizations.of(context);
     setState(() => _moreActionLoading = true);
     final dataSource = ref.read(mediaRemoteDataSourceProvider);
     try {
@@ -445,13 +472,13 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
           widget.guid, MediaType.directory.value);
       final ok = result.isSuccess && result.dataOrNull == true;
       ref.read(toastManagerProvider.notifier).showToast(
-            ok ? '已发起重新识别' : '重新识别失败',
+            ok ? l10n.folderRescrapStarted : l10n.folderRescrapFailed,
             type: ok ? ToastType.success : ToastType.failed,
             category: 'folder-rescrap:${widget.guid}',
           );
     } catch (e) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '重新识别失败：$e',
+            l10n.folderRescrapFailedWithError('$e'),
             type: ToastType.failed,
             category: 'folder-rescrap:${widget.guid}',
           );
@@ -461,19 +488,22 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   }
 
   Future<void> _refreshMetadata() async {
+    final l10n = AppLocalizations.of(context);
     setState(() => _moreActionLoading = true);
     final dataSource = ref.read(mediaRemoteDataSourceProvider);
     try {
       final result = await dataSource.refreshItemMetadata(widget.guid);
       final ok = result.isSuccess && result.dataOrNull == true;
       ref.read(toastManagerProvider.notifier).showToast(
-            ok ? '已发起刷新元数据' : '刷新元数据失败',
+            ok
+                ? l10n.folderRefreshMetadataStarted
+                : l10n.folderRefreshMetadataFailed,
             type: ok ? ToastType.success : ToastType.failed,
             category: 'folder-refresh:${widget.guid}',
           );
     } catch (e) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '刷新元数据失败：$e',
+            l10n.folderRefreshMetadataFailedWithError('$e'),
             type: ToastType.failed,
             category: 'folder-refresh:${widget.guid}',
           );
@@ -483,6 +513,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   }
 
   Future<void> _confirmDelete() async {
+    final l10n = AppLocalizations.of(context);
     final title = ref
             .read(mediaLibraryNotifierProvider(widget.guid))
             .asData
@@ -490,15 +521,16 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
             .jumpList
             .lastOrNull
             ?.baseName ??
-        '该文件夹';
+        l10n.folderThisFolder;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => ContentDialog(
-        title: const Text('删除'),
-        content: Text('确定要从媒体库删除「$title」吗？\n仅移除媒体库条目，不会删除磁盘上的文件。'),
+        title: Text(l10n.folderDeleteConfirmTitle),
+        content:
+            Text(l10n.folderDeleteConfirmBody(title)),
         actions: [
           Button(
-            child: const Text('取消'),
+            child: Text(l10n.commonCancel),
             onPressed: () => Navigator.of(dialogContext).pop(false),
           ),
           FilledButton(
@@ -506,7 +538,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
               backgroundColor:
                   WidgetStatePropertyAll(kDangerDefaultColor),
             ),
-            child: const Text('删除'),
+            child: Text(l10n.commonDelete),
             onPressed: () => Navigator.of(dialogContext).pop(true),
           ),
         ],
@@ -520,14 +552,14 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
           await dataSource.deleteItem(widget.guid, deleteFile: false);
       final ok = result.isSuccess && result.dataOrNull == true;
       ref.read(toastManagerProvider.notifier).showToast(
-            ok ? '已删除' : '删除失败',
+            ok ? l10n.homeDeleted : l10n.homeDeleteFailed,
             type: ok ? ToastType.success : ToastType.failed,
             category: 'folder-delete:${widget.guid}',
           );
       if (ok && mounted) _navigateToParent();
     } catch (e) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '删除失败：$e',
+            l10n.folderDeleteFailedWithError('$e'),
             type: ToastType.failed,
             category: 'folder-delete:${widget.guid}',
           );
@@ -643,10 +675,11 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
 
   Widget _buildHero(
       MediaLibraryState? libraryData, double scaleFactor) {
+    final l10n = AppLocalizations.of(context);
     final theme = FluentTheme.of(context);
     final title = libraryData?.jumpList.isNotEmpty == true
         ? libraryData!.jumpList.last.baseName
-        : (libraryData?.mdbName ?? '文件夹');
+        : (libraryData?.mdbName ?? l10n.folderFallbackName);
 
     // 继续播放：播放历史中父级为当前文件夹的条目（与 Web can_play 逻辑对齐）。
     final resumeEntry = (ref.watch(playListNotifierProvider).asData?.value ??
@@ -722,7 +755,9 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
                             size: 20 * scaleFactor, color: Colors.white),
                         SizedBox(width: 8 * scaleFactor),
                         Text(
-                          hasProgress ? '继续播放' : '播放',
+                          hasProgress
+                              ? l10n.actionContinuePlay
+                              : l10n.actionPlay,
                           style: theme.typography.body?.copyWith(
                             fontSize: 18 * scaleFactor,
                             color: Colors.white,
@@ -736,7 +771,9 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
               ],
               _circleIconButton(
                 key: ValueKey('folder-favorite-btn-${widget.guid}'),
-                tooltip: _isFavorite ? '已收藏' : '收藏',
+                tooltip: _isFavorite
+                    ? l10n.actionFavoriteRemove
+                    : l10n.actionFavoriteAdd,
                 onPressed: _folderInfo == null
                     ? null
                     : () {
@@ -761,7 +798,9 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
               SizedBox(width: 8 * scaleFactor),
               _circleIconButton(
                 key: ValueKey('folder-watched-btn-${widget.guid}'),
-                tooltip: _isWatched ? '标记为未看过' : '标记为看过',
+                tooltip: _isWatched
+                    ? l10n.actionMarkUnwatched
+                    : l10n.actionMarkWatched,
                 onPressed: _folderInfo == null
                     ? null
                     : () {
@@ -788,7 +827,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
                 controller: _moreFlyoutController,
                 child: _circleIconButton(
                   key: ValueKey('folder-more-btn-${widget.guid}'),
-                  tooltip: '更多',
+                  tooltip: l10n.actionMore,
                   onPressed: _folderInfo == null ? null : _showMoreMenu,
                   loading: _moreActionLoading,
                   icon: Icon(
@@ -851,6 +890,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
+        final l10n = AppLocalizations.of(context);
         final item = items[index];
         final isDirectory =
             MediaType.tryParse(item.type) == MediaType.directory;
@@ -858,7 +898,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
           return MoviePoster(
             title: item.title,
             // 文件夹卡片仅显示标题（与 Web 一致）。
-            subtitle: isDirectory ? null : buildPosterSubtitle(item),
+            subtitle: isDirectory ? null : buildPosterSubtitle(item, l10n),
             posterPath: item.effectivePoster,
             score: item.voteAverage,
             resolutions: item.mediaStream?.resolutions,
@@ -932,6 +972,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
 
     ref.listen<GlobalRefreshRequest?>(currentGlobalRefreshRequestProvider, (
@@ -985,9 +1026,9 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
                 SortFlyout(
                   // key 含排序状态：默认标题升序在异步读取偏好后才最终确定。
                   key: ValueKey('folder-sort-${widget.guid}-$_sortColumn-$_sortOrder'),
-                  sortOptions: const [
-                    SortItem('标题', 'sort_title'),
-                    SortItem('添加日期', 'create_time'),
+                  sortOptions: [
+                    SortItem(l10n.sortTitle, 'sort_title'),
+                    SortItem(l10n.sortAddedDate, 'create_time'),
                   ],
                   initialSortColumn: _sortColumn,
                   initialSortOrder: _sortOrder,
@@ -1011,7 +1052,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  '共 ${libraryData?.total ?? 0} 项',
+                  l10n.folderItemCount('${libraryData?.total ?? 0}'),
                   style: FluentTheme.of(context).typography.body?.copyWith(
                         color: FluentTheme.of(context)
                             .typography
@@ -1078,7 +1119,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(32.0),
                             child: Text(
-                              '加载失败：${mediaLibraryState.error}',
+                              '${l10n.loadFailedTitle}：${mediaLibraryState.error}',
                               textAlign: TextAlign.center,
                             ),
                           ),

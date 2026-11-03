@@ -199,9 +199,9 @@ class MdkPlayerAdapter {
 
   /// Opens [uri], applying custom HTTP headers and an optional start position.
   ///
-  /// Playback starts automatically, matching the previous player's `open()`
-  /// behaviour (callers never issue a separate play call after opening). Use
-  /// [pause] to hold on the first frame.
+  /// Playback starts automatically by default, matching the previous player's
+  /// `open()` behaviour. Pass [play] as false to hold on the first frame; the
+  /// caller then issues play() once its video surface can show a frame.
   ///
   /// When [preferHdrRenderPath] is set and the decoded stream turns out to be
   /// HDR, the player renders through a platform view instead of a Flutter
@@ -216,6 +216,7 @@ class MdkPlayerAdapter {
     Map<String, String>? httpHeaders,
     int startPositionMs = 0,
     bool preferHdrRenderPath = false,
+    bool play = true,
   }) async {
     if (_disposed) return false;
     _openingMedia = true;
@@ -225,6 +226,7 @@ class MdkPlayerAdapter {
         httpHeaders: httpHeaders,
         startPositionMs: startPositionMs,
         preferHdrRenderPath: preferHdrRenderPath,
+        play: play,
       );
     } finally {
       _openingMedia = false;
@@ -236,6 +238,7 @@ class MdkPlayerAdapter {
     Map<String, String>? httpHeaders,
     int startPositionMs = 0,
     bool preferHdrRenderPath = false,
+    bool play = true,
   }) async {
     _hasLoadedMedia = false;
     _lastPositionMs = 0;
@@ -305,8 +308,10 @@ class MdkPlayerAdapter {
     if (_disposed) return false;
 
     _hasLoadedMedia = true;
-    // prepare() leaves the player paused on the first frame.
-    _player.state = mdk.PlaybackState.playing;
+    if (play) {
+      // prepare() leaves the player paused on the first frame.
+      _player.state = mdk.PlaybackState.playing;
+    }
     _emitPlaying();
     _emitPosition(startPositionMs);
     _emitDuration();

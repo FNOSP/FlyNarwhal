@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../domain/entities/media_type.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../providers/providers.dart';
 import '../../../../tooling/driver_test_mode.dart';
 import '../../../shared/tip_box.dart';
+import '../models/resolved_skip_segments.dart';
 import 'player_action_button.dart';
 import 'player_settings_components.dart';
 
@@ -30,6 +34,11 @@ const double _estimatedSettingsFlyoutHeight = 300;
 // track list scrolls once its items exceed the remaining space.
 const double _audioPanelHeaderHeight = 46;
 const double _audioPanelMaxListHeight = 330;
+// Scrollable lists reserve this much on the right and the scrollbar thumb is
+// nudged into that gutter (a negative cross-axis margin shifts it right), so
+// the thumb never paints over the list items. The gutter also covers the
+// thumb's hover-expanded width.
+const double _listScrollbarOffset = 8;
 
 // Skip intro/outro panel palette and metrics, mirroring the web player's
 // manual skip settings (semi-design dark theme).
@@ -53,6 +62,15 @@ class HwdecOption {
   const HwdecOption({required this.api, required this.label});
 }
 
+// An audio output device enumerated by mpv, shown in the 输出设备 sub-menu.
+// [name] is the value passed to `audio-device`; [label] is its friendly name.
+class AudioOutputOption {
+  final String name;
+  final String label;
+
+  const AudioOutputOption({required this.name, required this.label});
+}
+
 class PlayerAudioDisplayTexts {
   final String summaryText;
   final String primaryText;
@@ -71,15 +89,18 @@ class PlayerAudioDisplayTexts {
 PlayerAudioDisplayTexts buildPlayerAudioDisplayTexts(
   AudioStream? audio,
   Map<String, String>? iso6391Map,
-  Map<String, String>? iso6392Map,
-) {
+  Map<String, String>? iso6392Map, {
+  String unknownLabel = '',
+  String defaultSuffixTemplate = '{language}',
+}) {
   if (audio == null) {
-    return const PlayerAudioDisplayTexts(
-      summaryText: '未知',
-      primaryText: '未知',
+    final unknownTexts = PlayerAudioDisplayTexts(
+      summaryText: unknownLabel,
+      primaryText: unknownLabel,
       secondaryLeadingText: '',
       secondaryTrailingText: '',
     );
+    return unknownTexts;
   }
 
   final languageName = _getPlayerAudioLanguageName(
@@ -94,8 +115,9 @@ PlayerAudioDisplayTexts buildPlayerAudioDisplayTexts(
   final readableTitle = audio.title.trim().isNotEmpty
       ? audio.title.trim()
       : _buildPlayerAudioReadableTitle(languageName, audio);
-  final primaryText =
-      audio.isDefault == 1 ? '$languageName - 默认' : languageName;
+  final primaryText = audio.isDefault == 1
+      ? defaultSuffixTemplate.replaceFirst('{language}', languageName)
+      : languageName;
 
   return PlayerAudioDisplayTexts(
     summaryText: _joinAudioParts([languageName, technicalSummary]),
@@ -147,14 +169,18 @@ String _joinAudioParts(List<String?> parts) {
 // "auto" / "no" / "auto-copy" plus a concrete hardware-decoder API name chosen
 // from the probed list (e.g. "videotoolbox"). `availableHwdec` maps an api to
 // its display label so a concrete selection renders its friendly name.
-String decodeModeLabel(String mode, List<HwdecOption> availableHwdec) {
+String decodeModeLabel(
+  AppLocalizations l10n,
+  String mode,
+  List<HwdecOption> availableHwdec,
+) {
   switch (mode) {
     case 'no':
-      return '软件解码';
+      return l10n.playerSettingsSoftwareDecode;
     case 'auto-copy':
-      return '回拷模式';
+      return l10n.playerSettingsCopyBackMode;
     case 'auto':
-      return '自动';
+      return l10n.playerSettingsAuto;
     default:
       for (final option in availableHwdec) {
         if (option.api == mode) {
@@ -184,6 +210,11 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool smartSkipEnabled;
   final Future<bool> Function(bool enabled)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+
+  /// Whether the server exposes the smart-skip config endpoint. Servers below
+  /// 2.0.0 analyze segments but have no config API, so the entry stays hidden
+  /// there while smart skip itself remains usable.
+  final bool isSmartSkipConfigAvailable;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool enabled)? onAutoPlayChanged;
@@ -196,9 +227,26 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool forceSdrLocal;
   final void Function(bool enabled)? onForceSdrLocalChanged;
   final String? forceSdrLocalDisabledReason;
+
+  /// Quark netdisk direct-play transport: on routes the raw CDN link through the
+  /// local range proxy (分片直连), off lets mpv open the NAS /media/range link.
+  /// Only a Quark netdisk direct session can use it, so the entry is hidden for
+  /// every other source.
+  final bool directLinkCdnRange;
+  final void Function(bool enabled)? onDirectLinkCdnRangeChanged;
+  final bool directLinkCdnRangeVisible;
   // Current decode mode: 'auto' | 'no' | 'auto-copy' | '<api>'.
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
+  // Compressed audio passthrough (S/PDIF / HDMI): hand the original bitstream to
+  // an external receiver instead of decoding it to PCM.
+  final bool audioPassthrough;
+  final void Function(bool enabled)? onAudioPassthroughChanged;
+  // mpv audio output devices offered in the 输出设备 sub-menu, and the selected
+  // device name ('auto' = follow the system default).
+  final List<AudioOutputOption> audioOutputDevices;
+  final String audioOutputDeviceName;
+  final void Function(String name)? onAudioOutputDeviceChanged;
   // Hardware decoder APIs probed as usable, shown in 指定硬件解码器 sub-menu.
   final List<HwdecOption> availableHwdec;
   final Map<String, String>? iso6391Map;
@@ -228,6 +276,7 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.smartSkipEnabled = true,
     this.onSmartSkipEnabledChanged,
     this.isSmartAnalysisGloballyEnabled = false,
+    this.isSmartSkipConfigAvailable = false,
     this.isSavingSkipConfig = false,
     this.isAutoPlay = true,
     this.onAutoPlayChanged,
@@ -240,8 +289,16 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.forceSdrLocal = false,
     this.onForceSdrLocalChanged,
     this.forceSdrLocalDisabledReason,
+    this.directLinkCdnRange = true,
+    this.onDirectLinkCdnRangeChanged,
+    this.directLinkCdnRangeVisible = false,
     this.decodeMode = 'auto',
     required this.onDecodeModeChanged,
+    this.audioPassthrough = false,
+    this.onAudioPassthroughChanged,
+    this.audioOutputDevices = const [],
+    this.audioOutputDeviceName = 'auto',
+    this.onAudioOutputDeviceChanged,
     this.availableHwdec = const [],
     this.isFlyNarwhalServerAvailable = false,
     this.onFlyNarwhalConfigMissing,
@@ -266,6 +323,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
   bool _overlayRebuildScheduled = false;
   double? _mainSettingsMeasuredHeight;
   late bool _isAutoPlay;
+  late bool _isAudioPassthrough;
+  late String _audioOutputDeviceName;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -274,6 +333,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
   void initState() {
     super.initState();
     _isAutoPlay = widget.isAutoPlay;
+    _isAudioPassthrough = widget.audioPassthrough;
+    _audioOutputDeviceName = widget.audioOutputDeviceName;
     _animationController = AnimationController(
       duration: const Duration(milliseconds: _animationDurationMs),
       vsync: this,
@@ -323,6 +384,16 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
     if (autoPlayChanged) {
       _isAutoPlay = widget.isAutoPlay;
     }
+    final audioPassthroughChanged =
+        oldWidget.audioPassthrough != widget.audioPassthrough;
+    if (audioPassthroughChanged) {
+      _isAudioPassthrough = widget.audioPassthrough;
+    }
+    final audioOutputDeviceChanged =
+        oldWidget.audioOutputDeviceName != widget.audioOutputDeviceName;
+    if (audioOutputDeviceChanged) {
+      _audioOutputDeviceName = widget.audioOutputDeviceName;
+    }
     if (oldWidget.popupBottomOffset != widget.popupBottomOffset ||
         oldWidget.windowAspectRatio != widget.windowAspectRatio ||
         oldWidget.videoFillMode != widget.videoFillMode ||
@@ -334,6 +405,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         oldWidget.forceSdrDisabledReason != widget.forceSdrDisabledReason ||
         oldWidget.forceSdrLocalDisabledReason !=
             widget.forceSdrLocalDisabledReason ||
+        audioOutputDeviceChanged ||
+        audioPassthroughChanged ||
         autoPlayChanged) {
       _requestOverlayRebuild();
     }
@@ -603,6 +676,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         smartSkipEnabled: widget.smartSkipEnabled,
         onSmartSkipEnabledChanged: widget.onSmartSkipEnabledChanged,
         isSmartAnalysisGloballyEnabled: widget.isSmartAnalysisGloballyEnabled,
+        isSmartSkipConfigAvailable: widget.isSmartSkipConfigAvailable,
         isSavingSkipConfig: widget.isSavingSkipConfig,
         isAutoPlay: _isAutoPlay,
         onAutoPlayChanged: (value) {
@@ -619,11 +693,33 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         forceSdrLocal: widget.forceSdrLocal,
         onForceSdrLocalChanged: widget.onForceSdrLocalChanged,
         forceSdrLocalDisabledReason: widget.forceSdrLocalDisabledReason,
+        directLinkCdnRange: widget.directLinkCdnRange,
+        onDirectLinkCdnRangeChanged: (value) {
+          _setPopupHovered(false);
+          widget.onDirectLinkCdnRangeChanged?.call(value);
+          _closeMenu();
+        },
+        directLinkCdnRangeVisible: widget.directLinkCdnRangeVisible,
         decodeMode: widget.decodeMode,
         onDecodeModeChanged: (mode) {
           _setPopupHovered(false);
           widget.onDecodeModeChanged(mode);
           _closeMenu();
+        },
+        audioPassthrough: _isAudioPassthrough,
+        // Keep the sub-page open so the switch reflects the new state in place.
+        onAudioPassthroughChanged: (value) {
+          _isAudioPassthrough = value;
+          _requestOverlayRebuild();
+          widget.onAudioPassthroughChanged?.call(value);
+        },
+        audioOutputDevices: widget.audioOutputDevices,
+        audioOutputDeviceName: _audioOutputDeviceName,
+        // Keep the device list open so the selection updates in place.
+        onAudioOutputDeviceChanged: (name) {
+          _audioOutputDeviceName = name;
+          _requestOverlayRebuild();
+          widget.onAudioOutputDeviceChanged?.call(name);
         },
         availableHwdec: widget.availableHwdec,
         isFlyNarwhalServerAvailable: widget.isFlyNarwhalServerAvailable,
@@ -696,6 +792,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool smartSkipEnabled;
   final Future<bool> Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+
+  /// Whether the server exposes the smart-skip config endpoint (>= 2.0.0).
+  final bool isSmartSkipConfigAvailable;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
@@ -708,8 +807,16 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool forceSdrLocal;
   final void Function(bool)? onForceSdrLocalChanged;
   final String? forceSdrLocalDisabledReason;
+  final bool directLinkCdnRange;
+  final void Function(bool)? onDirectLinkCdnRangeChanged;
+  final bool directLinkCdnRangeVisible;
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
+  final bool audioPassthrough;
+  final void Function(bool)? onAudioPassthroughChanged;
+  final List<AudioOutputOption> audioOutputDevices;
+  final String audioOutputDeviceName;
+  final void Function(String)? onAudioOutputDeviceChanged;
   final List<HwdecOption> availableHwdec;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
   final bool isFlyNarwhalServerAvailable;
@@ -748,11 +855,20 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.forceSdrLocal,
     required this.onForceSdrLocalChanged,
     required this.forceSdrLocalDisabledReason,
+    required this.directLinkCdnRange,
+    required this.onDirectLinkCdnRangeChanged,
+    required this.directLinkCdnRangeVisible,
     required this.decodeMode,
     required this.onDecodeModeChanged,
+    required this.audioPassthrough,
+    required this.onAudioPassthroughChanged,
+    required this.audioOutputDevices,
+    required this.audioOutputDeviceName,
+    required this.onAudioOutputDeviceChanged,
     required this.availableHwdec,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
+    required this.isSmartSkipConfigAvailable,
   });
 
   @override
@@ -789,6 +905,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
           forceSdrLocal: forceSdrLocal,
           forceSdrLocalDisabledReason: forceSdrLocalDisabledReason,
           onForceSdrLocalChanged: onForceSdrLocalChanged,
+          directLinkCdnRange: directLinkCdnRange,
+          directLinkCdnRangeVisible: directLinkCdnRangeVisible,
+          onDirectLinkCdnRangeChanged: onDirectLinkCdnRangeChanged,
           onBack: () => onNavigate('Main'),
         );
       case 'Audio':
@@ -798,6 +917,26 @@ class _SettingsFlyoutContent extends StatelessWidget {
           iso6392Map: iso6392Map,
           onBack: () => onNavigate('Main'),
           onAudioSelected: onAudioSelected,
+          onNavigateToPassthrough: onAudioPassthroughChanged == null
+              ? null
+              : () => onNavigate('AudioPassthrough'),
+        );
+      case 'AudioPassthrough':
+        return _AudioPassthroughSettingsScreen(
+          enabled: audioPassthrough,
+          onChanged: onAudioPassthroughChanged,
+          audioOutputDevices: audioOutputDevices,
+          audioOutputDeviceName: audioOutputDeviceName,
+          onNavigateToDevice: () => onNavigate('AudioDevice'),
+          onBack: () => onNavigate('Audio'),
+        );
+      case 'AudioDevice':
+        return _AudioDeviceSettingsScreen(
+          devices: audioOutputDevices,
+          selectedName: audioOutputDeviceName,
+          onSelected: onAudioOutputDeviceChanged,
+          panelHeight: minContentHeight,
+          onBack: () => onNavigate('AudioPassthrough'),
         );
       case 'WindowAspectRatio':
         return _WindowAspectRatioSettingsScreen(
@@ -836,9 +975,15 @@ class _SettingsFlyoutContent extends StatelessWidget {
           smartSkipEnabled: smartSkipEnabled,
           onSmartSkipEnabledChanged: onSmartSkipEnabledChanged,
           isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
+          isSmartSkipConfigAvailable: isSmartSkipConfigAvailable,
           isSavingSkipConfig: isSavingSkipConfig,
           isFlyNarwhalServerAvailable: isFlyNarwhalServerAvailable,
           onFlyNarwhalConfigMissing: onFlyNarwhalConfigMissing,
+          onNavigateToSmartSkipConfig: () => onNavigate('SmartSkipConfig'),
+        );
+      case 'SmartSkipConfig':
+        return _SmartSkipConfigSettingsScreen(
+          onBack: () => onNavigate('SkipConfig'),
         );
       default:
         return MeasureSize(
@@ -909,22 +1054,28 @@ class _MainSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final currentAudio = playingInfoCache?.currentAudioStream;
-    final audioDisplayTexts =
-        buildPlayerAudioDisplayTexts(currentAudio, iso6391Map, iso6392Map);
+    final audioDisplayTexts = buildPlayerAudioDisplayTexts(
+      currentAudio,
+      iso6391Map,
+      iso6392Map,
+      unknownLabel: l10n.playerUnknown,
+      defaultSuffixTemplate: l10n.playerAudioDefaultSuffix('{language}'),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         PlayerSettingsHeader(
-          title: '设置',
-          actionLabel: '高级',
+          title: l10n.settingsTitle,
+          actionLabel: l10n.playerSettingsAdvanced,
           onAction: onNavigateToAdvanced,
         ),
         const SizedBox(height: 8),
         PlayerSettingsToggleRow(
           key: const ValueKey('player-settings-autoplay-toggle'),
-          title: '自动连播',
+          title: l10n.playerSettingsAutoNext,
           checked: isAutoPlay,
           onChanged: onAutoPlayChanged,
         ),
@@ -934,31 +1085,35 @@ class _MainSettingsScreen extends StatelessWidget {
                 MediaType.episode)
           _SettingsMenuItem(
             key: const ValueKey('player-settings-skip-config'),
-            title: '跳过片头/片尾',
-            value: _getSkipText(playingInfoCache?.playConfig),
+            title: l10n.playerSettingsSkipIntroOutro,
+            value: _getSkipText(l10n, playingInfoCache?.playConfig),
             onClick: onNavigateToSkipConfig,
           ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-window-ratio'),
-          title: '窗口比例',
-          value: windowAspectRatio == 'AUTO' ? '跟随视频比例' : windowAspectRatio,
+          title: l10n.playerSettingsWindowRatio,
+          value: windowAspectRatio == 'AUTO'
+              ? l10n.playerSettingsWindowAspectRatioFollowVideo
+              : windowAspectRatio,
           onClick: onNavigateToWindowAspectRatio,
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-video-fill-mode'),
-          title: '画面比例',
-          value: videoFillMode == 'default' ? '默认' : videoFillMode,
+          title: l10n.playerSettingsAspectRatio,
+          value: videoFillMode == 'default'
+              ? l10n.playerSettingsAspectRatioDefault
+              : videoFillMode,
           onClick: onNavigateToVideoFillMode,
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-decode-mode'),
-          title: '客户端解码模式',
-          value: decodeModeLabel(decodeMode, availableHwdec),
+          title: l10n.playerSettingsClientDecodeMode,
+          value: decodeModeLabel(l10n, decodeMode, availableHwdec),
           onClick: onNavigateToDecodeMode,
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-audio'),
-          title: '音频',
+          title: l10n.playerSettingsAudio,
           value: audioDisplayTexts.summaryText,
           onClick: onNavigateToAudio,
         ),
@@ -966,23 +1121,23 @@ class _MainSettingsScreen extends StatelessWidget {
     );
   }
 
-  String _getSkipText(PlayConfig? config) {
+  String _getSkipText(AppLocalizations l10n, PlayConfig? config) {
     final skipOpening = config?.skipOpening ?? 0;
     final skipEnding = config?.skipEnding ?? 0;
 
     if (isSmartAnalysisGloballyEnabled && smartSkipEnabled) {
-      return '智能跳过';
+      return l10n.playerSettingsSmartSkip;
     }
     if (skipOpening > 0 && skipEnding > 0) {
-      return '跳过片头片尾';
+      return l10n.playerSettingsSkipIntroOutroBoth;
     }
     if (skipOpening > 0) {
-      return '已设置片头';
+      return l10n.playerSettingsIntroConfigured;
     }
     if (skipEnding > 0) {
-      return '已设置片尾';
+      return l10n.playerSettingsOutroConfigured;
     }
-    return '未设置';
+    return l10n.playerSettingsNotSet;
   }
 }
 
@@ -996,6 +1151,9 @@ class _AdvancedSettingsScreen extends StatelessWidget {
   final bool forceSdrLocal;
   final String? forceSdrLocalDisabledReason;
   final void Function(bool)? onForceSdrLocalChanged;
+  final bool directLinkCdnRange;
+  final bool directLinkCdnRangeVisible;
+  final void Function(bool)? onDirectLinkCdnRangeChanged;
   final VoidCallback onBack;
 
   const _AdvancedSettingsScreen({
@@ -1008,28 +1166,35 @@ class _AdvancedSettingsScreen extends StatelessWidget {
     required this.forceSdrLocal,
     required this.forceSdrLocalDisabledReason,
     required this.onForceSdrLocalChanged,
+    required this.directLinkCdnRange,
+    required this.directLinkCdnRangeVisible,
+    required this.onDirectLinkCdnRangeChanged,
     required this.onBack,
   });
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        PlayerSettingsHeader(title: '高级设置', onBack: onBack),
+        PlayerSettingsHeader(
+          title: l10n.playerSettingsAdvancedTitle,
+          onBack: onBack,
+        ),
         const SizedBox(height: 8),
         PlayerSettingsToggleRow(
           key: const ValueKey('player-advanced-force-h264'),
-          title: 'HEVC 转为 H.264',
-          description: '播放有声音无画面时可尝试开启',
+          title: l10n.playerSettingsHevcToH264,
+          description: l10n.playerSettingsHevcToH264Description,
           checked: forceH264,
           onChanged: onForceH264Changed,
           disabledReason: forceH264DisabledReason,
         ),
         PlayerSettingsToggleRow(
           key: const ValueKey('player-advanced-force-sdr'),
-          title: '色调强制映射为 SDR',
-          description: '画面偏暗时可尝试开启，适用于不支持 HDR 的设备',
+          title: l10n.playerSettingsForceSdr,
+          description: l10n.playerSettingsForceSdrDescription,
           checked: forceSdrColor,
           onChanged: onForceSdrColorChanged,
           disabledReason: forceSdrDisabledReason,
@@ -1042,6 +1207,14 @@ class _AdvancedSettingsScreen extends StatelessWidget {
           onChanged: onForceSdrLocalChanged,
           disabledReason: forceSdrLocalDisabledReason,
         ),
+        if (directLinkCdnRangeVisible)
+          PlayerSettingsToggleRow(
+            key: const ValueKey('player-advanced-direct-link-cdn-range'),
+            title: l10n.playerSettingsQuarkCdnSegment,
+            description: l10n.playerSettingsQuarkCdnSegmentDescription,
+            checked: directLinkCdnRange,
+            onChanged: onDirectLinkCdnRangeChanged,
+          ),
       ],
     );
   }
@@ -1140,12 +1313,18 @@ class _AudioSettingsScreen extends StatefulWidget {
   final VoidCallback onBack;
   final void Function(AudioStream) onAudioSelected;
 
+  /// Opens the audio-passthrough sub-page from the header's top-right entry.
+  /// Null hides the entry: passthrough is an mpv capability that not every
+  /// playback engine exposes.
+  final VoidCallback? onNavigateToPassthrough;
+
   const _AudioSettingsScreen({
     required this.playingInfoCache,
     required this.iso6391Map,
     required this.iso6392Map,
     required this.onBack,
     required this.onAudioSelected,
+    required this.onNavigateToPassthrough,
   });
 
   @override
@@ -1181,6 +1360,7 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final audioList = widget.playingInfoCache?.currentAudioStreamList ?? [];
     final currentAudioStream =
         _selectedAudioStream ?? widget.playingInfoCache?.currentAudioStream;
@@ -1194,29 +1374,64 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: widget.onBack,
-                  child: const Row(
-                    children: [
-                      Icon(
-                        FluentIcons.chevron_left,
-                        size: 12,
-                        color: Colors.white,
+              Row(
+                children: [
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: widget.onBack,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            FluentIcons.chevron_left,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            l10n.playerSettingsAudio,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 8),
-                      Text(
-                        '音频',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (widget.onNavigateToPassthrough != null)
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      key: const ValueKey('player-audio-passthrough-entry'),
+                      onTap: widget.onNavigateToPassthrough!,
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              l10n.playerSettingsAudioOutputDevice,
+                              style: const TextStyle(
+                                color: _defaultTextColor,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            const Icon(
+                              FluentIcons.chevron_right,
+                              size: 12,
+                              color: _defaultTextColor,
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
               const SizedBox(height: 12),
               const Divider(),
@@ -1227,47 +1442,58 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
         ConstrainedBox(
           constraints:
               const BoxConstraints(maxHeight: _audioPanelMaxListHeight),
-          child: Scrollbar(
-            controller: _scrollController,
-            thumbVisibility: true,
-            child: ListView(
-              key: const ValueKey('player-audio-list'),
+          child: ScrollConfiguration(
+            behavior:
+                ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            child: Scrollbar(
               controller: _scrollController,
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              children: [
-                ...audioList.map((audio) {
-                  final isSelected =
-                      _isSameAudioStream(currentAudioStream, audio);
-                  final audioDisplayTexts = buildPlayerAudioDisplayTexts(
-                    audio,
-                    widget.iso6391Map,
-                    widget.iso6392Map,
-                  );
+              thumbVisibility: true,
+              style: const ScrollbarThemeData(
+                crossAxisMargin: -_listScrollbarOffset,
+                hoveringCrossAxisMargin: -_listScrollbarOffset,
+              ),
+              child: ListView(
+                key: const ValueKey('player-audio-list'),
+                controller: _scrollController,
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(right: _listScrollbarOffset),
+                children: [
+                  ...audioList.map((audio) {
+                    final isSelected =
+                        _isSameAudioStream(currentAudioStream, audio);
+                    final audioDisplayTexts = buildPlayerAudioDisplayTexts(
+                      audio,
+                      widget.iso6391Map,
+                      widget.iso6392Map,
+                      unknownLabel: l10n.playerUnknown,
+                      defaultSuffixTemplate:
+                          l10n.playerAudioDefaultSuffix('{language}'),
+                    );
 
-                  return KeyedSubtree(
-                    key: ValueKey(
-                      audio.guid.isNotEmpty
-                          ? 'player-audio-option-${audio.guid}'
-                          : 'player-audio-option-index-${audio.index}',
-                    ),
-                    child: _AudioItem(
-                      primaryText: audioDisplayTexts.primaryText,
-                      secondaryLeadingText:
-                          audioDisplayTexts.secondaryLeadingText,
-                      secondaryTrailingText:
-                          audioDisplayTexts.secondaryTrailingText,
-                      isSelected: isSelected,
-                      onClick: () {
-                        // Update selection immediately before async state
-                        // flows back.
-                        setState(() => _selectedAudioStream = audio);
-                        widget.onAudioSelected(audio);
-                      },
-                    ),
-                  );
-                }),
-              ],
+                    return KeyedSubtree(
+                      key: ValueKey(
+                        audio.guid.isNotEmpty
+                            ? 'player-audio-option-${audio.guid}'
+                            : 'player-audio-option-index-${audio.index}',
+                      ),
+                      child: _AudioItem(
+                        primaryText: audioDisplayTexts.primaryText,
+                        secondaryLeadingText:
+                            audioDisplayTexts.secondaryLeadingText,
+                        secondaryTrailingText:
+                            audioDisplayTexts.secondaryTrailingText,
+                        isSelected: isSelected,
+                        onClick: () {
+                          // Update selection immediately before async state
+                          // flows back.
+                          setState(() => _selectedAudioStream = audio);
+                          widget.onAudioSelected(audio);
+                        },
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
         ),
@@ -1283,6 +1509,188 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
       return left.guid == right.guid;
     }
     return left.index == right.index;
+  }
+}
+
+/// Resolves a device name to its display label, falling back to the localized
+/// "auto" label or the raw name when the device is no longer enumerated.
+String _audioOutputLabel(
+  List<AudioOutputOption> devices,
+  String name,
+  AppLocalizations l10n,
+) {
+  for (final device in devices) {
+    if (device.name == name) {
+      return device.label;
+    }
+  }
+  if (name.isEmpty || name == 'auto') {
+    return l10n.playerSettingsAudioOutputDeviceAuto;
+  }
+  return name;
+}
+
+/// Audio-passthrough (S/PDIF / HDMI bitstream) settings sub-page, reached from
+/// the audio screen's top-right entry. The switch only takes effect for
+/// original bitstream audio (AC3/EAC3/DTS/DTS-HD/TrueHD) on a direct-link
+/// session; a transcoded (AAC) track falls back to normal PCM output.
+class _AudioPassthroughSettingsScreen extends StatelessWidget {
+  final bool enabled;
+  final void Function(bool)? onChanged;
+  final List<AudioOutputOption> audioOutputDevices;
+  final String audioOutputDeviceName;
+  final VoidCallback onNavigateToDevice;
+  final VoidCallback onBack;
+
+  const _AudioPassthroughSettingsScreen({
+    required this.enabled,
+    required this.onChanged,
+    required this.audioOutputDevices,
+    required this.audioOutputDeviceName,
+    required this.onNavigateToDevice,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PlayerSettingsHeader(
+          title: l10n.playerSettingsAudioOutputDevice,
+          onBack: onBack,
+        ),
+        const SizedBox(height: 8),
+        PlayerSettingsToggleRow(
+          key: const ValueKey('player-audio-passthrough-toggle'),
+          title: l10n.playerSettingsAudioPassthrough,
+          description: l10n.playerSettingsAudioPassthroughDescription,
+          checked: enabled,
+          onChanged: onChanged,
+        ),
+        const SizedBox(height: 6),
+        _SettingsMenuItem(
+          key: const ValueKey('player-audio-device-entry'),
+          title: l10n.playerSettingsAudioOutputDevice,
+          value: _audioOutputLabel(
+              audioOutputDevices, audioOutputDeviceName, l10n),
+          onClick: onNavigateToDevice,
+        ),
+      ],
+    );
+  }
+}
+
+/// Audio output device picker, reached from the audio-passthrough sub-page.
+/// The list is enumerated by mpv and includes an "auto" (system default) entry.
+class _AudioDeviceSettingsScreen extends StatefulWidget {
+  final List<AudioOutputOption> devices;
+  final String selectedName;
+  final void Function(String)? onSelected;
+
+  /// Content height of the parent flyout. Sizing this screen to it keeps the
+  /// popup from growing past the panel it was opened from, so extra devices
+  /// scroll inside the list instead of stretching the flyout.
+  final double? panelHeight;
+  final VoidCallback onBack;
+
+  const _AudioDeviceSettingsScreen({
+    required this.devices,
+    required this.selectedName,
+    required this.onSelected,
+    required this.panelHeight,
+    required this.onBack,
+  });
+
+  @override
+  State<_AudioDeviceSettingsScreen> createState() =>
+      _AudioDeviceSettingsScreenState();
+}
+
+class _AudioDeviceSettingsScreenState
+    extends State<_AudioDeviceSettingsScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final devices = widget.devices;
+    final panelHeight = widget.panelHeight;
+
+    final listArea = devices.isEmpty
+        ? Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Text(
+              l10n.playerSettingsAudioOutputDeviceEmpty,
+              style: const TextStyle(color: _defaultTextColor, fontSize: 13),
+            ),
+          )
+        : ScrollConfiguration(
+            behavior:
+                ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            child: Scrollbar(
+              controller: _scrollController,
+              thumbVisibility: true,
+              style: const ScrollbarThemeData(
+                crossAxisMargin: -_listScrollbarOffset,
+                hoveringCrossAxisMargin: -_listScrollbarOffset,
+              ),
+              child: ListView.builder(
+                key: const ValueKey('player-audio-device-list'),
+                controller: _scrollController,
+                // Inside a fixed panel the list takes the leftover height and
+                // scrolls; without a known panel height it sizes to its content.
+                shrinkWrap: panelHeight == null,
+                padding: const EdgeInsets.only(right: _listScrollbarOffset),
+                itemCount: devices.length,
+                itemBuilder: (context, index) {
+                  final device = devices[index];
+                  return KeyedSubtree(
+                    key: ValueKey('player-audio-device-${device.name}'),
+                    child: _AudioItem(
+                      primaryText: device.label,
+                      secondaryLeadingText:
+                          device.name == 'auto' ? '' : device.name,
+                      secondaryTrailingText: '',
+                      isSelected: device.name == widget.selectedName,
+                      onClick: () => widget.onSelected?.call(device.name),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PlayerSettingsHeader(
+          title: l10n.playerSettingsAudioOutputDevice,
+          onBack: widget.onBack,
+        ),
+        const SizedBox(height: 8),
+        if (panelHeight == null)
+          ConstrainedBox(
+            constraints:
+                const BoxConstraints(maxHeight: _audioPanelMaxListHeight),
+            child: listArea,
+          )
+        else
+          Expanded(child: listArea),
+      ],
+    );
+
+    if (panelHeight == null) {
+      return content;
+    }
+    return SizedBox(height: panelHeight, child: content);
   }
 }
 
@@ -1338,7 +1746,7 @@ class _AudioItemState extends State<_AudioItem> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: textColor,
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1397,9 +1805,10 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     const options = ['AUTO', '4:3', '16:9', '21:9'];
-    const optionLabels = {
-      'AUTO': '跟随视频比例',
+    final optionLabels = {
+      'AUTO': l10n.playerSettingsWindowAspectRatioFollowVideo,
       '4:3': '4:3',
       '16:9': '16:9',
       '21:9': '21:9',
@@ -1412,20 +1821,20 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   FluentIcons.chevron_left,
                   size: 12,
                   color: Colors.white,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  '窗口比例',
-                  style: TextStyle(
+                  l10n.playerSettingsWindowRatio,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -1462,9 +1871,10 @@ class _VideoFillModeSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     const options = ['default', '4:3', '16:9', '21:9'];
-    const optionLabels = {
-      'default': '默认',
+    final optionLabels = {
+      'default': l10n.playerSettingsAspectRatioDefault,
       '4:3': '4:3',
       '16:9': '16:9',
       '21:9': '21:9',
@@ -1477,20 +1887,20 @@ class _VideoFillModeSettingsScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   FluentIcons.chevron_left,
                   size: 12,
                   color: Colors.white,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  '画面比例',
-                  style: TextStyle(
+                  l10n.playerSettingsAspectRatio,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -1531,17 +1941,18 @@ class _DecodeModeSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // 回拷模式暂时不展示在菜单里,保留映射以便日后恢复。
     const baseOptions = ['auto', 'no' /* , 'auto-copy' */];
-    const optionLabels = {
-      'auto': '自动',
-      'no': '软件解码',
-      'auto-copy': '回拷模式',
+    final optionLabels = {
+      'auto': l10n.playerSettingsAuto,
+      'no': l10n.playerSettingsSoftwareDecode,
+      'auto-copy': l10n.playerSettingsCopyBackMode,
     };
-    const optionTips = {
-      'auto': '自动选择硬件解码,失败时回退到软件解码。推荐。',
-      'no': '强制使用软件解码,兼容性最好;硬解花屏/黑屏时的兜底方案。',
-      'auto-copy': '硬件解码但将帧拷回内存,可与所有滤镜/弹幕/截图功能共存;略费 CPU。',
+    final optionTips = {
+      'auto': l10n.playerSettingsDecodeAutoTip,
+      'no': l10n.playerSettingsDecodeSoftwareTip,
+      'auto-copy': l10n.playerSettingsDecodeCopyTip,
     };
     // A concrete hardware-decoder API from the probed list is stored in
     // decodeMode when 指定硬件解码器 is active.
@@ -1557,20 +1968,20 @@ class _DecodeModeSettingsScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   FluentIcons.chevron_left,
                   size: 12,
                   color: Colors.white,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  '客户端解码模式',
-                  style: TextStyle(
+                  l10n.playerSettingsClientDecodeMode,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -1605,9 +2016,9 @@ class _DecodeModeSettingsScreen extends StatelessWidget {
         // empty otherwise. Greyed out when no hardware decoder was probed.
         _SettingsMenuItem(
           key: const ValueKey('player-decode-mode-specify'),
-          title: '指定硬件解码器',
+          title: l10n.playerSettingsSpecifyHwdec,
           value: isSpecifySelected
-              ? decodeModeLabel(currentMode, availableHwdec)
+              ? decodeModeLabel(l10n, currentMode, availableHwdec)
               : null,
           onClick: availableHwdec.isEmpty ? null : onNavigateToSpecify,
         ),
@@ -1631,6 +2042,7 @@ class _SpecifyDecodeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1638,20 +2050,20 @@ class _SpecifyDecodeScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   FluentIcons.chevron_left,
                   size: 12,
                   color: Colors.white,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  '指定硬件解码器',
-                  style: TextStyle(
+                  l10n.playerSettingsSpecifyHwdec,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -1662,11 +2074,11 @@ class _SpecifyDecodeScreen extends StatelessWidget {
         const Divider(),
         const SizedBox(height: 8),
         if (availableHwdec.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             child: Text(
-              '未探测到可用的硬件解码器',
-              style: TextStyle(color: _defaultTextColor, fontSize: 14),
+              l10n.playerSettingsNoHwdecAvailable,
+              style: const TextStyle(color: _defaultTextColor, fontSize: 14),
             ),
           )
         else
@@ -1758,6 +2170,10 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   final bool isFlyNarwhalServerAvailable;
   // Called when user tries to enable smart skip without full config
   final VoidCallback? onFlyNarwhalConfigMissing;
+  // Whether the server exposes the smart-skip config endpoint (>= 2.0.0).
+  final bool isSmartSkipConfigAvailable;
+  // Opens the server-side smart skip analysis configuration screen.
+  final VoidCallback? onNavigateToSmartSkipConfig;
 
   const _SkipConfigSettingsScreen({
     required this.playingInfoCache,
@@ -1768,9 +2184,11 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
     required this.smartSkipEnabled,
     required this.onSmartSkipEnabledChanged,
     required this.isSmartAnalysisGloballyEnabled,
+    required this.isSmartSkipConfigAvailable,
     required this.isSavingSkipConfig,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
+    this.onNavigateToSmartSkipConfig,
   });
 
   @override
@@ -1808,8 +2226,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
   int get _currentSecondsCeil => (widget.currentPositionMillis + 999) ~/ 1000;
 
   int get _remainingSeconds {
-    final remaining =
-        widget.totalDurationMillis - widget.currentPositionMillis;
+    final remaining = widget.totalDurationMillis - widget.currentPositionMillis;
     final seconds = (remaining < 0 ? 0 : remaining) ~/ 1000;
     return seconds;
   }
@@ -1821,13 +2238,13 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
 
   int get _openingShortcutSeconds => _currentSecondsCeil;
 
-  bool get _endingShortcutVisible =>
-      _isValidShortcutSeconds(_remainingSeconds);
+  bool get _endingShortcutVisible => _isValidShortcutSeconds(_remainingSeconds);
 
   int get _endingShortcutSeconds => _remainingSeconds;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final manualEnabled = !widget.isSavingSkipConfig &&
         (!widget.isSmartAnalysisGloballyEnabled || !_smartSkipEnabled);
 
@@ -1847,18 +2264,18 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                       onTap: widget.onBack,
                       child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             FluentIcons.chevron_left,
                             size: 12,
                             color: Colors.white,
                           ),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(
-                            '跳过片头/片尾',
-                            style: TextStyle(
+                            l10n.playerSettingsSkipIntroOutro,
+                            style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -1867,7 +2284,11 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '生效范围: 《${widget.playingInfoCache?.item?.tvTitle ?? '未知'}》 第 ${widget.playingInfoCache?.item?.seasonNumber ?? 0} 季',
+                    l10n.playerSettingsSkipScope(
+                      widget.playingInfoCache?.item?.tvTitle ??
+                          l10n.playerUnknown,
+                      '${widget.playingInfoCache?.item?.seasonNumber ?? 0}',
+                    ),
                     style: const TextStyle(
                       color: Color(0xCCFFFFFF),
                       fontSize: 12,
@@ -1902,7 +2323,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                     borderRadius: BorderRadius.circular(9999),
                   ),
                   child: Text(
-                    '重置',
+                    l10n.filterReset,
                     style: TextStyle(
                       color: manualEnabled
                           ? const Color(0xCCFFFFFF)
@@ -1919,7 +2340,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
         if (widget.isSmartAnalysisGloballyEnabled)
           PlayerSettingsToggleRow(
             key: const ValueKey('player-settings-smart-skip-toggle'),
-            title: '智能跳过片头/片尾',
+            title: l10n.playerSettingsSmartSkipIntroOutro,
             checked: _smartSkipEnabled,
             onChanged: widget.isSavingSkipConfig ||
                     widget.onSmartSkipEnabledChanged == null
@@ -1946,12 +2367,22 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                     );
                   },
           ),
+        if (widget.isSmartAnalysisGloballyEnabled &&
+            widget.isSmartSkipConfigAvailable &&
+            _smartSkipEnabled) ...[
+          const SizedBox(height: 4),
+          _SettingsMenuItem(
+            key: const ValueKey('player-settings-smart-skip-config-entry'),
+            title: l10n.playerSettingsSmartSkipConfig,
+            onClick: widget.onNavigateToSmartSkipConfig,
+          ),
+        ],
         const SizedBox(height: 8),
         const Divider(),
         const SizedBox(height: 8),
         // Skip opening
         _SkipSlider(
-          label: '片头时长',
+          label: l10n.playerSettingsIntroDuration,
           value: _skipOpening.toDouble(),
           maxValue: 600,
           enabled: manualEnabled,
@@ -1973,7 +2404,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
         const SizedBox(height: 32),
         // Skip ending
         _SkipSlider(
-          label: '片尾时长',
+          label: l10n.playerSettingsOutroDuration,
           value: _skipEnding.toDouble(),
           maxValue: 600,
           enabled: manualEnabled,
@@ -2034,11 +2465,14 @@ class _SkipSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final shortcutSeconds = setCurrentTimeSeconds;
     final showShortcut = enabled && shortcutSeconds != null;
     final shortcutLabel = isReverse
-        ? '将当前剩余时长 ${_formatDuration(shortcutSeconds ?? 0)} 设为片尾'
-        : '将当前时间 ${_formatDuration(shortcutSeconds ?? 0)} 设为片头';
+        ? l10n.playerSettingsSetOutroToRemaining(
+            _formatDuration(shortcutSeconds ?? 0))
+        : l10n.playerSettingsSetIntroToCurrent(
+            _formatDuration(shortcutSeconds ?? 0));
     return Opacity(
       opacity: enabled ? 1.0 : 0.5,
       child: Column(
@@ -2097,14 +2531,18 @@ class _SkipSlider extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                isReverse ? '10 分钟' : '开始',
+                isReverse
+                    ? l10n.playerSettingsTenMinutes
+                    : l10n.playerSettingsSliderStart,
                 style: const TextStyle(
                   color: _skipCaptionColor,
                   fontSize: 12,
                 ),
               ),
               Text(
-                isReverse ? '结束' : '10 分钟',
+                isReverse
+                    ? l10n.playerSettingsSliderEnd
+                    : l10n.playerSettingsTenMinutes,
                 style: const TextStyle(
                   color: _skipCaptionColor,
                   fontSize: 12,
@@ -2206,8 +2644,7 @@ class _SkipSliderBar extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTapUp: enabled
                 ? (details) {
-                    final v =
-                        _valueFromX(details.localPosition.dx, trackWidth);
+                    final v = _valueFromX(details.localPosition.dx, trackWidth);
                     onChanged(v);
                     onChangeEnd(v);
                   }
@@ -2220,8 +2657,7 @@ class _SkipSliderBar extends StatelessWidget {
                 ? (details) =>
                     onChanged(_valueFromX(details.localPosition.dx, trackWidth))
                 : null,
-            onHorizontalDragEnd:
-                enabled ? (_) => onChangeEnd(value) : null,
+            onHorizontalDragEnd: enabled ? (_) => onChangeEnd(value) : null,
             child: CustomPaint(
               size: Size(trackWidth, _skipSliderHeight),
               painter: _SkipSliderPainter(
@@ -2277,8 +2713,7 @@ class _SkipSliderPainter extends CustomPainter {
 
     // Thumb: 14px white circle with a 1px primary-blue border and a subtle
     // drop shadow, matching the web player.
-    final thumbCenter =
-        Offset(thumbLeft + _skipThumbSize / 2, size.height / 2);
+    final thumbCenter = Offset(thumbLeft + _skipThumbSize / 2, size.height / 2);
     canvas.drawCircle(
       thumbCenter + const Offset(0, 1),
       _skipThumbSize / 2,
@@ -2356,5 +2791,99 @@ class _MeasureSizeState extends State<MeasureSize> {
   @override
   Widget build(BuildContext context) {
     return widget.child;
+  }
+}
+
+/// Per-user playback skip switches (intro/credits/recap/preview), persisted
+/// locally per user. The server-side analysis configuration lives in the
+/// settings page dialog; this screen only controls skip behavior.
+class _SmartSkipConfigSettingsScreen extends ConsumerStatefulWidget {
+  final VoidCallback onBack;
+
+  const _SmartSkipConfigSettingsScreen({required this.onBack});
+
+  @override
+  ConsumerState<_SmartSkipConfigSettingsScreen> createState() =>
+      _SmartSkipConfigSettingsScreenState();
+}
+
+class _SmartSkipConfigSettingsScreenState
+    extends ConsumerState<_SmartSkipConfigSettingsScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final state = ref.watch(skipSwitchesControllerProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onBack,
+            child: Row(
+              children: [
+                Icon(FluentIcons.chevron_left, size: 12, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  l10n.playerSettingsSmartSkipConfig,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _switchRow(
+          title: l10n.playerSettingsSkipIntroOnly,
+          checked: state.skipIntro,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.intro, value),
+        ),
+        _switchRow(
+          title: l10n.playerSettingsSkipOutroOnly,
+          checked: state.skipCredits,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.credits, value),
+        ),
+        _switchRow(
+          title: l10n.playerSettingsSkipRecap,
+          checked: state.skipRecap,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.recap, value),
+        ),
+        _switchRow(
+          title: l10n.playerSettingsSkipPreview,
+          checked: state.skipPreview,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.preview, value),
+        ),
+        _switchRow(
+          title: l10n.playerSettingsSkipCommercial,
+          checked: state.skipCommercial,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.commercial, value),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  void _setSwitch(SkipSegmentKind kind, bool value) {
+    unawaited(
+      ref.read(skipSwitchesControllerProvider.notifier).setSwitch(kind, value),
+    );
+  }
+
+  Widget _switchRow({
+    required String title,
+    required bool checked,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return PlayerSettingsToggleRow(
+      title: title,
+      checked: checked,
+      onChanged: onChanged,
+    );
   }
 }

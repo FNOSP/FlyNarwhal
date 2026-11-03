@@ -36,16 +36,53 @@ final class FlyNarwhalServerReleaseDataSource {
   FlyNarwhalServerReleaseDataSource({
     required Dio dio,
     required String userAgent,
+    String apiBaseUrl = defaultApiBaseUrl,
   })  : _dio = dio,
-        _userAgent = userAgent;
+        _userAgent = userAgent,
+        _apiBaseUrl = apiBaseUrl;
 
-  static Uri endpointForTag(String tagName) => Uri.https(
-        'api.github.com',
-        '/repos/FNOSP/fly-narwhal-server/releases/tags/$tagName',
-      );
+  static const String defaultApiBaseUrl = 'https://api.github.com';
 
   final Dio _dio;
   final String _userAgent;
+  final String _apiBaseUrl;
+
+  Uri _endpoint(String path) =>
+      Uri.parse('$_apiBaseUrl/repos/FNOSP/fly-narwhal-server/$path');
+
+  Uri endpointForTag(String tagName) => _endpoint('releases/tags/$tagName');
+
+  Uri get latestEndpoint => _endpoint('releases/latest');
+
+  /// The most recent published release, with its `v`-prefixed tag name.
+  ///
+  /// `/releases/latest` excludes prereleases; a repository with no published
+  /// release answers 404, which is reported as `null`.
+  Future<FlyNarwhalServerRelease?> fetchLatest() async {
+    AppTalker.info('FlyNarwhalServerUpdate', 'Fetching latest server release.');
+    try {
+      final response = await _dio.get<Object?>(
+        latestEndpoint.toString(),
+        options: _requestOptions(),
+      );
+      return _parseRelease(response.data);
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) {
+        AppTalker.info(
+          'FlyNarwhalServerUpdate',
+          'No latest server release published.',
+        );
+        return null;
+      }
+      AppTalker.error(
+        'FlyNarwhalServerUpdate',
+        error: error,
+        stackTrace: error.stackTrace,
+        message: '获取服务端最新 release 失败',
+      );
+      rethrow;
+    }
+  }
 
   /// Returns the release for [tagName], or `null` when that tag has no release
   /// yet (HTTP 404). Other failures are rethrown.
@@ -57,14 +94,7 @@ final class FlyNarwhalServerReleaseDataSource {
     try {
       final response = await _dio.get<Object?>(
         endpointForTag(tagName).toString(),
-        options: Options(
-          responseType: ResponseType.json,
-          headers: <String, String>{
-            'Accept': 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-            'User-Agent': _userAgent,
-          },
-        ),
+        options: _requestOptions(),
       );
       return _parseRelease(response.data);
     } on DioException catch (error) {
@@ -85,8 +115,16 @@ final class FlyNarwhalServerReleaseDataSource {
     }
   }
 
-  FlyNarwhalServerRelease _parseRelease(Object? payload) {
-    if (payload is! Map<String, dynamic>) {
+  Options _requestOptions() => Options(
+        responseType: ResponseType.json,
+        headers: <String, String>{
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': _userAgent,
+        },
+      );
+
+  FlyNarwhalServerRelease _parseRelease(Object? payload) {    if (payload is! Map<String, dynamic>) {
       throw const FormatException('Server release response is not an object.');
     }
     final tagName = payload['tag_name'] as String? ?? '';

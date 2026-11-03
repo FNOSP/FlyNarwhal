@@ -4,11 +4,13 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/log/app_talker.dart';
 import '../../data/models/movie_detail_models.dart';
 import '../../data/storage/local_subtitle_picker_store.dart';
+import '../../l10n/generated/app_localizations.dart';
 import '../../providers/file_providers.dart';
 import '../../providers/providers.dart';
 import 'toast.dart';
@@ -32,6 +34,7 @@ const int _localSubtitlePickerOpenDelayMs = 250;
 Future<({List<XFile> files, String? directory})> openLocalSubtitleFiles(
   String initialDirectory, {
   required String userGuid,
+  required AppLocalizations l10n,
 }) async {
   // Windows and macOS both use the native picker channel instead of
   // file_selector: on Windows the plugin runs the dialog on the platform
@@ -67,14 +70,14 @@ Future<({List<XFile> files, String? directory})> openLocalSubtitleFiles(
     );
   }
 
-  const subtitleTypeGroup = XTypeGroup(
-    label: '字幕文件',
+  final subtitleTypeGroup = XTypeGroup(
+    label: l10n.subtitleUploadFileTypeName,
     extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
   );
   final files = await openFiles(
     acceptedTypeGroups: [subtitleTypeGroup],
     initialDirectory: initialDirectory,
-    confirmButtonText: '选择',
+    confirmButtonText: l10n.subtitleUploadSelect,
   );
   return (
     files: files,
@@ -90,9 +93,11 @@ Future<({List<XFile> files, String? directory})> openLocalSubtitleFiles(
 /// 详情页仅同步选中状态）。
 Future<SubtitleStream?> pickAndUploadLocalSubtitles({
   required WidgetRef ref,
+  required BuildContext context,
   required String mediaGuid,
   ToastStyle toastStyle = ToastStyle.fluent,
 }) async {
+  final l10n = AppLocalizations.of(context);
   final toastCategory = 'local-subtitle:$mediaGuid';
   final toastManager = ref.read(toastManagerProvider.notifier);
 
@@ -106,7 +111,7 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
     final currentUser = ref.read(userInfoProvider).valueOrNull;
     final userGuid = currentUser?.guid.trim() ?? '';
     if (Platform.isWindows && userGuid.isEmpty) {
-      throw StateError('当前用户信息缺失，无法恢复文件选择器状态');
+      throw StateError(l10n.subtitleUploadMissingUser);
     }
     final pickerStore = LocalSubtitlePickerStore(
       ref.read(sharedPreferencesProvider),
@@ -115,6 +120,7 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
     final pickerSelection = await openLocalSubtitleFiles(
       pickerStore.resolveInitialDirectory(),
       userGuid: userGuid,
+      l10n: l10n,
     );
     files = pickerSelection.files;
     // Remember the shown directory for the next open (recorded by the
@@ -126,7 +132,7 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
   } catch (error) {
     toastManager.showToast(
       style: toastStyle,
-      '选择字幕文件失败: $error',
+      l10n.subtitleUploadPickerFailed('$error'),
       type: ToastType.failed,
       category: toastCategory,
     );
@@ -137,7 +143,7 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
   if (files.length > kMaxUploadableLocalSubtitles) {
     toastManager.showToast(
       style: toastStyle,
-      '最多选择 $kMaxUploadableLocalSubtitles 个文件',
+      l10n.subtitleUploadTooMany('$kMaxUploadableLocalSubtitles'),
       type: ToastType.warning,
       category: toastCategory,
     );
@@ -155,7 +161,7 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
   if (hasInvalid) {
     toastManager.showToast(
       style: toastStyle,
-      '只能选择 ${allowedExtensions.join(', ')} 格式的文件',
+      l10n.subtitleUploadFormatSuffix(allowedExtensions.join(', ')),
       type: ToastType.warning,
       category: toastCategory,
     );
@@ -187,21 +193,21 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
   if (successCount == 0) {
     toastManager.showToast(
       style: toastStyle,
-      '添加字幕失败，请重试',
+      l10n.subtitleUploadFailed,
       type: ToastType.failed,
       category: toastCategory,
     );
   } else if (failureCount > 0) {
     toastManager.showToast(
       style: toastStyle,
-      '部分字幕添加成功，其中 $failureCount 个失败',
+      l10n.subtitleUploadPartial('$failureCount'),
       type: ToastType.warning,
       category: toastCategory,
     );
   } else {
     toastManager.showToast(
       style: toastStyle,
-      '添加字幕成功',
+      l10n.subtitleUploadAdded,
       type: ToastType.success,
       category: toastCategory,
     );

@@ -35,7 +35,7 @@ class PlayerSettingsHeader extends StatelessWidget {
               if (onBack != null) ...[
                 AppIconButton(
                   key: const ValueKey('player-settings-header-back'),
-                  icon: const Icon(FluentIcons.chevron_left, size: 16),
+                  icon: const Icon(FluentIcons.chevron_left, size: 12),
                   onPressed: onBack,
                 ),
                 const SizedBox(width: 6),
@@ -45,8 +45,8 @@ class PlayerSettingsHeader extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),

@@ -1,16 +1,15 @@
 enum MediaType {
-  movie('Movie', '电影'),
-  tv('TV', '电视节目'),
-  directory('Directory', '目录'),
-  video('Video', '其他'),
-  liveChannel('LiveChannel', '电视直播'),
-  episode('Episode', '剧集'),
-  season('Season', '季');
+  movie('Movie'),
+  tv('TV'),
+  directory('Directory'),
+  video('Video'),
+  liveChannel('LiveChannel'),
+  episode('Episode'),
+  season('Season');
 
   final String value;
-  final String description;
 
-  const MediaType(this.value, this.description);
+  const MediaType(this.value);
 
   static const List<MediaType> commonlyUsed = [
     MediaType.movie,

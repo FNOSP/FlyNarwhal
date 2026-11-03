@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/storage/shortcut_settings_store.dart';
+import '../../../settings/shortcut_action_localization.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../providers/providers.dart';
 import '../../../shared/dialogs/app_dialog.dart';
 
@@ -92,19 +94,20 @@ class _ShortcutSettingsDialogState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AppDialog(
-      title: '快捷键设置',
+      title: l10n.shortcutsTitle,
       constraints: const BoxConstraints(
         minWidth: 520,
         maxWidth: 560,
         maxHeight: 480,
       ),
-      primaryButtonText: '确定',
+      primaryButtonText: l10n.commonConfirm,
       onPrimaryPressed: _onConfirm,
-      secondaryButtonText: '恢复默认',
-      onSecondaryPressed: _resetToDefaults,
-      tertiaryButtonText: '取消',
-      onTertiaryPressed: _onCancel,
+      secondaryButtonText: l10n.commonCancel,
+      onSecondaryPressed: _onCancel,
+      tertiaryButtonText: l10n.shortcutsRestoreDefaults,
+      onTertiaryPressed: _resetToDefaults,
       content: Focus(
         autofocus: true,
         onKeyEvent: _handleCaptureKeyEvent,
@@ -112,12 +115,12 @@ class _ShortcutSettingsDialogState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Row(
+            Row(
               children: [
-                Expanded(child: Text('说明')),
+                Expanded(child: Text(l10n.shortcutsTabHelp)),
                 SizedBox(
                   width: _shortcutColumnWidth,
-                  child: Text('快捷键'),
+                  child: Text(l10n.shortcutsTabKeyboard),
                 ),
               ],
             ),
@@ -146,12 +149,13 @@ class _ShortcutSettingsDialogState
   }
 
   Widget _buildCategorySection(ShortcutCategory category) {
+    final l10n = AppLocalizations.of(context);
     final definitions = ShortcutSettingsStore.definitions
         .where((definition) => definition.category == category)
         .toList();
     final title = switch (category) {
-      ShortcutCategory.search => '搜索',
-      ShortcutCategory.playback => '播放',
+      ShortcutCategory.search => l10n.shortcutsSearch,
+      ShortcutCategory.playback => l10n.shortcutsTabPlayback,
     };
     final theme = FluentTheme.of(context);
 
@@ -166,6 +170,7 @@ class _ShortcutSettingsDialogState
   }
 
   Widget _buildShortcutRow(ShortcutActionDefinition definition) {
+    final l10n = AppLocalizations.of(context);
     final theme = FluentTheme.of(context);
     final binding = _bindings[definition.id] ?? definition.defaultBinding;
     final isCapturing = _captureTarget?.actionId == definition.id;
@@ -173,14 +178,14 @@ class _ShortcutSettingsDialogState
         ? theme.accentColor
         : theme.resources.controlStrokeColorDefault;
     final text = isCapturing
-        ? '请在键盘按下快捷键或组合'
+        ? l10n.shortcutsPrompt
         : binding.primary.format(isMac: Platform.isMacOS);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Expanded(child: Text(definition.title)),
+          Expanded(child: Text(definition.id.localizedTitle(l10n))),
           MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(

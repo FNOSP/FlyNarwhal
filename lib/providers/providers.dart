@@ -1,7 +1,10 @@
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'dart:io';
 import '../core/config/runtime_configuration.dart';
 import '../core/config/secret_bridge_selector.dart';
 import '../core/network/dio_client.dart';
@@ -27,13 +30,20 @@ import '../data/storage/preferences_manager.dart';
 import '../data/storage/shortcut_settings_store.dart';
 import '../data/storage/user_settings_migrator.dart';
 import '../domain/repositories/i_tag_repository.dart';
+import '../l10n/generated/app_localizations.dart';
+import '../ui/settings/app_language.dart';
+import '../ui/shared/toast.dart';
 import 'danmaku_controller.dart';
+import 'danmu_source_config_controller.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
 import 'smart_analysis_controller.dart';
 import 'smart_analysis_status_controller.dart';
+import 'smart_skip_config_controller.dart';
 import 'smart_skip_settings_controller.dart';
+import 'skip_switches_controller.dart';
 import 'season_analysis_status_controller.dart';
 import 'episode_analysis_controller.dart';
+import 'update_providers.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences not initialized');
@@ -191,7 +201,12 @@ final tagRemoteDataSourceProvider = Provider<TagRemoteDataSource>((ref) {
 
 final iTagRepositoryProvider = Provider<ITagRepository>((ref) {
   final remoteDataSource = ref.watch(tagRemoteDataSourceProvider);
-  return TagRepositoryImpl(remoteDataSource);
+  // Rebuild when the UI language changes so tag requests carry the matching
+  // `lan` value and the language-keyed data source cache starts fresh.
+  final language = ref.watch(
+    settingsProvider.select((s) => AppLanguage.tagLanFromValue(s.language)),
+  );
+  return TagRepositoryImpl(remoteDataSource, language: language);
 });
 
 final mediaRemoteDataSourceProvider = Provider<MediaRemoteDataSource>((ref) {
@@ -229,6 +244,8 @@ final flyNarwhalRemoteDataSourceProvider =
   final prefsManager = ref.watch(preferencesManagerProvider);
   final flyNarwhalSettings = ref.watch(flyNarwhalSettingsProvider);
   final runtimeConfiguration = ref.watch(runtimeConfigurationProvider);
+  final clientVersionCache = ref.watch(_flyNarwhalClientVersionCacheProvider);
+  DateTime? lastClientVersionToastAt;
   return FlyNarwhalRemoteDataSource(
     getToken: () => prefsManager.getToken() ?? '',
     getCookie: () => prefsManager.getCookie() ?? '',
@@ -236,14 +253,69 @@ final flyNarwhalRemoteDataSourceProvider =
     getFlyNarwhalBaseUrl: () => flyNarwhalSettings.baseUrl ?? '',
     getFlyNarwhalServerEnabled: () => flyNarwhalSettings.enabled,
     getAuthCode: () => flyNarwhalSettings.authCode ?? '',
+    getClientVersion: () => clientVersionCache.value,
+    onClientVersionTooLow: (message) {
+      // Polling loops would otherwise stack the same upgrade prompt.
+      final now = DateTime.now();
+      if (lastClientVersionToastAt != null &&
+          now.difference(lastClientVersionToastAt!) <
+              const Duration(seconds: 15)) {
+        return;
+      }
+      lastClientVersionToastAt = now;
+      ref.read(toastManagerProvider.notifier).showToast(
+            message,
+            type: ToastType.failed,
+            category: 'fly-narwhal-client-version',
+          );
+    },
     runtimeConfiguration: runtimeConfiguration,
   );
+});
+
+final smartSkipConfigControllerProvider = StateNotifierProvider<
+    SmartSkipConfigController, SmartSkipConfigState>((ref) {
+  return SmartSkipConfigController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+    getL10n: () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
+  );
+});
+
+final danmuSourceConfigControllerProvider = StateNotifierProvider<
+    DanmuSourceConfigController, DanmuSourceConfigState>((ref) {
+  return DanmuSourceConfigController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+    getL10n: () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
+  );
+});
+
+class _ClientVersionCache {
+  String value = '';
+}
+
+// 版本头注入是同步的，这里提前把 APP_FULL_VERSION/pubspec 解析结果缓存成字符串。
+final _flyNarwhalClientVersionCacheProvider =
+    Provider<_ClientVersionCache>((ref) {
+  final cache = _ClientVersionCache();
+  ref.read(currentAppVersionProvider.future).then((version) {
+    cache.value = version;
+  }).catchError((_) {});
+  return cache;
 });
 
 final flyNarwhalConnectionTestProvider = StateNotifierProvider<
     FlyNarwhalConnectionTestNotifier, AsyncValue<String?>>((ref) {
   final dataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
-  return FlyNarwhalConnectionTestNotifier(dataSource);
+  return FlyNarwhalConnectionTestNotifier(
+    dataSource,
+    () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
+  );
 });
 
 final smartAnalysisControllerProvider = StateNotifierProvider<
@@ -253,11 +325,28 @@ final smartAnalysisControllerProvider = StateNotifierProvider<
   return SmartAnalysisController(
     flyNarwhalDataSource,
     mediaDataSource,
+    getL10n: () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
+    // These run outside the season page's lifetime (a submission can finish
+    // long after the user navigated away), so they must not resurrect a season
+    // whose page is gone.
     startSeasonPolling: (seasonGuid) {
       ref
           .read(seasonAnalysisStatusControllerProvider.notifier)
-          .startForcedPolling(seasonGuid);
+          .startForcedBackgroundPolling(seasonGuid);
     },
+    // Draw the "准备中" status immediately after PREPARING is accepted,
+    // before the slow episode collection and analyze submission.
+    startSeasonPreparedPolling: (seasonGuid) {
+      ref
+          .read(seasonAnalysisStatusControllerProvider.notifier)
+          .startBackgroundPolling(seasonGuid);
+    },
+    resolveUserGuid: () => ref.read(currentUserGuidProvider),
+    // media/stream probe identifies the client like the player does (md5 of
+    // the login token) when detecting netdisk/STRM media.
+    resolveToken: () => ref.read(preferencesManagerProvider).getToken(),
   );
 });
 
@@ -272,6 +361,17 @@ final smartSkipSettingsControllerProvider =
     StateNotifierProvider<SmartSkipSettingsController, SmartSkipSettingsState>(
         (ref) {
   final controller = SmartSkipSettingsController(
+    ref.watch(preferencesManagerProvider),
+  );
+  ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {
+    controller.updateUserInfo(next.valueOrNull);
+  }, fireImmediately: true);
+  return controller;
+});
+
+final skipSwitchesControllerProvider =
+    StateNotifierProvider<SkipSwitchesController, SkipSwitchesState>((ref) {
+  final controller = SkipSwitchesController(
     ref.watch(preferencesManagerProvider),
   );
   ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {
@@ -329,18 +429,24 @@ class SettingsState {
   final bool followSystemTheme;
   final bool darkMode;
   final String navigationDisplayMode;
+  final String uiFontScale;
+  final String language;
   final bool flyNarwhalServerEnabled;
   final String flyNarwhalServerBaseUrl;
   final bool hasFlyNarwhalAuthCode;
+  final bool playerDetailsLiquidGlass;
   final List<SslTrustEntry> sslWhitelist;
 
   const SettingsState({
     required this.followSystemTheme,
     required this.darkMode,
     required this.navigationDisplayMode,
+    required this.uiFontScale,
+    required this.language,
     required this.flyNarwhalServerEnabled,
     required this.flyNarwhalServerBaseUrl,
     required this.hasFlyNarwhalAuthCode,
+    this.playerDetailsLiquidGlass = true,
     this.sslWhitelist = const <SslTrustEntry>[],
   });
 
@@ -355,9 +461,12 @@ class SettingsState {
     bool? followSystemTheme,
     bool? darkMode,
     String? navigationDisplayMode,
+    String? uiFontScale,
+    String? language,
     bool? flyNarwhalServerEnabled,
     String? flyNarwhalServerBaseUrl,
     bool? hasFlyNarwhalAuthCode,
+    bool? playerDetailsLiquidGlass,
     List<SslTrustEntry>? sslWhitelist,
   }) {
     return SettingsState(
@@ -365,12 +474,16 @@ class SettingsState {
       darkMode: darkMode ?? this.darkMode,
       navigationDisplayMode:
           navigationDisplayMode ?? this.navigationDisplayMode,
+      uiFontScale: uiFontScale ?? this.uiFontScale,
+      language: language ?? this.language,
       flyNarwhalServerEnabled:
           flyNarwhalServerEnabled ?? this.flyNarwhalServerEnabled,
       flyNarwhalServerBaseUrl:
           flyNarwhalServerBaseUrl ?? this.flyNarwhalServerBaseUrl,
       hasFlyNarwhalAuthCode:
           hasFlyNarwhalAuthCode ?? this.hasFlyNarwhalAuthCode,
+      playerDetailsLiquidGlass:
+          playerDetailsLiquidGlass ?? this.playerDetailsLiquidGlass,
       sslWhitelist: sslWhitelist ?? this.sslWhitelist,
     );
   }
@@ -384,12 +497,22 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           darkMode: _prefs.getDarkMode(userGuid: userGuid),
           navigationDisplayMode:
               _prefs.getNavigationDisplayMode(userGuid: userGuid),
+          uiFontScale: _prefs.getUiFontScale(userGuid: userGuid),
+          language: _prefs.getLanguage(userGuid: userGuid),
           flyNarwhalServerEnabled: _flyNarwhalSettings.enabled,
           flyNarwhalServerBaseUrl: _flyNarwhalSettings.baseUrl?.trim() ?? '',
           hasFlyNarwhalAuthCode:
               _flyNarwhalSettings.authCode?.trim().isNotEmpty ?? false,
+          playerDetailsLiquidGlass:
+              _prefs.getPlayerDetailsLiquidGlass(userGuid: userGuid),
           sslWhitelist: SslTrustManager.instance.persistedEntries.toList(),
-        ));
+        )) {
+    // 首次运行（该作用域无语言记录）时固化系统语言推断结果，
+    // 使后续系统语言变化不再影响已确定的界面语言。
+    if (!_prefs.hasStoredLanguage(userGuid: _userGuid)) {
+      unawaited(_prefs.saveLanguage(state.language, userGuid: _userGuid));
+    }
+  }
 
   final PreferencesManager _prefs;
   final FlyNarwhalSettings _flyNarwhalSettings;
@@ -408,6 +531,21 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setNavigationDisplayMode(String value) async {
     await _prefs.saveNavigationDisplayMode(value, userGuid: _userGuid);
     state = state.copyWith(navigationDisplayMode: value);
+  }
+
+  Future<void> setPlayerDetailsLiquidGlass(bool value) async {
+    await _prefs.savePlayerDetailsLiquidGlass(value, userGuid: _userGuid);
+    state = state.copyWith(playerDetailsLiquidGlass: value);
+  }
+
+  Future<void> setUiFontScale(String value) async {
+    await _prefs.saveUiFontScale(value, userGuid: _userGuid);
+    state = state.copyWith(uiFontScale: value);
+  }
+
+  Future<void> setLanguage(String value) async {
+    await _prefs.saveLanguage(value, userGuid: _userGuid);
+    state = state.copyWith(language: value);
   }
 
   Future<void> setFlyNarwhalServerEnabled(bool value) async {
@@ -525,24 +663,42 @@ final userInfoProvider =
   );
 });
 
+const _imageCacheKey = 'fly_narwhal_memory_cache';
+
 final imageCacheManagerProvider = Provider<CacheManager>((ref) {
   const maxCacheBytes = 300 * 1024 * 1024;
   const maxCacheObjects = 100;
   return CacheManager(
     Config(
-      'fly_narwhal_memory_cache',
+      _imageCacheKey,
       maxNrOfCacheObjects: maxCacheObjects,
       repo: _InMemoryCacheInfoRepository(
         maxObjects: maxCacheObjects,
         maxBytes: maxCacheBytes,
       ),
-      fileSystem: IOFileSystem('fly_narwhal_memory_cache'),
+      fileSystem: IOFileSystem(_imageCacheKey),
       // Posters load over their own HttpClient, so they need the certificate
       // trust list applied here too.
       fileService: SslTrustAwareFileService(),
     ),
   );
 });
+
+/// Wipes every cached poster from disk.
+///
+/// [CacheManager.emptyCache] only removes files it can find through the cache
+/// info repository, and this app indexes objects in memory alone, so after a
+/// restart that repository is empty and the call deletes nothing. The cache
+/// directory is therefore removed directly.
+Future<void> clearImageCache(CacheManager cacheManager) async {
+  await cacheManager.emptyCache();
+  final directory = Directory(
+    p.join((await getTemporaryDirectory()).path, _imageCacheKey),
+  );
+  if (await directory.exists()) {
+    await directory.delete(recursive: true);
+  }
+}
 
 class LoggingCacheManager extends CacheManager {
   LoggingCacheManager(super.config);

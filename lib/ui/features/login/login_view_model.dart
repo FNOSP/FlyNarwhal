@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/error/login_exception.dart';
+import '../../../core/network/access_code_session.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/base_response.dart';
 import '../../../data/models/login_history.dart';
@@ -23,9 +24,11 @@ class LoginViewModel extends _$LoginViewModel {
     required bool isHttps,
     required bool rememberPassword,
     required bool isNasLogin,
+    required String fnIdEmptyMessage,
     String? fnId,
     String? displayHost,
     int? displayPort,
+    String? accessCode,
   }) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
@@ -33,23 +36,44 @@ class LoginViewModel extends _$LoginViewModel {
       final prefs = ref.read(preferencesManagerProvider);
 
       final protocol = isHttps ? 'https' : 'http';
-      final baseUrl = isNasLogin
-          ? (await _resolveNasUrl(fnId!))
+      var baseUrl = isNasLogin
+          ? (await _resolveNasUrl(fnId!, fnIdEmptyMessage))
           : (port == 0 ? '$protocol://$host' : '$protocol://$host:$port');
 
       dioClient.updateBaseUrl(baseUrl);
       await prefs.saveBaseUrl(baseUrl);
 
       final parsed = Uri.tryParse(baseUrl);
-      final isRelay = (parsed?.host.contains('5ddd.com') ?? false) ||
-          (parsed?.host.contains('fnos.net') ?? false) ||
-          isNasLogin;
+      final isRelay = isFnConnectHost(parsed?.host ?? '') || isNasLogin;
       if (isRelay) {
         await prefs.saveCookie('mode=relay');
         AppTalker.info(
           'Login',
           'relay mode enabled: cookie="mode=relay" baseUrl="$baseUrl"',
         );
+      }
+
+      // When the NAS is access-code protected, establish the gateway session
+      // first so the login request is authorized instead of being answered
+      // with the gateway HTML page.
+      final accessCodeValue = accessCode?.trim() ?? '';
+      if (accessCodeValue.isNotEmpty) {
+        AppTalker.info(
+          'Login',
+          'establish access code session: baseUrl="$baseUrl" codeLength=${accessCodeValue.length}',
+        );
+        final accessSession = await AccessCodeSession.establish(
+          dio: dioClient.dio,
+          baseUrl: baseUrl,
+          accessCode: accessCodeValue,
+        );
+        // Adopt the verified origin so a port/host redirect is honored.
+        if (accessSession.baseUrl.isNotEmpty &&
+            accessSession.baseUrl != baseUrl) {
+          baseUrl = accessSession.baseUrl;
+          dioClient.updateBaseUrl(baseUrl);
+          await prefs.saveBaseUrl(baseUrl);
+        }
       }
 
       AppTalker.info(
@@ -94,6 +118,23 @@ class LoginViewModel extends _$LoginViewModel {
         rethrow;
       }
 
+      // The fnOS access-code gateway answers API paths with its HTML page
+      // instead of JSON. Surface that so the UI can ask for the access code
+      // and retry, instead of failing with an opaque parse error.
+      final loginContentType = response.headers.value('content-type') ?? '';
+      final loginBody = response.data;
+      final loginBodyText = loginBody is String ? loginBody : '';
+      final isGatewayHtml = loginContentType.contains('text/html') ||
+          loginBodyText.contains('<html') ||
+          loginBodyText.toLowerCase().contains('<!doctype html');
+      if (isGatewayHtml) {
+        AppTalker.info(
+          'Login',
+          'login answered with gateway HTML; access code required (contentType="$loginContentType")',
+        );
+        throw const AccessCodeRequiredException();
+      }
+
       final baseResponse = FnBaseResponse<LoginResponse>.fromJson(response.data,
           (json) => LoginResponse.fromJson(json as Map<String, dynamic>));
       AppTalker.info(
@@ -118,19 +159,17 @@ class LoginViewModel extends _$LoginViewModel {
         'login token: empty=${token.isEmpty} length=${token.length}',
       );
       await prefs.saveToken(token);
-      if (isRelay) {
-        await prefs.saveCookie("Trim-MC-token=$token; mode=relay");
-        AppTalker.info(
-          'Login',
-          'cookie saved for relay: hasToken=${token.isNotEmpty} cookie="Trim-MC-token=***; mode=relay"',
-        );
-      } else {
-        await prefs.saveCookie("Trim-MC-token=$token");
-        AppTalker.info(
-          'Login',
-          'cookie saved: hasToken=${token.isNotEmpty} cookie="Trim-MC-token=***"',
-        );
-      }
+      // Keep any access-code gateway session in the persisted cookie so API
+      // requests stay authorized after the app restarts.
+      final sessionCookie =
+          isRelay ? "Trim-MC-token=$token; mode=relay" : "Trim-MC-token=$token";
+      await prefs.saveCookie(
+        mergeCookies([getAccessCookieHeader(baseUrl), sessionCookie]),
+      );
+      AppTalker.info(
+        'Login',
+        'cookie saved: isRelay=$isRelay hasToken=${token.isNotEmpty} hasAccessGrant=${getAccessCookieHeader(baseUrl).isNotEmpty}',
+      );
       final storedToken = prefs.getToken();
       AppTalker.info(
         'Login',
@@ -179,10 +218,10 @@ class LoginViewModel extends _$LoginViewModel {
     }
   }
 
-  Future<String> _resolveNasUrl(String fnId) async {
+  Future<String> _resolveNasUrl(String fnId, String fnIdEmptyMessage) async {
     final raw = fnId.trim();
     if (raw.isEmpty) {
-      throw Exception('FN ID 不能为空');
+      throw Exception(fnIdEmptyMessage);
     }
     final hasScheme = raw.startsWith('http://') || raw.startsWith('https://');
     if (hasScheme) {

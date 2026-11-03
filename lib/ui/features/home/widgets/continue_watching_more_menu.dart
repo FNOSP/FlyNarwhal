@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../shared/semi_icons.dart';
 import '../../../../data/models/home_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 
 /// Actions offered by the "继续观看" card's more menu, mirroring the web client.
 enum ContinueWatchAction {
@@ -73,26 +74,27 @@ class _ContinueWatchMenuPanelState extends State<_ContinueWatchMenuPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final entries = <_MenuEntry>[
       _MenuEntry(
         action: ContinueWatchAction.removeFromContinue,
-        label: '从“继续观看”中移除',
+        label: l10n.homeMenuRemoveFromContinue,
         icon: (color) => SemiIcons.removeFromContinue(size: _kIconSize, color: color),
       ),
       _MenuEntry(
         action: ContinueWatchAction.resume,
-        label: '继续播放',
+        label: l10n.homeMenuResume,
         icon: (color) => SemiIcons.resumePlay(size: _kIconSize, color: color),
       ),
       _MenuEntry(
         action: ContinueWatchAction.restart,
-        label: '从头开始播放',
+        label: l10n.homeMenuRestart,
         icon: (color) => SemiIcons.restartPlay(size: _kIconSize, color: color),
       ),
       if (widget.canDelete)
         _MenuEntry(
           action: ContinueWatchAction.deleteVideo,
-          label: '删除视频',
+          label: l10n.homeMenuDeleteVideo,
           icon: (color) => SemiIcons.deleteVideo(size: _kIconSize, color: color),
         ),
     ];

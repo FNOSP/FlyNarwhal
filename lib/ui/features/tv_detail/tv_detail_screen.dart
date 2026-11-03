@@ -11,6 +11,7 @@ import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 
 import '../../../data/models/movie_detail_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../data/models/season_list_response.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
@@ -113,6 +114,19 @@ class _TvDetailContent extends ConsumerStatefulWidget {
 class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   late final FlyoutController _moreController = FlyoutController();
 
+  /// Evicts this item's cached detail responses so re-entering the page always
+  /// refetches instead of replaying the data source's 5-minute cache.
+  ///
+  /// Runs in [deactivate] rather than [dispose]: Riverpod has already torn this
+  /// element's `ref` down by the time `dispose` runs, so reading a provider
+  /// there throws `StateError: Cannot use "ref" after the widget was disposed`
+  /// and aborts the unmount, leaving the tree half-finalized.
+  @override
+  void deactivate() {
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(widget.guid);
+    super.deactivate();
+  }
+
   @override
   void dispose() {
     _moreController.dispose();
@@ -125,7 +139,10 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         .toggleFavorite();
     if (!mounted) return;
     ref.read(toastManagerProvider.notifier).showToast(
-          result.success ? result.message : '操作失败，${result.message}',
+          result.success
+              ? result.message
+              : AppLocalizations.of(context)
+                  .toastOperationFailedReason(result.message),
           type: result.success ? ToastType.success : ToastType.failed,
           category: 'favorite:${widget.guid}',
         );
@@ -137,7 +154,10 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         .toggleWatched();
     if (!mounted) return;
     ref.read(toastManagerProvider.notifier).showToast(
-          result.success ? result.message : '操作失败，${result.message}',
+          result.success
+              ? result.message
+              : AppLocalizations.of(context)
+                  .toastOperationFailedReason(result.message),
           type: result.success ? ToastType.success : ToastType.failed,
           category: 'watched:${widget.guid}',
         );
@@ -150,7 +170,10 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         .toggleSeasonWatched(seasonGuid, isWatched);
     if (!mounted) return false;
     ref.read(toastManagerProvider.notifier).showToast(
-          result.success ? result.message : '操作失败，${result.message}',
+          result.success
+              ? result.message
+              : AppLocalizations.of(context)
+                  .toastOperationFailedReason(result.message),
           type: result.success ? ToastType.success : ToastType.failed,
           category: 'season-watched:$seasonGuid',
         );
@@ -169,11 +192,13 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 
   void _showDescriptionDialog(ItemResponse item) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (_) => MediaDescriptionDialog(
-        title: '剧集简介',
-        content: (item.overview ?? '暂无介绍').replaceAll('\n\n', '\n'),
+        title: l10n.tvDetailDescriptionTitle,
+        content: (item.overview ?? l10n.mediaInfoNoOverview)
+            .replaceAll('\n\n', '\n'),
       ),
     );
   }
@@ -184,6 +209,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !settings.hasFlyNarwhalAuthCode,
             ),
@@ -203,6 +229,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !settings.hasFlyNarwhalAuthCode,
             ),
@@ -217,26 +244,44 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 
   void _showAnalysisToast(
+    AppLocalizations l10n,
     SmartAnalysisTargetType targetType,
     String targetGuid,
     AsyncValue<String>? previous,
     AsyncValue<String>? next,
   ) {
-    if (next == null || next.isLoading || identical(previous, next)) return;
+    if (next == null || identical(previous, next)) return;
+    final baseCategory = 'smart-analysis:${targetType.name}:$targetGuid';
+    if (next.isLoading) {
+      // Immediate feedback while the slow collection/submit runs (KMP parity).
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.smartAnalysisQueuedLoading,
+            type: ToastType.success,
+            category: baseCategory,
+          );
+      return;
+    }
     next.when(
       data: (message) {
         ref.read(toastManagerProvider.notifier).showToast(
               message,
               type: ToastType.success,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
       loading: () {},
       error: (error, stackTrace) {
+        final isSubmissionFailure =
+            error is SmartAnalysisSubmissionException &&
+                error.preparingStarted;
         ref.read(toastManagerProvider.notifier).showToast(
-              error.toString(),
+              isSubmissionFailure
+                  ? l10n.smartSkipAnalysisFailedRetry
+                  : error is SmartAnalysisUserMessageException
+                      ? error.message
+                      : error.toString(),
               type: ToastType.failed,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
     );
@@ -255,7 +300,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
           if (ref.read(settingsProvider).flyNarwhalServerEnabled)
             MenuFlyoutItem(
               key: const ValueKey('tv-smart-analysis'),
-              text: const Text('智能分析片头/片尾'),
+              text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
               onPressed: ref
                       .read(smartAnalysisControllerProvider)
                       .isSubmitting(SmartAnalysisTargetType.tv, widget.guid)
@@ -271,20 +316,26 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 
   String _buildPlayButtonText() {
+    final l10n = AppLocalizations.of(context);
     final playInfo = widget.state.playInfo;
-    if (playInfo == null) return '播放';
+    if (playInfo == null) return l10n.actionPlay;
 
     if (widget.state.seasonList.length == 1) {
-      return '第 ${playInfo.item.episodeNumber} 集';
+      return l10n.tvDetailEpisodeNumber('${playInfo.item.episodeNumber}');
     }
 
-    return '第 ${playInfo.item.seasonNumber} 季 第 ${playInfo.item.episodeNumber} 集';
+    return l10n.tvDetailSeasonEpisodeNumbers(
+      '${playInfo.item.seasonNumber}',
+      '${playInfo.item.episodeNumber}',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final item = widget.state.item;
-    if (item == null) return const Center(child: Text('未找到剧集信息'));
+    if (item == null) {
+      return Center(child: Text(AppLocalizations.of(context).tvDetailNotFound));
+    }
 
     ref.listen<AsyncValue<String>?>(
       smartAnalysisControllerProvider.select(
@@ -294,6 +345,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         ),
       ),
       (previous, next) => _showAnalysisToast(
+        AppLocalizations.of(context),
         SmartAnalysisTargetType.tv,
         widget.guid,
         previous,
@@ -301,6 +353,11 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
       ),
     );
     for (final season in widget.state.seasonList) {
+      // Smart analysis of a season is also triggered from the season page
+      // (/tv/season/:guid), which owns its own toast listener. Both pages stay
+      // mounted under the shell route, so listening here as well would show
+      // every submission result twice.
+      if (ModalRoute.of(context)?.isCurrent == false) continue;
       ref.listen<AsyncValue<String>?>(
         smartAnalysisControllerProvider.select(
           (state) => state.submissionFor(
@@ -309,6 +366,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
           ),
         ),
         (previous, next) => _showAnalysisToast(
+          AppLocalizations.of(context),
           SmartAnalysisTargetType.season,
           season.guid,
           previous,
@@ -441,7 +499,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '剧季列表',
+                        AppLocalizations.of(context).tvDetailSeasonListTitle,
                         style: FluentTheme.of(context)
                             .typography
                             .subtitle
@@ -455,6 +513,12 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                         showSmartAnalysis:
                             ref.watch(settingsProvider).flyNarwhalServerEnabled,
                         onAnalyze: _handleAnalyzeSeason,
+                        isSeasonSubmitting: (seasonGuid) => ref
+                            .read(smartAnalysisControllerProvider)
+                            .isSubmitting(
+                              SmartAnalysisTargetType.season,
+                              seasonGuid,
+                            ),
                         onWatchedToggle: (guid, isWatched) async {
                           return _handleToggleSeasonWatched(guid, isWatched);
                         },
@@ -477,6 +541,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 
   Widget _buildActionRow(BuildContext context, ItemResponse item) {
+    final l10n = AppLocalizations.of(context);
     final textColor = FluentTheme.of(context).typography.body?.color;
     final resolvedTextColor = textColor ?? Colors.white;
     final isFavorite = item.isFavorite == 1;
@@ -510,7 +575,9 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                   BlendMode.srcIn,
                 ),
               ),
-              tooltip: item.isFavorite == 1 ? '取消收藏' : '加入收藏',
+              tooltip: item.isFavorite == 1
+                  ? l10n.actionFavoriteRemove
+                  : l10n.actionFavoriteAdd,
               onPressed: _handleToggleFavorite,
             ),
             const SizedBox(width: 16),
@@ -528,7 +595,9 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                   BlendMode.srcIn,
                 ),
               ),
-              tooltip: item.isWatched == 1 ? '标记为未看' : '标记为已看',
+              tooltip: item.isWatched == 1
+                  ? l10n.actionMarkUnwatched
+                  : l10n.actionMarkWatched,
               onPressed: _handleToggleWatched,
             ),
             const SizedBox(width: 16),
@@ -537,7 +606,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
               child: CircleIconButton(
                 icon: FluentIcons.more,
                 iconColor: textColor,
-                tooltip: '更多操作',
+                tooltip: l10n.actionMore,
                 onPressed: () => _showMoreFlyout(item),
               ),
             ),
@@ -568,6 +637,7 @@ class _SeasonListGrid extends StatefulWidget {
   final bool showSmartAnalysis;
   final ValueChanged<SeasonListResponse> onAnalyze;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
+  final bool Function(String seasonGuid) isSeasonSubmitting;
 
   const _SeasonListGrid({
     required this.seasons,
@@ -576,6 +646,7 @@ class _SeasonListGrid extends StatefulWidget {
     required this.showSmartAnalysis,
     required this.onAnalyze,
     required this.onWatchedToggle,
+    required this.isSeasonSubmitting,
   });
 
   @override
@@ -585,6 +656,7 @@ class _SeasonListGrid extends StatefulWidget {
 class _SeasonListGridState extends State<_SeasonListGrid> {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return LayoutBuilder(builder: (context, constraints) {
       final availableWidth = constraints.maxWidth;
       final posterMinWidth = 128.0 * widget.scaleFactor;
@@ -615,9 +687,10 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
           //   then append the air_date year.
           final List<String> parts = [];
           if (season.localNumberOfEpisodes > 0) {
-            parts.add('共 ${season.localNumberOfEpisodes} 集');
+            parts.add(l10n.tvDetailEpisodeCount(
+                '${season.localNumberOfEpisodes}'));
           } else if (season.seasonNumber > 0) {
-            parts.add('第 ${season.seasonNumber} 季');
+            parts.add(l10n.tvDetailSeasonNumber('${season.seasonNumber}'));
           }
           if (season.airDate != null && season.airDate!.length >= 4) {
             parts.add(season.airDate!.substring(0, 4));
@@ -638,6 +711,7 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
               showSmartAnalysis: widget.showSmartAnalysis,
               onAnalyze: widget.onAnalyze,
               onWatchedToggle: widget.onWatchedToggle,
+              isSeasonSubmitting: widget.isSeasonSubmitting,
             ),
           );
         }).toList(),
@@ -659,6 +733,7 @@ class _SeasonPosterCard extends StatefulWidget {
   final bool showSmartAnalysis;
   final ValueChanged<SeasonListResponse> onAnalyze;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
+  final bool Function(String seasonGuid) isSeasonSubmitting;
 
   const _SeasonPosterCard({
     required this.season,
@@ -670,6 +745,7 @@ class _SeasonPosterCard extends StatefulWidget {
     required this.showSmartAnalysis,
     required this.onAnalyze,
     required this.onWatchedToggle,
+    required this.isSeasonSubmitting,
   });
 
   @override
@@ -697,11 +773,13 @@ class _SeasonPosterCardState extends State<_SeasonPosterCard> {
         items: [
           MenuFlyoutItem(
             key: ValueKey('season-smart-analysis-${season.guid}'),
-            text: const Text('智能分析片头/片尾'),
-            onPressed: () {
-              Flyout.of(context).close();
-              widget.onAnalyze(season);
-            },
+            text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
+            onPressed: widget.isSeasonSubmitting(season.guid)
+                ? null
+                : () {
+                    Flyout.of(context).close();
+                    widget.onAnalyze(season);
+                  },
           ),
         ],
       ),

@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fly_narwhal/data/models/movie_detail_models.dart';
+import 'package:fly_narwhal/l10n/generated/app_localizations.dart';
 import 'package:fly_narwhal/ui/shared/dialogs/file_media_info_dialog.dart';
 
 VideoStream _video() => VideoStream.fromJson({
@@ -96,6 +97,12 @@ void main() {
 
     await tester.pumpWidget(
       FluentApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...FluentLocalizations.localizationsDelegates,
+        ],
+        supportedLocales: const [Locale('zh'), Locale('en')],
+        locale: const Locale('zh'),
         home: Builder(
           builder: (context) => ScaffoldPage(
             content: Center(
@@ -157,6 +164,12 @@ void main() {
 
     await tester.pumpWidget(
       FluentApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...FluentLocalizations.localizationsDelegates,
+        ],
+        supportedLocales: const [Locale('zh'), Locale('en')],
+        locale: const Locale('zh'),
         home: Builder(
           builder: (context) => ScaffoldPage(
             content: Center(

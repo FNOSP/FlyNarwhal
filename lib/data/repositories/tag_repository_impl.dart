@@ -6,19 +6,22 @@ import '../mappers/tag_mapper.dart';
 
 /// Implementation of ITagRepository
 class TagRepositoryImpl implements ITagRepository {
-  static const String _defaultLanguage = 'zh-CN';
   final TagRemoteDataSource _remoteDataSource;
 
-  TagRepositoryImpl(this._remoteDataSource);
+  /// 当前 tag 接口语言（`lan` 参数）。由 provider 随界面语言变化重建而更新；
+  /// 显式传入 `language` 的调用优先。
+  final String _language;
+
+  TagRepositoryImpl(this._remoteDataSource, {required String language})
+      : _language = language;
 
   @override
   Future<ApiResult<List<GenreEntity>>> getGenres({
     String? language,
     bool force = false,
   }) async {
-    // Keep the KMP default language behavior when callers omit lan.
     final result = await _remoteDataSource.getGenres(
-      language: language ?? _defaultLanguage,
+      language: language ?? _language,
       force: force,
     );
     return result.map((data) => TagMapper.toGenreEntityList(data));
@@ -30,13 +33,11 @@ class TagRepositoryImpl implements ITagRepository {
     String? language,
     bool force = false,
   }) async {
-    // Keep the KMP default language behavior when callers omit lan.
-    final result = await _remoteDataSource.getTag(
+    return _remoteDataSource.getTag(
       tag,
-      language: language ?? _defaultLanguage,
+      language: language ?? _language,
       force: force,
     );
-    return result;
   }
 
   @override

@@ -11,6 +11,7 @@ import '../../../core/utils/log/app_talker.dart';
 import '../../../core/window/desktop_display_service.dart';
 import '../../../core/window/main_window_persistence_guard.dart';
 import '../../../core/window/window_geometry.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
@@ -47,6 +48,8 @@ class LivePlayerScreen extends ConsumerStatefulWidget {
 
 class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     with WindowListener {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   static const Duration _sessionRequestTimeout = Duration(seconds: 15);
   static const double _trailingControlSpacing = 12;
   static const Duration _pipIdleHideDuration = Duration(seconds: 3);
@@ -89,6 +92,15 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   // must not leak resizes into the app window state used by other routes.
   Rect? _prePlayerWindowBounds;
   bool _prePlayerWasMaximized = false;
+  bool _prePlayerWasFullScreen = false;
+  // The app window was fullscreen when this player opened. Kept for the whole
+  // lifetime of the route: the leave-time restore clears the snapshot above,
+  // but dispose() still needs to know the window must stay fullscreen.
+  bool _appWasFullscreenOnEnter = false;
+  // True while the player runs inside a fullscreen Space that belongs to the
+  // app: fullscreen is the user's window form here, not the player's, so it
+  // must not be remembered as the player form or toggled on leave.
+  bool _playerUsesAppFullscreen = false;
   bool _windowPersistenceSuspended = false;
   bool _windowSessionCaptured = false;
   // True while this screen is programmatically restoring window geometry
@@ -136,7 +148,11 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     if (_isDesktop) {
       windowManager.removeListener(this);
       unawaited(_windowAspectRatioController.release());
-      unawaited(_fullscreenController.exitForRouteLeave());
+      unawaited(
+        _fullscreenController.exitForRouteLeave(
+          keepFullscreen: _appWasFullscreenOnEnter,
+        ),
+      );
       // Ensure the window is restored to its normal form when leaving while in
       // PiP mode so the next route is not stuck in a tiny borderless window,
       // then hand the window back to the app routes at its pre-player size.
@@ -171,7 +187,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       if (!mounted || error.isEmpty) return;
       AppTalker.warning('LivePlayer', 'player error: $error');
       if (_isInitialized) {
-        setState(() => _errorMessage = '播放出错,请尝试切换线路');
+        setState(() => _errorMessage = _l10n.playerPlayErrorRetrySwitch);
       }
     });
     // Tracks live decode-size changes so the AUTO window ratio keeps the
@@ -215,7 +231,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       if (channels.isEmpty) {
         setState(() {
           _isLoading = false;
-          _errorMessage = '该频道没有可用的播放线路';
+          _errorMessage = _l10n.playerNoPlayableLine;
         });
         return;
       }
@@ -233,7 +249,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       if (!mounted || token != _loadToken) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = '加载失败,请返回重试';
+        _errorMessage = _l10n.playerLoadFailedBackRetry;
       });
     }
   }
@@ -296,7 +312,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       if (!mounted || token != _loadToken) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = '播放失败,请尝试切换线路';
+        _errorMessage = _l10n.playerPlayFailedSwitchLine;
       });
     }
   }
@@ -433,7 +449,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
         // PiP exit cleared the ratio lock; restore the player's setting.
         unawaited(_applyWindowAspectRatio());
         ref.read(toastManagerProvider.notifier).showToast(
-              '进入画中画失败: $e',
+              _l10n.playerEnterPipFailed('$e'),
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
             );
@@ -648,10 +664,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
                             unawaited(_openChannel(_selectedChannelIndex));
                           }
                         },
-                        child: const Align(
+                        child: Align(
                           alignment: Alignment.center,
                           widthFactor: 1.0,
-                          child: Text('重试'),
+                          child: Text(_l10n.loadFailedRetry),
                         ),
                       ),
                     ],
@@ -795,10 +811,14 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
                       color: const Color(0xFF3B82F6),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Text(
-                      '直播中',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    child: Text(
+                      _l10n.playerLive,
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  const PlayerWindowCaptionControls(
+                    keyPrefix: 'live-window',
                   ),
                 ],
               ),
@@ -814,7 +834,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       key: const ValueKey('live-back-button'),
       iconData: FluentIcons.back,
       onPressed: () => unawaited(_handleBack()),
-      tooltip: '返回',
+      tooltip: _l10n.playerBack,
       size: _isMacOS ? 30 : 34,
       iconSize: _isMacOS ? 15 : 18,
       borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
@@ -831,7 +851,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
           svgAssetPath:
               _isPlaying ? 'assets/images/pause.svg' : 'assets/images/play.svg',
           onPressed: _togglePlayPause,
-          tooltip: _isPlaying ? '暂停' : '播放',
+          tooltip: _isPlaying ? _l10n.playerPause : _l10n.playerPlay,
           size: 34,
           iconSize: 24,
         ),
@@ -866,7 +886,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
             key: const ValueKey('live-enter-pip'),
             lottieAssetPath: 'assets/lottie/to_pip.json',
             onPressed: () => unawaited(_enterPipMode()),
-            tooltip: '画中画',
+            tooltip: _l10n.playerPip,
             size: 30,
             iconSize: 22,
           ),
@@ -953,7 +973,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
                     child: PlayerActionButton.icon(
                       key: const ValueKey('live-pip-close'),
                       iconData: FluentIcons.chrome_close,
-                      tooltip: '关闭',
+                      tooltip: _l10n.playerClose,
                       onPressed: () => unawaited(_handleBack()),
                       size: 28,
                       iconSize: 14,
@@ -967,7 +987,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
                         svgAssetPath: _isPlaying
                             ? 'assets/images/pause.svg'
                             : 'assets/images/play.svg',
-                        tooltip: '播放/暂停',
+                        tooltip: _l10n.playerPlayPause,
                         onPressed: _togglePlayPause,
                         size: 52,
                         iconSize: 34,
@@ -990,7 +1010,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
                     child: PlayerActionButton.lottie(
                       key: const ValueKey('live-pip-exit'),
                       lottieAssetPath: 'assets/lottie/quit_pip.json',
-                      tooltip: '退出画中画',
+                      tooltip: _l10n.playerExitPip,
                       onPressed: () => unawaited(_exitPipMode()),
                       size: 30,
                       iconSize: 22,
@@ -1076,7 +1096,11 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       // The player route owns the window ratio lock; release it so other
       // routes can resize the window freely again.
       await _windowAspectRatioController.release();
-      final isFullscreen = await _fullscreenController.exitForRouteLeave();
+      // A player running inside the app's fullscreen Space hands the window
+      // back still fullscreen; otherwise native fullscreen is left here.
+      final isFullscreen = await _fullscreenController.exitForRouteLeave(
+        keepFullscreen: _prePlayerWasFullScreen,
+      );
       await _restoreAppWindowSession();
       if (!mounted || _isFullscreen == isFullscreen) {
         return;
@@ -1100,11 +1124,18 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     // Claim the window session synchronously before any await so a disposed
     // predecessor can see the takeover and skip its own window restore.
     _windowSessionId = ++_windowSessionGeneration;
+    _playerUsesAppFullscreen = false;
     Rect? bounds;
     var wasMaximized = false;
+    var wasFullScreen = false;
     try {
       bounds = await windowManager.getBounds();
       wasMaximized = await windowManager.isMaximized();
+      // Entering the player from a fullscreen app window: leaving it must
+      // leave that fullscreen Space untouched instead of exiting and
+      // re-entering it (which strands the app's frozen frame in a second
+      // window on another Space).
+      wasFullScreen = await windowManager.isFullScreen();
     } catch (error, stackTrace) {
       AppTalker.error(
         'LivePlayer',
@@ -1118,6 +1149,8 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     }
     _prePlayerWindowBounds = bounds;
     _prePlayerWasMaximized = wasMaximized;
+    _prePlayerWasFullScreen = wasFullScreen;
+    _appWasFullscreenOnEnter = wasFullScreen;
     _windowSessionCaptured = true;
     AppTalker.info(
       'WindowSession',
@@ -1135,8 +1168,14 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     _isRestoringWindowSession = true;
     try {
       if (await windowManager.isFullScreen()) {
+        // The window is in the app's fullscreen Space (the video was opened
+        // from a fullscreen app window). Keep it there: leaving fullscreen
+        // here would move it to another Space and back, which strands the
+        // previous route's frozen frame behind a second window.
+        _playerUsesAppFullscreen = _prePlayerWasFullScreen;
         return;
       }
+      _playerUsesAppFullscreen = false;
       // The player remembers fullscreen as its own window form, like the
       // maximized one: leaving the player while fullscreen exits native
       // fullscreen (the next route cannot be fullscreen), so the remembered
@@ -1278,18 +1317,29 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
 
     final appBounds = _prePlayerWindowBounds;
     final wasMaximized = _prePlayerWasMaximized;
+    final wasFullScreen = _prePlayerWasFullScreen;
     _prePlayerWindowBounds = null;
+    _prePlayerWasFullScreen = false;
 
     try {
-      await _fullscreenController.exitForRouteLeave();
+      // When the app window was fullscreen before the player opened, the
+      // player shares that Space: leaving it must keep fullscreen instead of
+      // animating the window out of the Space and back in.
+      await _fullscreenController.exitForRouteLeave(
+        keepFullscreen: wasFullScreen,
+      );
       // Native fullscreen exits animate; wait for the window to settle
       // before restoring the captured bounds.
-      for (var attempt = 0;
-          attempt < 15 && await windowManager.isFullScreen();
-          attempt++) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+      if (!wasFullScreen) {
+        for (var attempt = 0;
+            attempt < 15 && await windowManager.isFullScreen();
+            attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
       }
-      if (appBounds != null && !await windowManager.isFullScreen()) {
+      if (!wasFullScreen &&
+          appBounds != null &&
+          !await windowManager.isFullScreen()) {
         if (await windowManager.isMaximized()) {
           await windowManager.unmaximize();
           await Future<void>.delayed(const Duration(milliseconds: 16));
@@ -1393,7 +1443,11 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   /// should be remembered as the player's window form. Restore-driven events
   /// and PiP transitions are our own, not the user's.
   bool get _persistsWindowForm =>
-      _isDesktop && !_isPipMode && !_pipController.isPipMode && !_isRestoringWindowSession;
+      _isDesktop &&
+      !_isPipMode &&
+      !_pipController.isPipMode &&
+      !_isRestoringWindowSession &&
+      !_playerUsesAppFullscreen;
 
   @override
   void onWindowMoved() {

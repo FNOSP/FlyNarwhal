@@ -12,6 +12,7 @@ import 'widgets/recently_watched.dart';
 import 'widgets/continue_watching_more_menu.dart';
 import '../../../data/models/home_models.dart';
 import '../../../domain/entities/media_type.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../shared/toast.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/common/app_load_error_view.dart';
@@ -31,14 +32,15 @@ class HomeMediaLibRetryPlaceholder extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32.0),
       child: Center(
         child: Button(
           onPressed: () => ref.invalidate(mediaDbListNotifierProvider),
-          child: const Align(
+          child: Align(
             widthFactor: 1.0,
-            child: Text('加载失败，点击重试'),
+            child: Text(l10n.homeRetryLoad),
           ),
         ),
       ),
@@ -76,6 +78,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final mediaDbListAsync = ref.watch(mediaDbListNotifierProvider);
     final playListAsync = ref.watch(playListNotifierProvider);
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
@@ -124,7 +127,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
 
     return ScaffoldPage(
-      header: const PageHeader(title: Text('首页')),
+      header: PageHeader(title: Text(l10n.homeTitle)),
       content: Stack(
         children: [
           Scrollbar(
@@ -155,7 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               (item) => !_itemsToBeRemoved.contains(item.guid))
                           .toList();
                       return RecentlyWatched(
-                        title: "继续观看",
+                        title: l10n.homeContinueWatching,
                         items: filteredData,
                         onFavoriteToggle: _handleFavoriteToggle,
                         onWatchedToggle: _handleWatchedToggle,
@@ -344,6 +347,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _removeFromContinueWatching(PlayDetailResponse item) async {
+    final l10n = AppLocalizations.of(context);
     final guid = item.guid.trim();
     if (guid.isEmpty) return;
     final dataSource = ref.read(mediaRemoteDataSourceProvider);
@@ -351,7 +355,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final result = await dataSource.deletePlayRecord(guid);
       final ok = result.isSuccess && result.dataOrNull == true;
       ref.read(toastManagerProvider.notifier).showToast(
-            ok ? '已从“继续观看”中移除' : '移除失败',
+            ok ? l10n.homeContinueRemoved : l10n.homeContinueRemoveFailed,
             type: ok ? ToastType.success : ToastType.failed,
             category: 'continue-remove:$guid',
           );
@@ -361,7 +365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     } catch (e) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '移除失败：$e',
+            l10n.homeContinueRemoveError('$e'),
             type: ToastType.failed,
             category: 'continue-remove:$guid',
           );
@@ -369,6 +373,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _confirmDeleteVideo(PlayDetailResponse item) async {
+    final l10n = AppLocalizations.of(context);
     final guid = item.guid.trim();
     if (guid.isEmpty) return;
     final title = buildPlayDetailTitle(item);
@@ -376,16 +381,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // also delete the underlying file from disk.
     final deleteFile = await showAppDialog<bool>(
       context: context,
-      title: '删除 《$title》',
-      content: const Text(
-        '从媒体库移除后，所选视频文件将不再被扫描添加到当前媒体库中。请确认是否同时删除关联的视频文件。',
-      ),
-      tertiaryButtonText: '取消',
+      title: l10n.homeDeleteDialogTitle(title),
+      content: Text(l10n.homeDeleteDialogBody),
+      tertiaryButtonText: l10n.commonCancel,
       tertiaryResult: null,
-      secondaryButtonText: '移除并删除文件',
+      secondaryButtonText: l10n.homeDeleteRemoveAndDeleteFile,
       secondaryButtonType: AppDialogButtonType.danger,
       secondaryResult: true,
-      primaryButtonText: '仅移除',
+      primaryButtonText: l10n.homeDeleteRemoveOnly,
       primaryResult: false,
     );
     if (deleteFile == null || !mounted) return;
@@ -395,7 +398,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final result = await dataSource.deleteItem(guid, deleteFile: deleteFile);
       final ok = result.isSuccess && result.dataOrNull == true;
       ref.read(toastManagerProvider.notifier).showToast(
-            ok ? '已删除' : '删除失败',
+            ok ? l10n.homeDeleted : l10n.homeDeleteFailed,
             type: ok ? ToastType.success : ToastType.failed,
             category: 'continue-delete:$guid',
           );
@@ -405,7 +408,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     } catch (e) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '删除失败：$e',
+            l10n.homeDeleteFailedWithError('$e'),
             type: ToastType.failed,
             category: 'continue-delete:$guid',
           );

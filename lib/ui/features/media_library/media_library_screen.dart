@@ -9,6 +9,7 @@ import '../../../domain/entities/media_type.dart';
 import '../../../domain/entities/tag_entity.dart';
 import '../../../domain/entities/live_library_settings.dart';
 import '../../../data/models/home_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/user_data_models.dart';
 import '../../../providers/global_refresh.dart';
@@ -58,6 +59,17 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   @override
   void initState() {
     super.initState();
+    // Tag labels are language-dependent; reload them on a language switch.
+    ref.listenManual(
+      settingsProvider.select((s) => s.language),
+      (previous, next) {
+        if (previous != next) {
+          _loadStaticTags(
+            type: widget.categoryType == 'live' ? 'LiveChannel' : null,
+          );
+        }
+      },
+    );
     _loadStaticTags(
       type: widget.categoryType == 'live' ? 'LiveChannel' : null,
     );
@@ -98,20 +110,20 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   // 文件夹视图（Web /v/folder/:guid）：guid 以 fv_ 前缀标识目录项。
   bool get _isFolder => widget.id?.startsWith('fv_') ?? false;
 
-  String _resolveTitle() {
+  String _resolveTitle(AppLocalizations l10n) {
     switch (widget.categoryType) {
       case 'total':
-        return '全部';
+        return l10n.searchTabAll;
       case 'tv':
-        return '电视节目';
+        return l10n.mediaTypeTv;
       case 'movie':
-        return '电影';
+        return l10n.mediaTypeMovie;
       case 'video':
-        return '其他';
+        return l10n.mediaTypeOther;
       case 'live':
-        return '电视直播';
+        return l10n.mediaTypeLive;
       default:
-        return '媒体库';
+        return l10n.homeMediaLibrary;
     }
   }
 
@@ -173,36 +185,36 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     String? watched;
     filters.forEach((title, item) {
       switch (title) {
-        case '影视类型':
+        case FilterRowKey.mediaType:
           if (item.value != null) {
             types
               ..clear()
               ..add(item.value.toString());
           }
           break;
-        case '类型':
+        case FilterRowKey.genre:
           genres = item.value as int?;
           break;
-        case '分辨率':
+        case FilterRowKey.resolution:
           resolution = item.value as String?;
           break;
-        case '视频动态范围':
+        case FilterRowKey.colorRange:
           colorRange = item.value as String?;
           break;
-        case '音频规格':
+        case FilterRowKey.audioType:
           audioType = item.value as String?;
           break;
-        case '国家和地区':
+        case FilterRowKey.location:
           locate = item.value as String?;
           break;
-        case '发行年份':
+        case FilterRowKey.decade:
           decade = item.value as String?;
           break;
-        case '匹配状态':
+        case FilterRowKey.recognitionStatus:
           final v = item.value as int?;
           recognitionStatus = v?.toString();
           break;
-        case '是否已观看':
+        case FilterRowKey.watched:
           watched = item.value as String?;
           break;
       }
@@ -385,13 +397,15 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   void _onClearFilter(String title) {
     if (_selectedFilters.containsKey(title)) {
       setState(() {
-        _selectedFilters[title] = const FilterItem('全部', null);
+        // Placeholder whose label is replaced by FilterBox on rebuild;
+        // only the null value matters here.
+        _selectedFilters[title] = const FilterItem('', null);
       });
     } else {
       setState(() {
         _selectedFilters = {
           for (final e in _selectedFilters.entries)
-            e.key: const FilterItem('全部', null),
+            e.key: const FilterItem('', null),
         };
       });
     }
@@ -721,7 +735,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         items: [
           MenuFlyoutItem(
             key: ValueKey('smart-analysis-${item.guid}'),
-            text: const Text('智能分析片头/片尾'),
+            text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
             onPressed: isSubmitting
                 ? null
                 : () {
@@ -741,6 +755,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !settings.hasFlyNarwhalAuthCode,
             ),
@@ -766,26 +781,44 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
 
   // Show toast for smart analysis submission result
   void _showAnalysisToast(
+    AppLocalizations l10n,
     SmartAnalysisTargetType targetType,
     String targetGuid,
     AsyncValue<String>? previous,
     AsyncValue<String>? next,
   ) {
-    if (next == null || next.isLoading || identical(previous, next)) return;
+    if (next == null || identical(previous, next)) return;
+    final baseCategory = 'smart-analysis:${targetType.name}:$targetGuid';
+    if (next.isLoading) {
+      // Immediate feedback while the slow collection/submit runs (KMP parity).
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.smartAnalysisQueuedLoading,
+            type: ToastType.success,
+            category: baseCategory,
+          );
+      return;
+    }
     next.when(
       data: (message) {
         ref.read(toastManagerProvider.notifier).showToast(
               message,
               type: ToastType.success,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
       loading: () {},
       error: (error, stackTrace) {
+        final isSubmissionFailure =
+            error is SmartAnalysisSubmissionException &&
+                error.preparingStarted;
         ref.read(toastManagerProvider.notifier).showToast(
-              error.toString(),
+              isSubmissionFailure
+                  ? l10n.smartSkipAnalysisFailedRetry
+                  : error is SmartAnalysisUserMessageException
+                      ? error.message
+                      : error.toString(),
               type: ToastType.failed,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
     );
@@ -884,6 +917,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       return const Center(child: Text("Invalid Library ID"));
     }
 
+    final l10n = AppLocalizations.of(context);
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
 
     // Consume each global refresh event once for the current media-library page.
@@ -935,7 +969,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
           (state) => state.submissionFor(targetType, item.guid),
         ),
         (previous, next) =>
-            _showAnalysisToast(targetType, item.guid, previous, next),
+            _showAnalysisToast(l10n, targetType, item.guid, previous, next),
       );
     }
     final mediaDbTitle = _resolveMediaDbTitle(mediaDbList);
@@ -945,9 +979,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         : null;
     final title = widget.id != null
         ? (_isFolder
-            ? (folderTitle ?? libraryData?.mdbName ?? '文件夹')
-            : (libraryData?.mdbName ?? mediaDbTitle ?? '媒体库'))
-        : _resolveTitle();
+            ? (folderTitle ?? libraryData?.mdbName ?? l10n.folderFallbackName)
+            : (libraryData?.mdbName ?? mediaDbTitle ?? l10n.homeMediaLibrary))
+        : _resolveTitle(l10n);
 
     return ScaffoldPage(
       header: _isFolder ? null : PageHeader(title: Text(title)),
@@ -1037,7 +1071,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                       if (_isFolder) ...[
                         const Spacer(),
                         Text(
-                          '共 ${libraryData?.total ?? 0} 项',
+                          l10n.folderItemCount('${libraryData?.total ?? 0}'),
                           style: FluentTheme.of(context)
                               .typography
                               .body
@@ -1097,7 +1131,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                               child: Padding(
                                 padding: const EdgeInsets.all(32.0),
                                 child: Text(
-                                  '加载失败：${mediaLibraryState.error}',
+                                  '${l10n.loadFailedTitle}：${mediaLibraryState.error}',
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -1133,11 +1167,13 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                                 MediaType.directory;
                                         return LayoutBuilder(
                                             builder: (context, constraints) {
+                                          final l10n =
+                                              AppLocalizations.of(context);
                                           return MoviePoster(
                                           title: item.title,
                                           // 文件夹卡片仅显示标题（与 Web 一致）。
                                           subtitle:
-                                              isDirectory ? null : buildPosterSubtitle(item),
+                                              isDirectory ? null : buildPosterSubtitle(item, l10n),
                                           posterPath: item.effectivePoster,
                                           score: item.voteAverage,
                                           resolutions:

@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/ssl/ssl_trust_manager.dart';
+import '../../l10n/generated/app_localizations.dart';
 import 'dialogs/app_dialog.dart';
 
 /// Shows the certificate-trust prompt whenever a request fails verification.
@@ -72,10 +73,11 @@ class _SslTrustDialogHostState extends ConsumerState<SslTrustDialogHost> {
 
     _showing = true;
     try {
+      final l10n = AppLocalizations.of(context);
       final decision = await navigator.push<SslTrustDecision>(
         FluentDialogRoute<SslTrustDecision>(
           builder: (dialogContext) => AppDialog<SslTrustDecision>(
-            title: '证书校验失败',
+            title: l10n.sslPromptTitle,
             type: AppDialogType.danger,
             // Three actions, one of them a long label, need more room than the
             // default 460px before the action row overflows.
@@ -90,20 +92,22 @@ class _SslTrustDialogHostState extends ConsumerState<SslTrustDialogHost> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '「${prompt.host}」的证书校验不通过，可能是证书过期、域名不匹配或自签名证书。'
-                  '继续访问将绕过安全保护，是否继续访问？',
+                  '${l10n.sslPromptBody(prompt.host)}'
+                  '${l10n.sslPromptQuestion}',
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  '证书指纹 SHA-256：${shortFingerprint(prompt.fingerprintSha256)}',
+                  l10n.sslPromptFingerprint(
+                    shortFingerprint(prompt.fingerprintSha256),
+                  ),
                   key: const ValueKey('ssl-trust-dialog-fingerprint'),
                   style: const TextStyle(fontSize: 12),
                 ),
               ],
             ),
-            tertiaryButtonText: '信任此证书',
-            primaryButtonText: '仅本次信任',
-            secondaryButtonText: '取消访问',
+            tertiaryButtonText: l10n.sslPromptTrustPersistent,
+            primaryButtonText: l10n.sslPromptTrustOnce,
+            secondaryButtonText: l10n.sslPromptCancel,
             tertiaryResult: SslTrustDecision.allowPersist,
             primaryResult: SslTrustDecision.allowTemporary,
             secondaryResult: SslTrustDecision.reject,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -236,6 +237,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
       return const SizedBox.shrink();
     }
 
+    final l10n = AppLocalizations.of(context);
     final theme = FluentTheme.of(context);
     final prefs = ref.watch(preferencesManagerProvider);
     final baseUrl = prefs.getBaseUrl();
@@ -248,7 +250,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
     final progress =
         duration > 0 ? (watchedTs / duration).clamp(0.0, 1.0) : 0.0;
     final displayTitle = buildPlayDetailTitle(widget.item);
-    final displaySubtitle = buildPlayDetailSubtitle(widget.item);
+    final displaySubtitle = buildPlayDetailSubtitle(widget.item, l10n);
     final scaleFactor = resolveWindowScaleFactor(context);
     final isLiveChannel = widget.item.type == MediaType.liveChannel.value;
     final posterFit = isLiveChannel ? BoxFit.contain : BoxFit.cover;

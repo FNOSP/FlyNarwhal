@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 
 const Color subtitleFlyoutBackgroundColor = Color(0xCC000000);
 const Color subtitleFlyoutBorderColor = Color(0x80808080);
@@ -14,6 +15,11 @@ const Color subtitleHoverBackgroundColor = Color(0x1AFFFFFF);
 
 const double subtitleFlyoutWidth = 320;
 const double subtitleFlyoutPanelHeight = 390;
+// The track list reserves this much on the right and the scrollbar thumb is
+// nudged into that gutter (a negative cross-axis margin shifts it right), so
+// the thumb never paints over the subtitle rows. The gutter also covers the
+// thumb's hover-expanded width.
+const double subtitleFlyoutScrollbarOffset = 8;
 
 /// 最后一次滚动后隐藏滚动条的延迟。
 /// 对齐 web 端（ms-* 自定义滚动条）实测：滚动时加 `ms-track-show`，
@@ -22,10 +28,11 @@ const Duration _scrollbarAutoHideDelay = Duration(milliseconds: 1000);
 
 /// 直连转码播放缺失内置字幕的底部说明与气泡文案（对齐 web 端
 /// `player.subtitleSettings.directLinkTips`）。
-const String directLinkSubtitleHintTitle = '直连播放缺失内置字幕';
-const String directLinkSubtitleHintContent =
-    '由于网盘方的限制，直连转码播放时可能无法获取内置字幕列表。'
-    '如需切换内置字幕，请切换播放方式为“NAS 代理播放”。';
+String directLinkSubtitleHintTitle(AppLocalizations l10n) =>
+    l10n.playerSubtitleDirectLinkMissingTitle;
+
+String directLinkSubtitleHintContent(AppLocalizations l10n) =>
+    l10n.playerSubtitleDirectLinkMissingContent;
 
 /// 字幕选择面板：字幕列表 + 头部操作（调整/添加）。
 ///
@@ -165,6 +172,7 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final hasAddActions = widget.onOpenSubtitleSearch != null ||
         widget.onOpenAddNasSubtitle != null ||
         widget.onOpenAddLocalSubtitle != null;
@@ -179,19 +187,19 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
             children: [
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '字幕',
-                      style: TextStyle(
+                      l10n.playerSubtitlePanelTitle,
+                      style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                   if (widget.onAdjustmentClicked != null) ...[
                     SubtitleHeaderPillButton(
-                      label: '调整',
+                      label: l10n.playerSubtitleAdjustButton,
                       enabled: widget.canAdjustSubtitle,
                       onPressed: widget.onAdjustmentClicked!,
                     ),
@@ -199,7 +207,7 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
                   ],
                   if (hasAddActions)
                     SubtitleHeaderPillButton(
-                      label: '添加',
+                      label: l10n.playerSubtitleAddButton,
                       trailing: Icon(
                         _isAddMenuExpanded
                             ? FluentIcons.chevron_up_small
@@ -228,57 +236,74 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
                           _onScrollActivity();
                           return false;
                         },
-                        child: Scrollbar(
-                          controller: _scrollController,
-                          thumbVisibility:
-                              widget.autoHideScrollbar ? _scrollbarVisible : true,
-                          child: ListView.builder(
+                        child: ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context)
+                              .copyWith(scrollbars: false),
+                          child: Scrollbar(
                             controller: _scrollController,
-                            padding: EdgeInsets.zero,
-                            itemCount: widget.subtitles.length + 1,
-                            itemBuilder: (context, index) {
-                              final key = _itemKeys.putIfAbsent(
-                                index,
-                                () => GlobalKey(),
-                              );
-                              if (index == 0) {
+                            thumbVisibility: widget.autoHideScrollbar
+                                ? _scrollbarVisible
+                                : true,
+                            style: const ScrollbarThemeData(
+                              crossAxisMargin: -subtitleFlyoutScrollbarOffset,
+                              hoveringCrossAxisMargin:
+                                  -subtitleFlyoutScrollbarOffset,
+                            ),
+                            child: ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.only(
+                                right: subtitleFlyoutScrollbarOffset,
+                              ),
+                              itemCount: widget.subtitles.length + 1,
+                              itemBuilder: (context, index) {
+                                final key = _itemKeys.putIfAbsent(
+                                  index,
+                                  () => GlobalKey(),
+                                );
+                                if (index == 0) {
+                                  return KeyedSubtree(
+                                    key: key,
+                                    child: _SubtitleItem(
+                                      key: const ValueKey('subtitle-item-off'),
+                                      title: l10n.playerSubtitleOff,
+                                      subtitle: '',
+                                      isSelected: widget.selectedSubtitleGuid ==
+                                              null ||
+                                          widget.selectedSubtitleGuid!.isEmpty,
+                                      onTap: () =>
+                                          widget.onSubtitleSelected(null),
+                                    ),
+                                  );
+                                }
+
+                                final subtitle = widget.subtitles[index - 1];
+                                final showPredownload =
+                                    _hasPredownloadButton(subtitle);
                                 return KeyedSubtree(
                                   key: key,
                                   child: _SubtitleItem(
-                                    key: const ValueKey('subtitle-item-off'),
-                                    title: '关闭',
-                                    subtitle: '',
-                                    isSelected: widget.selectedSubtitleGuid == null ||
-                                        widget.selectedSubtitleGuid!.isEmpty,
-                                    onTap: () => widget.onSubtitleSelected(null),
+                                    key: ValueKey(
+                                        'subtitle-item-${subtitle.guid}'),
+                                    title: _buildTitle(l10n, subtitle),
+                                    subtitle: _buildSubtitle(subtitle),
+                                    isSelected: widget.selectedSubtitleGuid ==
+                                        subtitle.guid,
+                                    isExternal: subtitle.isExternal == 1,
+                                    showPredownloadSimilar: showPredownload,
+                                    onDelete: widget.onRequestDelete == null
+                                        ? null
+                                        : () => widget.onRequestDelete!
+                                            .call(subtitle),
+                                    onPredownloadSimilar: showPredownload
+                                        ? () => widget.onPredownloadSimilar!
+                                            .call(subtitle)
+                                        : null,
+                                    onTap: () => widget
+                                        .onSubtitleSelected(subtitle.guid),
                                   ),
                                 );
-                              }
-
-                              final subtitle = widget.subtitles[index - 1];
-                              final showPredownload = _hasPredownloadButton(subtitle);
-                              return KeyedSubtree(
-                                key: key,
-                                child: _SubtitleItem(
-                                  key: ValueKey('subtitle-item-${subtitle.guid}'),
-                                  title: _buildTitle(subtitle),
-                                  subtitle: _buildSubtitle(subtitle),
-                                  isSelected:
-                                      widget.selectedSubtitleGuid == subtitle.guid,
-                                  isExternal: subtitle.isExternal == 1,
-                                  showPredownloadSimilar: showPredownload,
-                                  onDelete: widget.onRequestDelete == null
-                                      ? null
-                                      : () => widget.onRequestDelete!.call(subtitle),
-                                  onPredownloadSimilar: showPredownload
-                                      ? () =>
-                                          widget.onPredownloadSimilar!.call(subtitle)
-                                      : null,
-                                  onTap: () =>
-                                      widget.onSubtitleSelected(subtitle.guid),
-                                ),
-                              );
-                            },
+                              },
+                            ),
                           ),
                         ),
                       ),
@@ -286,12 +311,13 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
               if (widget.showDirectLinkSubtitleHint) ...[
                 const Divider(size: 1),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: Row(
                     children: [
-                      const Text(
-                        directLinkSubtitleHintTitle,
-                        style: TextStyle(
+                      Text(
+                        directLinkSubtitleHintTitle(l10n),
+                        style: const TextStyle(
                           color: Color(0x99FFFFFF),
                           fontSize: 12,
                         ),
@@ -373,7 +399,7 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
     );
   }
 
-  String _buildTitle(SubtitleStream subtitle) {
+  String _buildTitle(AppLocalizations l10n, SubtitleStream subtitle) {
     final languageName = FnDataConvertor.getLanguageName(
       subtitle.language,
       widget.iso6391Map,
@@ -381,10 +407,10 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
     );
     final buffer = StringBuffer(languageName);
     if (subtitle.isExternal == 1) {
-      buffer.write(' - 外挂');
+      buffer.write(l10n.playerSubtitleExternalSuffix);
     }
     if (subtitle.isDefault == 1) {
-      buffer.write(' - 默认');
+      buffer.write(l10n.playerSubtitleDefaultSuffix);
     }
     return buffer.toString();
   }
@@ -480,24 +506,25 @@ class _SubtitleAddMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final menu = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (onSearch != null)
           _SubtitleAddMenuItem(
-            label: '搜索字幕',
+            label: l10n.playerSubtitleSearchMenu,
             iconAsset: 'assets/images/subtitle_search.svg',
             onTap: onSearch!,
           ),
         if (onAddNas != null)
           _SubtitleAddMenuItem(
-            label: '添加 NAS 字幕文件',
+            label: l10n.playerSubtitleAddNasFile,
             iconAsset: 'assets/images/subtitle_add_nas.svg',
             onTap: onAddNas!,
           ),
         if (onAddLocal != null)
           _SubtitleAddMenuItem(
-            label: '添加电脑字幕文件',
+            label: l10n.playerSubtitleAddLocalFile,
             iconAsset: 'assets/images/subtitle_add_local.svg',
             onTap: onAddLocal!,
           ),
@@ -599,6 +626,7 @@ class _DirectLinkHintBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     const bubbleColor = Color(0xFFE6E6E6);
     return IgnorePointer(
       child: Column(
@@ -612,9 +640,9 @@ class _DirectLinkHintBubble extends StatelessWidget {
               color: bubbleColor,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Text(
-              directLinkSubtitleHintContent,
-              style: TextStyle(
+            child: Text(
+              directLinkSubtitleHintContent(l10n),
+              style: const TextStyle(
                 color: Color(0xFF2B2B2B),
                 fontSize: 13,
                 height: 1.5,
@@ -650,6 +678,7 @@ class _SubtitleListEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -660,9 +689,9 @@ class _SubtitleListEmptyState extends StatelessWidget {
             height: 80,
           ),
           const SizedBox(height: 4),
-          const Text(
-            '无字幕',
-            style: TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
+          Text(
+            l10n.movieDetailSubtitleNone,
+            style: const TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
           ),
         ],
       ),
@@ -835,6 +864,7 @@ class _PredownloadSimilarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => onHoverChanged(true),
@@ -865,11 +895,11 @@ class _PredownloadSimilarButton extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              const Flexible(
+              Flexible(
                 child: Text(
-                  '为其他集下载相似字幕',
+                  l10n.playerSubtitleDownloadSimilarForEpisodes,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: subtitleDefaultTextColor,
                     fontSize: 12,
                   ),

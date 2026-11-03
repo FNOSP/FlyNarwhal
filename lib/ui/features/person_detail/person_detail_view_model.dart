@@ -85,6 +85,7 @@ class PersonDetailNotifier extends _$PersonDetailNotifier {
 
   Future<void> refresh() async {
     // Show an explicit loading state while refreshing person details.
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(guid);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => _load(guid));
   }
