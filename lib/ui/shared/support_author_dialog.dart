@@ -23,6 +23,14 @@ Future<void> showSupportAuthorDialog(BuildContext context) async {
   final container = ProviderScope.containerOf(context);
   await showAppDialog<void>(
     context: context,
+    // Wider than the default so the English copy and the three action
+    // buttons (Maybe later / Open the GitHub repository / I've donated) fit
+    // on one row without clipping.
+    constraints: const BoxConstraints(
+      minWidth: 560,
+      maxWidth: 640,
+      maxHeight: 720,
+    ),
     title: l10n.supportAuthorTitle,
     content: Column(
       mainAxisSize: MainAxisSize.min,

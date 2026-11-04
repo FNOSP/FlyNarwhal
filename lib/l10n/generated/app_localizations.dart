@@ -750,7 +750,7 @@ abstract class AppLocalizations {
   /// Donation invite shown above the appreciation QR code.
   ///
   /// In zh, this message translates to:
-  /// **'如果你觉得这个软件做的不错，也可以选择请开发者喝杯奶茶，您的支持就是我持续更新的动力'**
+  /// **'如果你觉得这个软件做的不错，也可以选择请开发者喝杯奶茶，您的支持就是我持续更新的动力。'**
   String get supportAuthorDonate;
 
   /// Button confirming the user already donated.

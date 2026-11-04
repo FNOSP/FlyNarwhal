@@ -446,7 +446,7 @@
   "@supportAuthorLater": {
     "description": "Button that dismisses the dialog."
   },
-  "supportAuthorDonate": "如果你覺得這個軟體做得不錯，也可以選擇請開發者喝杯奶茶，您的支持就是我持續更新的動力",
+  "supportAuthorDonate": "如果你覺得這個軟體做得不錯，也可以選擇請開發者喝杯奶茶，您的支持就是我持續更新的動力。",
   "@supportAuthorDonate": {
     "description": "Donation invite shown above the appreciation QR code."
   },
