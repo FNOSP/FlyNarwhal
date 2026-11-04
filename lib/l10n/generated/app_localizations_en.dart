@@ -374,6 +374,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get supportAuthorLater => 'Maybe later';
 
   @override
+  String get supportAuthorDonate =>
+      'If you think this software is well made, you can also buy the developer a cup of milk tea. Your support is what keeps me updating.';
+
+  @override
+  String get supportAuthorDonated => 'I\'ve Donated';
+
+  @override
+  String get donationThanks => 'Thank you, boss!';
+
+  @override
   String get fontScaleSmall => 'Small';
 
   @override

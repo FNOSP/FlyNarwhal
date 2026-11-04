@@ -30,6 +30,10 @@ class PreferencesManager {
   static const String _keySkipCommercial = 'skip_commercial';
   // 播放详细信息面板样式：true = 带动画的液态玻璃面板，false = 静态毛玻璃面板。
   static const String _keyPlayerDetailsLiquidGlass = 'player_details_liquid_glass';
+  // 「支持作者」弹框的自动触发状态位：累计观看满阈值后只自动弹一次。
+  static const String _keyDonationSupportPrompted = 'donation_support_prompted';
+  // 用户已确认赞赏，之后不再自动弹出「支持作者」弹框。
+  static const String _keyDonationSupportDonated = 'donation_support_donated';
 
   final SharedPreferences _prefs;
 
@@ -256,6 +260,20 @@ class PreferencesManager {
 
   Future<void> saveSkipCommercial(bool value, {String? userGuid}) =>
       _writeBoolScoped(_keySkipCommercial, userGuid, value);
+
+  // 「支持作者」弹框是否已自动弹出过（观看时长满阈值后的那次自动弹窗）。
+  bool isDonationSupportPrompted({String? userGuid}) =>
+      _readBoolScoped(_keyDonationSupportPrompted, userGuid, defaultValue: false);
+
+  Future<void> markDonationSupportPrompted({String? userGuid}) =>
+      _writeBoolScoped(_keyDonationSupportPrompted, userGuid, true);
+
+  // 用户是否已确认赞赏（点过「我已赞赏」），为真则永不再自动弹窗。
+  bool isDonationSupportDonated({String? userGuid}) =>
+      _readBoolScoped(_keyDonationSupportDonated, userGuid, defaultValue: false);
+
+  Future<void> markDonationSupportDonated({String? userGuid}) =>
+      _writeBoolScoped(_keyDonationSupportDonated, userGuid, true);
 
   // 作用域读取：未登录读全局键；登录态只读 <guid>::<key>，无命中返回默认值。
   // 不再做"懒迁移"复制：迁移由 UserSettingsMigrator 统一处理并删除全局值。

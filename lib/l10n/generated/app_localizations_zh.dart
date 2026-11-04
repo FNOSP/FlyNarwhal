@@ -352,6 +352,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get supportAuthorLater => '稍后再说';
 
   @override
+  String get supportAuthorDonate =>
+      '如果你觉得这个软件做的不错，也可以选择请开发者喝杯奶茶，您的支持就是我持续更新的动力';
+
+  @override
+  String get supportAuthorDonated => '我已赞赏';
+
+  @override
+  String get donationThanks => '谢谢老板';
+
+  @override
   String get fontScaleSmall => '小';
 
   @override
@@ -3172,6 +3182,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get supportAuthorLater => '稍後再說';
+
+  @override
+  String get supportAuthorDonate =>
+      '如果你覺得這個軟體做得不錯，也可以選擇請開發者喝杯奶茶，您的支持就是我持續更新的動力';
+
+  @override
+  String get supportAuthorDonated => '我已讚賞';
+
+  @override
+  String get donationThanks => '謝謝老闆';
 
   @override
   String get fontScaleSmall => '小';

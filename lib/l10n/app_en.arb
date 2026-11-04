@@ -446,6 +446,18 @@
   "@supportAuthorLater": {
     "description": "Button that dismisses the dialog."
   },
+  "supportAuthorDonate": "If you think this software is well made, you can also buy the developer a cup of milk tea. Your support is what keeps me updating.",
+  "@supportAuthorDonate": {
+    "description": "Donation invite shown above the appreciation QR code."
+  },
+  "supportAuthorDonated": "I've Donated",
+  "@supportAuthorDonated": {
+    "description": "Button confirming the user already donated."
+  },
+  "donationThanks": "Thank you, boss!",
+  "@donationThanks": {
+    "description": "Celebration sticker text shown after the user confirms a donation."
+  },
   "fontScaleSmall": "Small",
   "@fontScaleSmall": {
     "description": "Font size option: small."

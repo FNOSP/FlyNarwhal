@@ -18,6 +18,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
+import '../../../services/watch_time_tracker.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
 import '../../shared/window_caption.dart';
@@ -62,6 +63,9 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   bool _isLoading = true;
   bool _isInitialized = false;
   bool _isPlaying = false;
+  // Cached at init so dispose() can flush the watch session without touching
+  // `ref` — Riverpod forbids ref access once unmount has started.
+  late final WatchTimeTracker _watchTimeTracker;
   bool _isBuffering = false;
   bool _isFullscreen = false;
   bool _isPipMode = false;
@@ -126,6 +130,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   @override
   void initState() {
     super.initState();
+    _watchTimeTracker = ref.read(watchTimeTrackerProvider);
     if (_isDesktop) {
       windowManager.addListener(this);
       unawaited(_syncFullscreenState());
@@ -139,6 +144,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
 
   @override
   void dispose() {
+    _watchTimeTracker.stopSession();
     _playRecordTimer?.cancel();
     _pipIdleTimer?.cancel();
     _pipBoundsSaveTimer?.cancel();
@@ -170,6 +176,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     final player = _player!;
 
     _playingSubscription = player.stream.playing.listen((isPlaying) {
+      _watchTimeTracker.onPlaybackChanged(
+        isPlaying,
+        userGuid: ref.read(currentUserGuidProvider),
+      );
       if (!mounted) return;
       setState(() => _isPlaying = isPlaying);
       // Keep the overlay pinned while paused, resume idle hiding on play.

@@ -48,6 +48,7 @@ import 'ui/settings/app_language.dart';
 import 'ui/settings/ui_font_scale.dart';
 import 'ui/shared/ssl_trust_dialog_host.dart';
 import 'ui/shared/toast.dart';
+import 'ui/shared/celebration_overlay.dart';
 
 /// Windows clipboard-history (Win+V) paste workaround.
 ///
@@ -498,6 +499,7 @@ class MyApp extends ConsumerWidget {
                 if (child != null) child,
                 const ToastHost(),
                 const SslTrustDialogHost(),
+                const CelebrationOverlayHost(),
               ],
             ),
           ),

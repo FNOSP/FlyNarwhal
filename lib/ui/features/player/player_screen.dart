@@ -41,6 +41,7 @@ import '../../../providers/providers.dart';
 import '../../../providers/quark_cdn_range_providers.dart';
 import '../../../providers/smart_skip_settings_controller.dart';
 import '../../../providers/skip_switches_controller.dart';
+import '../../../services/watch_time_tracker.dart';
 import 'controllers/intro_skip_controller.dart';
 import 'controllers/intro_skip_state.dart';
 import 'controllers/player_seek_executor.dart';
@@ -157,6 +158,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isInitialized = false;
   bool _isLoading = true;
   bool _isPlaying = false;
+  // Cached at init so dispose() can flush the watch session without touching
+  // `ref` — Riverpod forbids ref access once unmount has started.
+  late final WatchTimeTracker _watchTimeTracker;
   bool _isFullscreen = false;
   int _currentPosition = 0;
   // The last position this app explicitly seeked to. mpv reports time-pos
@@ -361,6 +365,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    _watchTimeTracker = ref.read(watchTimeTrackerProvider);
     // Start with an empty list until device-level hwdec support is resolved.
     _availableHwdec = const [];
     // Subtitle language labels are language-dependent; reload them on a switch.
@@ -1100,9 +1105,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null) return;
 
     _isPlaying = player.state.playing;
+    _watchTimeTracker.onPlaybackChanged(
+      _isPlaying,
+      userGuid: ref.read(currentUserGuidProvider),
+    );
     _introSkipController.dispatch(PlayingChanged(_isPlaying));
     _playingSubscription = player.stream.playing.listen((isPlaying) {
       _handlePlaybackStateChanged(isPlaying);
+      _watchTimeTracker.onPlaybackChanged(
+        isPlaying,
+        userGuid: ref.read(currentUserGuidProvider),
+      );
       _introSkipController.dispatch(PlayingChanged(isPlaying));
     });
   }
@@ -5923,6 +5936,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void dispose() {
+    _watchTimeTracker.stopSession();
     unawaited(_closePlaybackSource());
     if (_isDesktopPlatform()) {
       windowManager.removeListener(this);
