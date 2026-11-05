@@ -23,13 +23,13 @@ Future<void> showSupportAuthorDialog(BuildContext context) async {
   final container = ProviderScope.containerOf(context);
   await showAppDialog<void>(
     context: context,
-    // Wider than the default so the English copy and the three action
-    // buttons (Maybe later / Open the GitHub repository / I've donated) fit
+    // Wide enough for the side-by-side QR and mascot images (260px each plus
+    // the 16px gap) and for the English copy and three action buttons to fit
     // on one row without clipping.
     constraints: const BoxConstraints(
-      minWidth: 560,
-      maxWidth: 640,
-      maxHeight: 720,
+      minWidth: 640,
+      maxWidth: 720,
+      maxHeight: 760,
     ),
     title: l10n.supportAuthorTitle,
     content: Column(
@@ -37,21 +37,35 @@ Future<void> showSupportAuthorDialog(BuildContext context) async {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('${l10n.supportAuthorBody}\n\n${l10n.supportAuthorIssues}'),
-        const SizedBox(height: 18),
-        Text(
-          l10n.supportAuthorDonate,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
         const SizedBox(height: 14),
         Center(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              'assets/images/donate_qr.jpg',
-              width: 260,
-              height: 260,
-              fit: BoxFit.cover,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  'assets/images/donate_qr.jpg',
+                  width: 260,
+                  height: 260,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                // Same footprint as the QR, but the landscape mascot keeps
+                // its full composition instead of being centre-cropped.
+                width: 260,
+                height: 260,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/images/donate_mascot.gif',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
