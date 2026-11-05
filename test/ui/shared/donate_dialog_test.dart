@@ -108,8 +108,13 @@ void main() {
       find.descendant(of: dialog, matching: find.text(l10n.supportAuthorTitle)),
       findsOneWidget,
     );
+    // The mascot donation invite is folded into the intro paragraph rather
+    // than shown as a separate highlighted line.
     expect(
-      find.descendant(of: dialog, matching: find.text(l10n.supportAuthorDonate)),
+      find.descendant(
+        of: dialog,
+        matching: find.textContaining(l10n.supportAuthorBody),
+      ),
       findsOneWidget,
     );
     expect(
@@ -162,7 +167,7 @@ void main() {
     expect(find.byWidgetPredicate((widget) => widget is AppDialog), findsNothing);
   });
 
-  testWidgets('celebration overlay renders confetti and thanks sticker',
+  testWidgets('celebration plays kowtow GIF first, then confetti and sticker',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -183,25 +188,61 @@ void main() {
     );
     await tester.pump();
 
+    Future<void> pumpSeconds(double seconds) async {
+      var remaining = seconds;
+      while (remaining > 0) {
+        final step = remaining > 0.4 ? 0.4 : remaining;
+        await tester.pump(Duration(milliseconds: (step * 1000).round()));
+        remaining -= step;
+      }
+    }
+
+    bool showsAsset(String name) => find
+        .byWidgetPredicate((widget) =>
+            widget is Image &&
+            widget.image is AssetImage &&
+            (widget.image as AssetImage).assetName == name)
+        .evaluate()
+        .isNotEmpty;
+
     final container = ProviderScope.containerOf(
       tester.element(find.byType(CelebrationOverlayHost)),
     );
     container.read(celebrationTriggerProvider.notifier).state++;
-    await tester.pump(); // post-frame launch
-    // The controller's first tick only establishes the time baseline, so pump
-    // twice for the value to actually advance.
-    await tester.pump(const Duration(milliseconds: 600));
-    await tester.pump(const Duration(milliseconds: 600)); // pop-in
-    expect(find.text('谢谢老板'), findsOneWidget);
+    await tester.pump(); // post-frame launch starts the async asset load
+    // The kowtow duration parse awaits rootBundle.load, which needs a real
+    // event-loop turn to resolve under fake async.
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump(); // load resolves, overlay active
+    await tester.pump(); // ticker baseline tick
+
+    // Phase 1: the kowtow GIF plays alone (its single pass is ~7.3s).
+    expect(showsAsset('assets/images/donation_kowtow.gif'), isTrue);
+    expect(showsAsset('assets/images/donation_thanks_sticker.gif'), isFalse);
+    await pumpSeconds(3.0);
+    expect(showsAsset('assets/images/donation_kowtow.gif'), isTrue);
+    // The 10MB kowtow GIF decodes on a real background thread; give it a
+    // moment before capturing or the first frames are still empty.
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 2500)));
+    // Repaint so the GIF samples the frame matching the real-time clock.
+    await tester.pump();
+    await capturePng(tester, '/tmp/celebration_kowtow.png');
+
+    // Phase 2: kowtow is gone, confetti and the flying-in sticker GIF play.
+    await pumpSeconds(4.6); // ≈7.6s: past the kowtow pass
+    expect(showsAsset('assets/images/donation_kowtow.gif'), isFalse);
+    await pumpSeconds(1.2); // sticker mid-zoom
+    expect(showsAsset('assets/images/donation_thanks_sticker.gif'), isTrue);
     await capturePng(tester, '/tmp/celebration_early.png');
 
-    await tester.pump(const Duration(milliseconds: 700)); // confetti falling
-    expect(find.text('谢谢老板'), findsOneWidget);
+    await pumpSeconds(2.5); // fireworks underway
+    expect(showsAsset('assets/images/donation_thanks_sticker.gif'), isTrue);
     await capturePng(tester, '/tmp/celebration_mid.png');
 
-    // Fades out and becomes inert after the full duration.
-    await tester.pump(const Duration(milliseconds: 3500));
-    expect(find.text('谢谢老板'), findsNothing);
+    // Fades out and becomes inert after kowtow + the 9.6s timeline.
+    await pumpSeconds(6.0);
+    expect(showsAsset('assets/images/donation_thanks_sticker.gif'), isFalse);
+    expect(showsAsset('assets/images/donation_kowtow.gif'), isFalse);
   });
 
   testWidgets('player exit with 3h+ watch time prompts dialog after 2s',
