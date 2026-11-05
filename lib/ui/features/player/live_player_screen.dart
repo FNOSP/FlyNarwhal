@@ -131,6 +131,14 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   void initState() {
     super.initState();
     _watchTimeTracker = ref.read(watchTimeTrackerProvider);
+    // Watch time is scoped by the logged-in user's guid; a player opened from
+    // a deep link never mounts the home page that normally loads it.
+    // Deferred: loadUserInfo flips provider state, which must not happen
+    // during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(userInfoProvider.notifier).loadUserInfo());
+    });
     if (_isDesktop) {
       windowManager.addListener(this);
       unawaited(_syncFullscreenState());

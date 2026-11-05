@@ -366,6 +366,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void initState() {
     super.initState();
     _watchTimeTracker = ref.read(watchTimeTrackerProvider);
+    // Watch time is scoped by the logged-in user's guid. The home page is the
+    // usual place that loads it, but a player opened straight from a deep link
+    // never mounts home, so make sure it resolves here before playback
+    // reports any time (otherwise it would land in the logged-out scope).
+    // Deferred: loadUserInfo flips provider state, which must not happen
+    // during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(userInfoProvider.notifier).loadUserInfo());
+    });
     // Start with an empty list until device-level hwdec support is resolved.
     _availableHwdec = const [];
     // Subtitle language labels are language-dependent; reload them on a switch.

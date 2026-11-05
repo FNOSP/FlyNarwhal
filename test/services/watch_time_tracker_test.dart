@@ -62,4 +62,68 @@ void main() {
       expect(tracker.hasReachedThreshold(), isTrue);
     });
   });
+
+  group('WatchTimeTracker checkpoints', () {
+    test('a running session is written to disk periodically', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final tracker = WatchTimeTracker(
+        prefs,
+        checkpointInterval: const Duration(milliseconds: 300),
+      );
+      addTearDown(tracker.dispose);
+
+      tracker.onPlaybackChanged(true);
+      await Future<void>.delayed(const Duration(milliseconds: 1600));
+
+      // The session never paused, yet the checkpoint timer persisted it.
+      expect(prefs.getInt('watch_time_seconds'), greaterThanOrEqualTo(1));
+
+      // Ending the session afterwards must not double-count.
+      tracker.stopSession();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(tracker.totalSeconds(), lessThanOrEqualTo(2));
+    });
+
+    test('checkpoint keeps the session running without double counting',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final tracker = WatchTimeTracker(
+        prefs,
+        // Long enough that only the manual checkpoint below writes.
+        checkpointInterval: const Duration(hours: 1),
+      );
+      addTearDown(tracker.dispose);
+
+      tracker.onPlaybackChanged(true);
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      tracker.checkpoint();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final afterCheckpoint = tracker.totalSeconds();
+      expect(afterCheckpoint, greaterThanOrEqualTo(1));
+
+      // Still playing: a second checkpoint with no new full second must not
+      // add anything, and the session is still alive.
+      tracker.checkpoint();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(tracker.totalSeconds(), afterCheckpoint);
+
+      tracker.stopSession();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Total equals the wall time played (~1s), not two or three seconds.
+      expect(tracker.totalSeconds(), lessThan(afterCheckpoint + 2));
+    });
+
+    test('checkpoint on a paused session is a no-op', () async {
+      SharedPreferences.setMockInitialValues({'watch_time_seconds': 5});
+      final prefs = await SharedPreferences.getInstance();
+      final tracker = WatchTimeTracker(prefs);
+      addTearDown(tracker.dispose);
+
+      tracker.checkpoint();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(tracker.totalSeconds(), 5);
+    });
+  });
 }

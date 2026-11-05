@@ -54,8 +54,11 @@ void main() {
     await fontLoader.load();
   });
 
-  Future<SharedPreferences> pumpSupportAuthorItem(WidgetTester tester) async {
-    SharedPreferences.setMockInitialValues({});
+  Future<SharedPreferences> pumpSupportAuthorItem(
+    WidgetTester tester, {
+    Map<String, Object> initialPrefs = const {},
+  }) async {
+    SharedPreferences.setMockInitialValues(initialPrefs);
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
       RepaintBoundary(
@@ -300,23 +303,20 @@ void main() {
     expect(find.byWidgetPredicate((widget) => widget is AppDialog), findsNothing);
 
     // Past the 2s delay: the support dialog is presented and the prompt is
-    // recorded so it never auto-shows again.
+    // recorded together with the watch-time baseline for the next interval.
     await tester.pump(const Duration(milliseconds: 1000));
     await tester.pumpAndSettle();
     expect(find.byWidgetPredicate((widget) => widget is AppDialog), findsOneWidget);
     expect(prefs.getBool('donation_support_prompted'), isTrue);
+    expect(prefs.getInt('donation_support_last_prompt_seconds'), 11000);
   });
 
-  testWidgets('a confirmed donation mutes the prompt permanently',
-      (tester) async {
-    // Watch time is far past the threshold and no prompt was recorded yet:
-    // only the donation flag can keep the dialog away.
-    SharedPreferences.setMockInitialValues({
-      'watch_time_seconds': 99999,
-      'donation_support_donated': true,
-    });
-    final prefs = await SharedPreferences.getInstance();
-
+  /// Pumps an app whose root navigator carries [SupportAuthorPromptObserver],
+  /// enters a player-named route, pops it and waits out the 2s prompt delay.
+  Future<void> pumpPlayerExit(
+    WidgetTester tester,
+    SharedPreferences prefs,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -357,12 +357,105 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('push-player')).first);
     await tester.pumpAndSettle();
     rootNavigatorKey.currentState!.pop();
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(); // didPop → observer decides whether to schedule
+    await tester.pump(const Duration(seconds: 3)); // past the 2s delay
+    await tester.pumpAndSettle();
+  }
+
+  Future<SharedPreferences> prefsWith(Map<String, Object> values) async {
+    SharedPreferences.setMockInitialValues(values);
+    return SharedPreferences.getInstance();
+  }
+
+  bool dialogShown(WidgetTester tester) => find
+      .byWidgetPredicate((widget) => widget is AppDialog)
+      .evaluate()
+      .isNotEmpty;
+
+  testWidgets('after 稍后再说 exits stay silent until 10 more watched hours',
+      (tester) async {
+    // Prompted at the 3h mark; one second short of the 10h interval since.
+    final prefs = await prefsWith({
+      'watch_time_seconds': 10800 + 36000 - 1,
+      'donation_support_prompted': true,
+      'donation_support_last_prompt_seconds': 10800,
+    });
+
+    await pumpPlayerExit(tester, prefs);
+
+    expect(dialogShown(tester), isFalse);
+    expect(prefs.getInt('donation_support_last_prompt_seconds'), 10800);
+  });
+
+  testWidgets('after 稍后再说 the prompt returns once 10 more hours are watched',
+      (tester) async {
+    final prefs = await prefsWith({
+      'watch_time_seconds': 10800 + 36000,
+      'donation_support_prompted': true,
+      'donation_support_last_prompt_seconds': 10800,
+    });
+
+    await pumpPlayerExit(tester, prefs);
+
+    expect(dialogShown(tester), isTrue);
+    // The baseline advances so the next prompt is another 10h away.
+    expect(
+      prefs.getInt('donation_support_last_prompt_seconds'),
+      10800 + 36000,
+    );
+  });
+
+  testWidgets('after 我已赞赏 exits stay silent until 20 more watched hours',
+      (tester) async {
+    // The donated state widens the interval: 10h+ of new watch time (which
+    // would re-prompt a 稍后再说 user) must stay silent.
+    final prefs = await prefsWith({
+      'watch_time_seconds': 10800 + 72000 - 1,
+      'donation_support_prompted': true,
+      'donation_support_donated': true,
+      'donation_support_last_prompt_seconds': 10800,
+    });
+
+    await pumpPlayerExit(tester, prefs);
+
+    expect(dialogShown(tester), isFalse);
+  });
+
+  testWidgets('after 我已赞赏 the prompt returns once 20 more hours are watched',
+      (tester) async {
+    final prefs = await prefsWith({
+      'watch_time_seconds': 10800 + 72000,
+      'donation_support_prompted': true,
+      'donation_support_donated': true,
+      'donation_support_last_prompt_seconds': 10800,
+    });
+
+    await pumpPlayerExit(tester, prefs);
+
+    expect(dialogShown(tester), isTrue);
+    expect(
+      prefs.getInt('donation_support_last_prompt_seconds'),
+      10800 + 72000,
+    );
+  });
+
+  testWidgets('稍后再说 clears the donated flag so the 10h interval applies',
+      (tester) async {
+    final prefs = await pumpSupportAuthorItem(
+      tester,
+      initialPrefs: {'donation_support_donated': true},
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('settings-support-author-button')).first,
+    );
     await tester.pumpAndSettle();
 
-    expect(find.byWidgetPredicate((widget) => widget is AppDialog), findsNothing);
-    expect(prefs.getBool('donation_support_prompted'), isNull);
+    await tester.tap(find.byKey(const ValueKey('app-dialog-tertiary')).first);
+    await tester.pumpAndSettle();
+
+    expect(prefs.getBool('donation_support_donated'), isFalse);
+    expect(dialogShown(tester), isFalse);
   });
 
   testWidgets('below-threshold watch time never prompts', (tester) async {

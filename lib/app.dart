@@ -40,6 +40,7 @@ import 'providers/providers.dart';
 import 'providers/reporting_providers.dart';
 import 'providers/update_providers.dart';
 import 'services/update/update_scheduler.dart';
+import 'services/watch_time_tracker.dart';
 import 'services/window/main_window_lifecycle_controller.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'tooling/driver_test_mode.dart';
@@ -92,6 +93,11 @@ void _installWindowsClipboardHistoryPasteFallback() {
 MainWindowLifecycleController? mainWindowLifecycleController;
 
 const _windowChannel = MethodChannel('fly_narwhal/window');
+
+/// The watch-time tracker shared with the window lifecycle controller, so a
+/// window close checkpoints the same session the players report into.
+/// Null on platforms without desktop window management.
+WatchTimeTracker? _watchTimeTracker;
 
 Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
@@ -214,8 +220,19 @@ Future<void> bootstrapApp() async {
         await windowManager.show();
         await windowManager.focus();
       });
-      mainWindowLifecycleController = MainWindowLifecycleController(prefs)
-        ..start();
+      // The tracker is created before the provider scope exists, so closing
+      // the window checkpoints through this instance; the ProviderScope
+      // override below makes it the app-wide one.
+      final watchTimeTracker = WatchTimeTracker(prefs);
+      _watchTimeTracker = watchTimeTracker;
+      mainWindowLifecycleController = MainWindowLifecycleController(
+        prefs,
+        onBeforeClose: watchTimeTracker.checkpoint,
+      )..start();
+      AppShutdown.register(() {
+        watchTimeTracker.checkpoint();
+        return mainWindowLifecycleController!.requestShutdown();
+      });
       AppShutdown.register(mainWindowLifecycleController!.requestShutdown);
       AppTalker.info('Window', 'Desktop initialization complete');
     }
@@ -232,6 +249,10 @@ Future<void> bootstrapApp() async {
       ProviderScope(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
+          // Share the instance the window lifecycle controller checkpoints
+          // on close, so the whole app has a single stopwatch.
+          if (_watchTimeTracker != null)
+            watchTimeTrackerProvider.overrideWithValue(_watchTimeTracker!),
         ],
         child: const _UpdateSchedulerHost(child: MyApp()),
       ),
@@ -404,6 +425,19 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Persist any in-flight watch session before the process can be torn
+    // down. The tracker keeps counting while the app is backgrounded (macOS
+    // only hides the window), so a checkpoint here never ends the session.
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        ref.read(watchTimeTrackerProvider).checkpoint();
+      case AppLifecycleState.resumed:
+        break;
+    }
+
     final scheduler = _scheduler;
     if (scheduler == null) return;
     switch (state) {

@@ -71,8 +71,10 @@ class _PlayerExitPlayListRefreshObserver extends NavigatorObserver {
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Shows the "支持作者" dialog two seconds after a player exit once the user's
-/// accumulated watch time reaches three hours. Each user scope is prompted at
-/// most once; confirming a donation ("我已赞赏") suppresses it permanently.
+/// accumulated watch time reaches three hours. Afterwards the dialog re-shows
+/// per additional watch time since the previous prompt: every 20 hours if the
+/// user's last response was "我已赞赏", otherwise (稍后再说 / open repo /
+/// dismissed) every 10 hours.
 ///
 /// Public so widget tests can drive the observer against a test navigator.
 class SupportAuthorPromptObserver extends NavigatorObserver {
@@ -109,22 +111,42 @@ class SupportAuthorPromptObserver extends NavigatorObserver {
 
     final prefs = _ref.read(preferencesManagerProvider);
     final userGuid = _ref.read(currentUserGuidProvider);
+    final totalSeconds = tracker.totalSeconds(userGuid: userGuid);
+    final donated = prefs.isDonationSupportDonated(userGuid: userGuid);
+    final prompted = prefs.isDonationSupportPrompted(userGuid: userGuid);
+    // First prompt at the 3h threshold; afterwards the watch time accrued
+    // since the previous prompt must reach the interval matching the user's
+    // last response: 20h after "我已赞赏", 10h otherwise.
+    final repromptInterval = donated
+        ? WatchTimeTracker.donatedRepromptInterval
+        : WatchTimeTracker.laterRepromptInterval;
+    final sinceLastPrompt =
+        totalSeconds - prefs.getDonationSupportLastPromptSeconds(
+              userGuid: userGuid,
+            );
+    final due = prompted
+        ? sinceLastPrompt >= repromptInterval.inSeconds
+        : totalSeconds >= WatchTimeTracker.supportAuthorThreshold.inSeconds;
     AppTalker.info(
       'SupportAuthor',
-      'playerExit userGuid=$userGuid '
-      'total=${tracker.totalSeconds(userGuid: userGuid)}s '
+      'playerExit userGuid=$userGuid total=${totalSeconds}s '
       'threshold=${WatchTimeTracker.supportAuthorThreshold.inSeconds}s '
-      'donated=${prefs.isDonationSupportDonated(userGuid: userGuid)} '
-      'prompted=${prefs.isDonationSupportPrompted(userGuid: userGuid)}',
+      'donated=$donated prompted=$prompted '
+      'sinceLastPrompt=${sinceLastPrompt}s '
+      'interval=${repromptInterval.inSeconds}s due=$due',
     );
-    // A confirmed donation mutes the prompt permanently, and one auto prompt
-    // per user lifetime is enough otherwise.
-    if (prefs.isDonationSupportDonated(userGuid: userGuid)) return;
-    if (prefs.isDonationSupportPrompted(userGuid: userGuid)) return;
-    if (!tracker.hasReachedThreshold(userGuid: userGuid)) return;
+    if (!due) return;
 
-    // Mark before scheduling so a crash in the gap doesn't re-prompt.
+    // Mark before scheduling so a crash in the gap doesn't re-prompt. The
+    // baseline advances to the current total, so two prompts are always at
+    // least one full interval of watch time apart.
     unawaited(prefs.markDonationSupportPrompted(userGuid: userGuid));
+    unawaited(
+      prefs.setDonationSupportLastPromptSeconds(
+        totalSeconds,
+        userGuid: userGuid,
+      ),
+    );
     _pendingPrompt?.cancel();
     _pendingPrompt = Timer(_promptDelay, () {
       final context = rootNavigatorKey.currentContext;

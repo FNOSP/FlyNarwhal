@@ -71,7 +71,16 @@ Future<void> showSupportAuthorDialog(BuildContext context) async {
       ],
     ),
     tertiaryButtonText: l10n.supportAuthorLater,
-    onTertiaryPressed: () => _closeFromRoot(context),
+    onTertiaryPressed: () {
+      final userGuid = container.read(currentUserGuidProvider);
+      // 「稍后再说」：把回应记为非赞赏，自动弹框间隔回到每 10 小时观看时长。
+      unawaited(
+        container
+            .read(preferencesManagerProvider)
+            .setDonationSupportDonated(false, userGuid: userGuid),
+      );
+      _closeFromRoot(context);
+    },
     secondaryButtonText: l10n.supportAuthorOpenRepo,
     onSecondaryPressed: () {
       _closeFromRoot(context);
@@ -83,12 +92,11 @@ Future<void> showSupportAuthorDialog(BuildContext context) async {
     primaryButtonText: l10n.supportAuthorDonated,
     onPrimaryPressed: () {
       final userGuid = container.read(currentUserGuidProvider);
-      // Permanent opt-out: once the user says they donated, the prompt never
-      // auto-shows again.
+      // 「我已赞赏」：自动弹框间隔放宽到每 20 小时观看时长再弹一次。
       unawaited(
         container
             .read(preferencesManagerProvider)
-            .markDonationSupportDonated(userGuid: userGuid),
+            .setDonationSupportDonated(true, userGuid: userGuid),
       );
       container
           .read(celebrationTriggerProvider.notifier)
