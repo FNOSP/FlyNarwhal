@@ -377,8 +377,13 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
   /// Skipped when settings aren't loaded yet — the settings page runs the same
   /// check on entry, so a user whose session lands late is still told.
   Future<void> _checkServerUpdateAtLaunch() async {
-    if (!ref.read(settingsProvider).isFlyNarwhalServerAvailable) return;
-    final l10n = AppLocalizations.of(context);
+    final settings = ref.read(settingsProvider);
+    if (!settings.isFlyNarwhalServerAvailable) return;
+    // This host wraps MyApp, so it sits above the MaterialApp's Localizations
+    // scope and cannot resolve AppLocalizations from its own context.
+    final l10n = lookupAppLocalizations(
+      AppLanguage.localeFromValue(settings.language),
+    );
     await ref.read(serverVersionProbeProvider.future);
     if (!mounted) return;
     showServerUpdateAvailableToast(
