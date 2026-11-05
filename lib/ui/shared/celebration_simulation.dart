@@ -115,8 +115,25 @@ class _Confetti {
   final double swayFrequency;
   final double swayPhase;
   final double ribbonPhase;
+  // Ribbons only: a trailing chain of [_ribbonSegments] points (x,y pairs).
+  // Point 0 is the head (this piece's x/y); each following point is pinned a
+  // fixed segment length behind its predecessor, so the strip drags and
+  // curves through the air instead of staying a rigid arc. [ribbonDraw] is
+  // per-frame scratch holding the flutter-offset points used for painting.
+  Float64List? ribbonTrail;
+  Float64List? ribbonDraw;
+  /// Per-point twist value (−1..1) scratch, shared with the draw pass so
+  /// segment widths interpolate smoothly between points.
+  Float64List? ribbonTwist;
+  /// 0..1: how rigidly each chain segment follows its predecessor. Higher
+  /// reads as stiffer paper; lower as limp cloth.
+  double ribbonStiffness = 0.6;
+  double ribbonSegLen = 0;
   bool dead = false;
 }
+
+/// Number of points in a ribbon's trailing chain.
+const int _ribbonSegments = 9;
 
 class _Rocket {
   _Rocket({
@@ -367,15 +384,14 @@ class CelebrationSimulation {
       final angle = (42 + random.nextDouble() * 36) * math.pi / 180;
       final speed = 1000 + random.nextDouble() * 900;
       final isRibbon = random.nextDouble() < 0.45;
-      _confetti.add(
-        _Confetti(
+      final piece = _Confetti(
           x: originX + (random.nextDouble() - 0.5) * 26,
           y: size.height + 18,
           vx: direction * math.cos(angle) * speed,
           vy: -math.sin(angle) * speed,
           width: isRibbon ? 4 + random.nextDouble() * 2 : 7 + random.nextDouble() * 6,
           height:
-              isRibbon ? 20 + random.nextDouble() * 12 : 5 + random.nextDouble() * 4,
+              isRibbon ? 16 + random.nextDouble() * 9 : 5 + random.nextDouble() * 4,
           color: _confettiColors[random.nextInt(_confettiColors.length)],
           kind: isRibbon ? _ConfettiKind.ribbon : _ConfettiKind.rect,
           ax: random.nextDouble() * math.pi * 2,
@@ -387,9 +403,32 @@ class CelebrationSimulation {
           swayAmplitude: 14 + random.nextDouble() * 28,
           swayFrequency: 2.2 + random.nextDouble() * 3.2,
           swayPhase: random.nextDouble() * math.pi * 2,
-          ribbonPhase: random.nextDouble() * math.pi * 2,
-        ),
-      );
+          ribbonPhase: random.nextDouble() * math.pi * 2);
+      if (isRibbon) {
+        // Seed the chain as a straight strip trailing opposite the launch
+        // direction so the first frames already read as a ribbon.
+        final trail = Float64List(_ribbonSegments * 2);
+        final segLen = piece.height / (_ribbonSegments - 1);
+        final vLen = math.sqrt(piece.vx * piece.vx + piece.vy * piece.vy);
+        final backX = vLen < 1 ? 0.0 : -piece.vx / vLen;
+        final backY = vLen < 1 ? 1.0 : -piece.vy / vLen;
+        // Paper streamers leave the cannon with a set curl: seed a fixed
+        // lateral arc so the silhouette reads as a ribbon even while the
+        // strip is flying straight.
+        final curl = (random.nextDouble() - 0.5) * 7;
+        for (var i = 0; i < _ribbonSegments; i++) {
+          final arc = curl * math.sin(i * 0.55);
+          trail[i * 2] = piece.x + backX * segLen * i - backY * arc;
+          trail[i * 2 + 1] = piece.y + backY * segLen * i + backX * arc;
+        }
+        piece
+          ..ribbonTrail = trail
+          ..ribbonDraw = Float64List(_ribbonSegments * 2)
+          ..ribbonTwist = Float64List(_ribbonSegments)
+          ..ribbonStiffness = 0.6 + random.nextDouble() * 0.3
+          ..ribbonSegLen = segLen;
+      }
+      _confetti.add(piece);
     }
   }
 
@@ -600,18 +639,60 @@ class CelebrationSimulation {
 
   void _integrateConfetti(double dt) {
     for (final piece in _confetti) {
+      // Streamers are lighter than paper rects: stronger drag, so they
+      // decelerate sooner and drift down at a lazy flutter speed.
+      final isRibbon = piece.kind == _ConfettiKind.ribbon;
+      final dragY = isRibbon ? 1.7 : _confettiDragY;
+      final dragX = isRibbon ? 2.2 : _confettiDragX;
       final sway = piece.swayAmplitude *
           math.sin(piece.swayFrequency * time + piece.swayPhase);
-      piece.vx += (-_confettiDragX * piece.vx + sway) * dt;
-      piece.vy += (_gravity - _confettiDragY * piece.vy) * dt;
+      piece.vx += (-dragX * piece.vx + sway) * dt;
+      piece.vy += (_gravity - dragY * piece.vy) * dt;
       piece.x += piece.vx * dt;
       piece.y += piece.vy * dt;
       piece.ax += piece.wx * dt;
       piece.ay += piece.wy * dt;
       piece.az += piece.wz * dt;
+      _advanceRibbonChain(piece);
       if (piece.y > size.height + 80) {
         piece.dead = true;
       }
+    }
+  }
+
+  /// Follow-the-leader: each chain point is re-pinned exactly one segment
+  /// length behind its predecessor, along the line it already sits on. The
+  /// strip therefore drags behind the head and curves wherever the head
+  /// turns, the way a real streamer trails.
+  void _advanceRibbonChain(_Confetti piece) {
+    final trail = piece.ribbonTrail;
+    if (trail == null) return;
+    trail[0] = piece.x;
+    trail[1] = piece.y;
+    final seg = piece.ribbonSegLen;
+    for (var i = 1; i < _ribbonSegments; i++) {
+      final px = trail[i * 2];
+      final py = trail[i * 2 + 1];
+      final qx = trail[i * 2 - 2];
+      final qy = trail[i * 2 - 1];
+      var dx = px - qx;
+      var dy = py - qy;
+      final d = math.sqrt(dx * dx + dy * dy);
+      if (d < 1e-6) {
+        // Degenerate (points coincident): keep hanging straight down.
+        dx = 0;
+        dy = 1;
+        trail[i * 2] = qx;
+        trail[i * 2 + 1] = qy + seg;
+        continue;
+      }
+      // Blend towards the pinned position instead of snapping: paper
+      // streamers keep some of their bend from the previous frame.
+      final targetX = qx + dx / d * seg;
+      final targetY = qy + dy / d * seg;
+      final k = piece.ribbonStiffness;
+      trail[i * 2] = px + (targetX - px) * k;
+      trail[i * 2 + 1] = py + (targetY - py) * k;
     }
   }
 
@@ -786,7 +867,6 @@ class CelebrationSimulation {
       );
     }
 
-    final path = ui.Path();
     for (final piece in _confetti) {
       final ca = math.cos(piece.ax), sa = math.sin(piece.ax);
       final cb = math.cos(piece.ay), sb = math.sin(piece.ay);
@@ -814,32 +894,57 @@ class CelebrationSimulation {
         canvas.drawRect(_unitRect, _confettiPaint(piece.color, isBack));
         canvas.restore();
       } else {
-        // Ribbon: a quadratic strip from tail to head along the flight
-        // direction, its middle swaying so the ribbon writhes mid-air. The
-        // projected width narrows with |nz| to fake the plate turning.
-        var dirX = piece.vx, dirY = piece.vy;
-        final dirLen = math.sqrt(dirX * dirX + dirY * dirY);
-        if (dirLen < 1) {
-          dirX = 0;
-          dirY = -1;
-        } else {
-          dirX /= dirLen;
-          dirY /= dirLen;
+        // Ribbon: paint the trailing chain. Two travelling waves ride along
+        // the strip: a lateral flutter (amplitude growing towards the tail,
+        // so the loose end whips) and a twist that narrows the width and
+        // flips the face shading as it passes — together they read as cloth
+        // rippling in the airstream rather than a rigid arc.
+        final trail = piece.ribbonTrail!;
+        final draw = piece.ribbonDraw!;
+        final twist = piece.ribbonTwist!;
+        final flutterFreq = 11 + piece.swayFrequency * 1.6;
+        final flutterAmp = 1.2 + piece.width * 0.35;
+        final twistSpeed = 7 + piece.swayFrequency;
+        for (var i = 0; i < _ribbonSegments; i++) {
+          final px = trail[i * 2];
+          final py = trail[i * 2 + 1];
+          double dirX, dirY;
+          if (i + 1 < _ribbonSegments) {
+            dirX = trail[i * 2 + 2] - px;
+            dirY = trail[i * 2 + 3] - py;
+          } else {
+            dirX = px - trail[i * 2 - 2];
+            dirY = py - trail[i * 2 - 1];
+          }
+          final dirLen = math.sqrt(dirX * dirX + dirY * dirY);
+          final normalX = dirLen < 1e-6 ? 1.0 : -dirY / dirLen;
+          final normalY = dirLen < 1e-6 ? 0.0 : dirX / dirLen;
+          final along = i / (_ribbonSegments - 1);
+          final off = math.sin(
+                  time * flutterFreq - i * 0.85 + piece.ribbonPhase) *
+              flutterAmp *
+              math.pow(along, 1.4);
+          draw[i * 2] = px + normalX * off;
+          draw[i * 2 + 1] = py + normalY * off;
+          twist[i] = math.sin(
+              time * twistSpeed - i * 0.6 + piece.ribbonPhase * 1.7);
         }
-        final headX = piece.x, headY = piece.y;
-        final tailX = headX - dirX * piece.height;
-        final tailY = headY - dirY * piece.height;
-        final sway = math.sin(time * 9 + piece.ribbonPhase) *
-            (5 + 4 * math.sin(piece.ay).abs());
-        final ctrlX = (headX + tailX) / 2 - dirY * sway;
-        final ctrlY = (headY + tailY) / 2 + dirX * sway;
-        path.reset();
-        path.moveTo(tailX, tailY);
-        path.quadraticBezierTo(ctrlX, ctrlY, headX, headY);
-        _ribbonPaint
-          ..color = _confettiPaint(piece.color, isBack).color
-          ..strokeWidth = piece.width * (0.35 + 0.65 * nz.abs());
-        canvas.drawPath(path, _ribbonPaint);
+        for (var i = 0; i < _ribbonSegments - 1; i++) {
+          // Interpolate the twist across the segment so the strip's outline
+          // stays smooth instead of stepping per segment.
+          final segmentTwist = (twist[i] + twist[i + 1]) / 2;
+          _ribbonPaint
+            ..color = _confettiPaint(piece.color, segmentTwist < 0).color
+            // Paper only narrows where it folds; keep most of the width so
+            // the strip never tapers into a comet tail.
+            ..strokeWidth =
+                piece.width * (0.55 + 0.45 * segmentTwist.abs());
+          canvas.drawLine(
+            ui.Offset(draw[i * 2], draw[i * 2 + 1]),
+            ui.Offset(draw[i * 2 + 2], draw[i * 2 + 3]),
+            _ribbonPaint,
+          );
+        }
       }
     }
 
