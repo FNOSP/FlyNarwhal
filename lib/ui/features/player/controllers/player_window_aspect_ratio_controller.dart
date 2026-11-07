@@ -106,9 +106,15 @@ class PlayerWindowAspectRatioController {
   /// [videoAspectRatio] (width / height) is required for AUTO mode; when it
   /// is not available yet the call is a no-op so callers can retry once the
   /// video size becomes known.
+  ///
+  /// [shouldAbort] is polled before each window mutation: when it returns
+  /// true (e.g. a fullscreen transition took ownership of the window shape
+  /// while this call was awaiting platform channels) the apply is abandoned
+  /// so a stale resize cannot undo the transition's window frame.
   Future<void> apply({
     required String setting,
     double? videoAspectRatio,
+    bool Function()? shouldAbort,
   }) async {
     if (!_isDesktop) {
       return;
@@ -162,6 +168,9 @@ class PlayerWindowAspectRatioController {
       // clamp lets the window settle at an off-ratio size, and the plugin's
       // WM_SIZING handler then re-derives the dragged edge from the locked
       // ratio and shifts the window before the clamp snaps the size back.
+      if (shouldAbort?.call() ?? false) {
+        return;
+      }
       final minimumSize = minimumSizeForRatio(targetRatio, workArea);
       await windowManager.setMinimumSize(minimumSize);
 
@@ -174,6 +183,9 @@ class PlayerWindowAspectRatioController {
             'resize=${!alreadyMatching}',
       );
 
+      if (!alreadyMatching && (shouldAbort?.call() ?? false)) {
+        return;
+      }
       if (!alreadyMatching) {
         final targetSize = _calculateTargetSize(
           baselineArea: _baselineArea ?? _fallbackBaselineArea,
@@ -198,6 +210,9 @@ class PlayerWindowAspectRatioController {
 
       // Lock the ratio last so the resize above is not constrained by a
       // stale lock from a previous setting.
+      if (shouldAbort?.call() ?? false) {
+        return;
+      }
       await windowManager.setAspectRatio(targetRatio);
 
       if (alreadyLocked && alreadyMatching) {

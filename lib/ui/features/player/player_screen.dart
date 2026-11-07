@@ -4459,6 +4459,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!_windowSessionCaptured) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isFullscreen || !_isInitialized) return;
+    // A pseudo-fullscreen transition owns the window shape while in flight;
+    // a ratio resize landing mid-transition (or right after it) would undo
+    // the fullscreen frame.
+    if (_fullscreenController.isTransitioning) return;
     // A maximized player window owns its shape. The persisted flag is checked
     // in addition to the controller's own isMaximized() probe because macOS
     // can transiently report a zoomed window as not maximized; the flag keeps
@@ -4478,6 +4482,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!mounted) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isFullscreen) return;
+    // Re-check after the delay: a transition may have started while waiting,
+    // and a ratio resize landing after its setBounds would undo the
+    // fullscreen frame.
+    if (_fullscreenController.isTransitioning) return;
     if (ref.read(playerSettingsManagerProvider).getPlayerWindowMaximized()) {
       unawaited(
         _windowAspectRatioController.release(restoreNormalMinimumSize: false),
@@ -4488,6 +4496,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await _windowAspectRatioController.apply(
       setting: _windowAspectRatio,
       videoAspectRatio: _resolveVideoAspectRatio(),
+      shouldAbort: () =>
+          !mounted ||
+          _isFullscreen ||
+          _isPipMode ||
+          _pipController.isPipMode ||
+          _fullscreenController.isTransitioning,
     );
   }
 
@@ -7814,6 +7828,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!mounted || !_isDesktopPlatform()) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isRestoringWindowSession) return;
+    // The pseudo-fullscreen transition un-maximizes the window itself when
+    // entering from a maximized window; that event is not a user gesture —
+    // persisting a floating form or re-applying the ratio lock here would
+    // resize the window back and break the fullscreen transition.
+    if (_fullscreenController.isTransitioning) return;
     // The user returned to a floating window; persist that and re-apply the
     // ratio lock.
     unawaited(

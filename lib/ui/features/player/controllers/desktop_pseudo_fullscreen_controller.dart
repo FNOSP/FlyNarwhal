@@ -15,6 +15,13 @@ class DesktopPseudoFullscreenController {
 
   _WindowSnapshot? _snapshot;
   bool _isPseudoFullscreen = false;
+  bool _isTransitioning = false;
+
+  /// Whether a pseudo-fullscreen enter/exit transition is in flight. Window
+  /// events emitted by the transition itself (e.g. the unmaximize that enters
+  /// fullscreen from a maximized window) are not user gestures and must not
+  /// trigger window-form persistence or ratio re-application.
+  bool get isTransitioning => _isTransitioning;
 
   bool get _isMacOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
   bool get _isWindowsOrLinux =>
@@ -49,6 +56,15 @@ class DesktopPseudoFullscreenController {
       return;
     }
 
+    _isTransitioning = true;
+    try {
+      await _enterInternal();
+    } finally {
+      _isTransitioning = false;
+    }
+  }
+
+  Future<void> _enterInternal() async {
     // Capture the current window state before switching to pseudo fullscreen.
     final bounds = await windowManager.getBounds();
     final wasMaximized = await windowManager.isMaximized();
@@ -93,6 +109,7 @@ class DesktopPseudoFullscreenController {
       return;
     }
 
+    _isTransitioning = true;
     try {
       await _setWindowBorderless(false);
       final displays = await _tryGetDisplays();
@@ -108,6 +125,7 @@ class DesktopPseudoFullscreenController {
         await windowManager.maximize();
       }
     } finally {
+      _isTransitioning = false;
       MainWindowPersistenceGuard.resume();
     }
   }
