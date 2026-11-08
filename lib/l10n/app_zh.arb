@@ -792,6 +792,146 @@
   "@captionUnpin": {
     "description": "Window caption unpin button tooltip."
   },
+  "captionTvMode": "切换大屏模式",
+  "@captionTvMode": {
+    "description": "Window caption TV mode button tooltip."
+  },
+  "tvNavHome": "主页",
+  "@tvNavHome": {
+    "description": "TV mode rail navigation: home."
+  },
+  "tvNavLibrary": "媒体库",
+  "@tvNavLibrary": {
+    "description": "TV mode rail navigation: media library."
+  },
+  "tvNavSearch": "搜索",
+  "@tvNavSearch": {
+    "description": "TV mode rail navigation: search."
+  },
+  "tvNavFavorites": "收藏",
+  "@tvNavFavorites": {
+    "description": "TV mode rail navigation: favorites."
+  },
+  "tvNavHistory": "观看历史",
+  "@tvNavHistory": {
+    "description": "TV mode rail navigation: watch history."
+  },
+  "tvNavSettings": "设置",
+  "@tvNavSettings": {
+    "description": "TV mode rail navigation: settings."
+  },
+  "tvExitBigScreen": "退出大屏",
+  "@tvExitBigScreen": {
+    "description": "TV mode rail item that exits back to desktop mode."
+  },
+  "tvHeroKicker": "继续观看 · {suffix}",
+  "@tvHeroKicker": {
+    "description": "TV mode hero kicker line above the title.",
+    "placeholders": {
+      "suffix": {
+        "type": "String"
+      }
+    }
+  },
+  "tvHeroWatchedRemaining": "已看 {percent}% · 剩余 {time}",
+  "@tvHeroWatchedRemaining": {
+    "description": "TV mode hero meta: watched percent and remaining time.",
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tvHeroDetails": "详情",
+  "@tvHeroDetails": {
+    "description": "TV mode hero secondary button: details."
+  },
+  "tvHeroFavorite": "收藏",
+  "@tvHeroFavorite": {
+    "description": "TV mode hero secondary button: favorite."
+  },
+  "tvShelfResumeHint": "焦点切换，上方同步",
+  "@tvShelfResumeHint": {
+    "description": "TV mode resume shelf subtitle explaining hero sync."
+  },
+  "tvShelfAllCount": "全部 {count} 条 ›",
+  "@tvShelfAllCount": {
+    "description": "TV mode shelf head: total resume entries link.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvShelfEnterLibrary": "进入媒体库 ›",
+  "@tvShelfEnterLibrary": {
+    "description": "TV mode shelf head: enter library link."
+  },
+  "tvShelfCountItems": "{count} 部",
+  "@tvShelfCountItems": {
+    "description": "TV mode shelf head: item count.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvCardPlayedOf": "播放至 {played} · {total}",
+  "@tvCardPlayedOf": {
+    "description": "TV mode wide card subtitle: played position of total duration.",
+    "placeholders": {
+      "played": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "tvEmptyTitle": "还没有观看记录",
+  "@tvEmptyTitle": {
+    "description": "TV mode empty hero title."
+  },
+  "tvEmptyDesc": "从媒体库挑一部影片开始播放，观看进度会汇集到这里，下次打开可以直接接着看。",
+  "@tvEmptyDesc": {
+    "description": "TV mode empty hero description."
+  },
+  "tvEmptyDescCount": "你的媒体库里已经有 {count} 项内容在等待。",
+  "@tvEmptyDescCount": {
+    "description": "TV mode empty hero description suffix with library total.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvEmptyGoLibrary": "去媒体库挑选",
+  "@tvEmptyGoLibrary": {
+    "description": "TV mode empty hero primary button."
+  },
+  "tvEmptyGoSearch": "搜索想看的",
+  "@tvEmptyGoSearch": {
+    "description": "TV mode empty hero secondary button."
+  },
+  "tvHintMove": "移动",
+  "@tvHintMove": {
+    "description": "TV mode key hint: arrows to move focus."
+  },
+  "tvHintOk": "播放 / 进入",
+  "@tvHintOk": {
+    "description": "TV mode key hint: OK to play or enter."
+  },
+  "tvHintBack": "返回",
+  "@tvHintBack": {
+    "description": "TV mode key hint: back."
+  },
+  "tvHintMore": "更多选项",
+  "@tvHintMore": {
+    "description": "TV mode key hint: more options."
+  },
   "toastInfo": "信息",
   "@toastInfo": {
     "description": "Toast title for informational messages."

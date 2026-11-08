@@ -18,6 +18,7 @@ import '../../shared/window_caption.dart';
 import '../../shared/media_category_icon.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../search/widgets/capsule_search_box.dart';
+import '../tv/controllers/tv_mode_controller.dart';
 import '../update/update_badge.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
@@ -136,7 +137,11 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
 
   bool _isPlayerRouteOnTop() {
     final location = _topRouteLocation();
-    return location.startsWith('/player/') || location.startsWith('/live/');
+    // The TV big-screen route also renders above the shell without chrome;
+    // the shell shortcuts must stay out of its way just like the player's.
+    return location.startsWith('/player/') ||
+        location.startsWith('/live/') ||
+        location == kTvModeRoute;
   }
 
   bool _handleOpenSettingsKey(KeyEvent event) {
@@ -559,6 +564,10 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
       _navigationViewKey.currentState?.togglePane();
     }
 
+    void handleEnterTvMode() {
+      ref.read(tvModeControllerProvider).enterTvMode();
+    }
+
     // The focus-search shortcut is handled by _handleFocusSearchKey, a global
     // HardwareKeyboard handler registered in initState — a Focus.onKeyEvent
     // here would miss key events whenever the primary focus moves outside
@@ -588,8 +597,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
     const Duration kCaptionShiftDuration = Duration(milliseconds: 250);
 
     final bool pullCaptionButtonsForFullScreen =
-        (isMinimalDisplayMode || isCompactDisplayMode) &&
-        _isWindowFullScreen;
+        (isMinimalDisplayMode || isCompactDisplayMode) && _isWindowFullScreen;
     final double captionLeadingWidth = pullCaptionButtonsForFullScreen
         ? kFullScreenCaptionButtonLeftEdge - kCaptionButtonSpacing
         : kTrafficLightLeftPadding +
@@ -598,123 +606,133 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
 
     final Widget titleBarWidget = isMacOS
         ? Container(
-              height: kWindowTitleBarHeight,
-              color: theme.resources.solidBackgroundFillColorBase,
-              child: Stack(
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AnimatedContainer(
-                        duration: kCaptionShiftDuration,
-                        curve: Curves.easeOut,
-                        width: captionLeadingWidth,
-                      ),
-                      if (isMinimalDisplayMode)
-                        Padding(
-                          // The nav toggle is a 20px compact button like its
-                          // siblings, so it shares their vertical axis directly.
-                          padding: const EdgeInsets.only(
-                            top: kRefreshButtonTopPadding,
-                            left: kCaptionButtonSpacing,
-                            right: kCaptionButtonSpacing,
-                          ),
-                          child: WindowCaptionNavToggleButton.compact(
-                            key: const ValueKey(
-                                'macos-window-caption-nav-toggle-button'),
-                            brightness:
-                                isDark ? Brightness.dark : Brightness.light,
-                            onPressed: handleNavToggle,
-                          ),
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            top: kRefreshButtonTopPadding,
-                            left: kCaptionButtonSpacing,
-                            right: kCaptionButtonSpacing),
-                        child: WindowCaptionBackButton.compact(
-                          key: const ValueKey(
-                              'macos-window-caption-back-button'),
-                          brightness:
-                              isDark ? Brightness.dark : Brightness.light,
-                          onPressed: canGoBack ? handleBackNavigation : null,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            top: kRefreshButtonTopPadding,
-                            left: kCaptionButtonSpacing,
-                            right: kCaptionButtonSpacing),
-                        child: WindowCaptionPinButton.compact(
-                          key:
-                              const ValueKey('macos-window-caption-pin-button'),
-                          brightness:
-                              isDark ? Brightness.dark : Brightness.light,
-                        ),
-                      ),
-                      if (titleBarRefreshVisibility.shouldShowRefreshAction)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                              top: kRefreshButtonTopPadding,
-                              left: kCaptionButtonSpacing,
-                              right: kCaptionButtonSpacing),
-                          child: WindowCaptionRefreshButton.compact(
-                            key: const ValueKey(
-                                'macos-window-caption-refresh-button'),
-                            brightness:
-                                isDark ? Brightness.dark : Brightness.light,
-                            onPressed: triggerWindowRefresh,
-                          ),
-                        ),
-                      const Padding(
-                        padding: EdgeInsets.only(
-                            top: kRefreshButtonTopPadding,
-                            left: kCaptionButtonSpacing,
-                            right: kCaptionButtonSpacing),
-                        child: SharedUpdateBadge(
-                          key: ValueKey('macos-titlebar-update-badge'),
-                        ),
-                      ),
-                      Expanded(
-                        child: DragToMoveArea(
-                          child: Container(
-                            height: double.infinity,
-                            alignment: Alignment.centerLeft,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Align(
-                    alignment: Alignment.center,
-                    child: CapsuleSearchBox(
-                      focusNode: _searchFocusNode,
-                      onDismissed: _shortcutFocusNode.requestFocus,
+            height: kWindowTitleBarHeight,
+            color: theme.resources.solidBackgroundFillColorBase,
+            child: Stack(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AnimatedContainer(
+                      duration: kCaptionShiftDuration,
+                      curve: Curves.easeOut,
+                      width: captionLeadingWidth,
                     ),
+                    if (isMinimalDisplayMode)
+                      Padding(
+                        // The nav toggle is a 20px compact button like its
+                        // siblings, so it shares their vertical axis directly.
+                        padding: const EdgeInsets.only(
+                          top: kRefreshButtonTopPadding,
+                          left: kCaptionButtonSpacing,
+                          right: kCaptionButtonSpacing,
+                        ),
+                        child: WindowCaptionNavToggleButton.compact(
+                          key: const ValueKey(
+                              'macos-window-caption-nav-toggle-button'),
+                          brightness:
+                              isDark ? Brightness.dark : Brightness.light,
+                          onPressed: handleNavToggle,
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          top: kRefreshButtonTopPadding,
+                          left: kCaptionButtonSpacing,
+                          right: kCaptionButtonSpacing),
+                      child: WindowCaptionBackButton.compact(
+                        key: const ValueKey('macos-window-caption-back-button'),
+                        brightness: isDark ? Brightness.dark : Brightness.light,
+                        onPressed: canGoBack ? handleBackNavigation : null,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          top: kRefreshButtonTopPadding,
+                          left: kCaptionButtonSpacing,
+                          right: kCaptionButtonSpacing),
+                      child: WindowCaptionPinButton.compact(
+                        key: const ValueKey('macos-window-caption-pin-button'),
+                        brightness: isDark ? Brightness.dark : Brightness.light,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          top: kRefreshButtonTopPadding,
+                          left: kCaptionButtonSpacing,
+                          right: kCaptionButtonSpacing),
+                      child: WindowCaptionTvModeButton.compact(
+                        key: const ValueKey(
+                            'macos-window-caption-tv-mode-button'),
+                        brightness: isDark ? Brightness.dark : Brightness.light,
+                        onPressed: handleEnterTvMode,
+                      ),
+                    ),
+                    if (titleBarRefreshVisibility.shouldShowRefreshAction)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                            top: kRefreshButtonTopPadding,
+                            left: kCaptionButtonSpacing,
+                            right: kCaptionButtonSpacing),
+                        child: WindowCaptionRefreshButton.compact(
+                          key: const ValueKey(
+                              'macos-window-caption-refresh-button'),
+                          brightness:
+                              isDark ? Brightness.dark : Brightness.light,
+                          onPressed: triggerWindowRefresh,
+                        ),
+                      ),
+                    const Padding(
+                      padding: EdgeInsets.only(
+                          top: kRefreshButtonTopPadding,
+                          left: kCaptionButtonSpacing,
+                          right: kCaptionButtonSpacing),
+                      child: SharedUpdateBadge(
+                        key: ValueKey('macos-titlebar-update-badge'),
+                      ),
+                    ),
+                    Expanded(
+                      child: DragToMoveArea(
+                        child: Container(
+                          height: double.infinity,
+                          alignment: Alignment.centerLeft,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.center,
+                  child: CapsuleSearchBox(
+                    focusNode: _searchFocusNode,
+                    onDismissed: _shortcutFocusNode.requestFocus,
                   ),
-                ],
-              ),
-            )
+                ),
+              ],
+            ),
+          )
         : WindowCaption(
-              title: Text(l10n.appTitle),
-              titleTrailing: const SharedUpdateBadge(
-                key: ValueKey('titlebar-update-badge'),
-              ),
-              center: CapsuleSearchBox(
-                focusNode: _searchFocusNode,
-                onDismissed: _shortcutFocusNode.requestFocus,
-              ),
-              brightness: isDark ? Brightness.dark : Brightness.light,
-              backgroundColor: theme.resources.solidBackgroundFillColorBase,
-              showRefreshAction:
-                  titleBarRefreshVisibility.shouldShowRefreshAction,
-              onRefreshPressed: triggerWindowRefresh,
-              showBackButton: true,
-              onBack: canGoBack ? handleBackNavigation : null,
-              showNavToggle: isMinimalDisplayMode,
-              onNavToggle: isMinimalDisplayMode ? handleNavToggle : null,
-              textScaleFactor: UiFontScale.factorFromValue(settings.uiFontScale),
-            );
+            title: Text(l10n.appTitle),
+            titleTrailing: const SharedUpdateBadge(
+              key: ValueKey('titlebar-update-badge'),
+            ),
+            center: CapsuleSearchBox(
+              focusNode: _searchFocusNode,
+              onDismissed: _shortcutFocusNode.requestFocus,
+            ),
+            brightness: isDark ? Brightness.dark : Brightness.light,
+            backgroundColor: theme.resources.solidBackgroundFillColorBase,
+            showRefreshAction:
+                titleBarRefreshVisibility.shouldShowRefreshAction,
+            onRefreshPressed: triggerWindowRefresh,
+            showTvModeAction: true,
+            onTvModePressed: handleEnterTvMode,
+            showBackButton: true,
+            onBack: canGoBack ? handleBackNavigation : null,
+            showNavToggle: isMinimalDisplayMode,
+            onNavToggle: isMinimalDisplayMode ? handleNavToggle : null,
+            textScaleFactor: UiFontScale.factorFromValue(settings.uiFontScale),
+          );
 
     return Focus(
       focusNode: _shortcutFocusNode,

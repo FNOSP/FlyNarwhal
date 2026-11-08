@@ -28,6 +28,11 @@ class WindowCaption extends StatefulWidget {
   final Brightness? brightness;
   final bool showRefreshAction;
   final bool showPinAction;
+
+  /// When true, a TV big-screen mode button is rendered between the title
+  /// area and the pin button. Tapping it invokes [onTvModePressed].
+  final bool showTvModeAction;
+  final VoidCallback? onTvModePressed;
   final Future<void> Function()? onRefreshPressed;
 
   /// App-wide text scale from the font-size setting. The caption lives above
@@ -55,6 +60,8 @@ class WindowCaption extends StatefulWidget {
     this.brightness,
     this.showRefreshAction = false,
     this.showPinAction = true,
+    this.showTvModeAction = false,
+    this.onTvModePressed,
     this.onRefreshPressed,
     this.showBackButton = false,
     this.onBack,
@@ -140,6 +147,12 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
                   ),
                 ),
               ),
+              if (widget.showTvModeAction && _shouldShowPinAction())
+                WindowCaptionTvModeButton(
+                  key: const ValueKey('window-caption-tv-mode-button'),
+                  brightness: widget.brightness,
+                  onPressed: widget.onTvModePressed,
+                ),
               if (widget.showPinAction && _shouldShowPinAction())
                 WindowCaptionPinButton(
                   key: const ValueKey('window-caption-pin-button'),
@@ -279,7 +292,8 @@ class _WindowCaptionBackButtonState extends State<WindowCaptionBackButton> {
     final backgroundColor =
         (_isHovered && _isEnabled) ? hoverBackground : Colors.transparent;
     final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
-    final label = widget.semanticLabel ?? AppLocalizations.of(context).captionBack;
+    final label =
+        widget.semanticLabel ?? AppLocalizations.of(context).captionBack;
 
     return Semantics(
       button: true,
@@ -634,8 +648,7 @@ class _WindowCaptionPinButtonState extends State<WindowCaptionPinButton>
     final borderRadius =
         widget.borderRadius ?? BorderRadius.circular(widget.compact ? 14 : 0);
     final l10n = AppLocalizations.of(context);
-    final label =
-        _isAlwaysOnTop ? l10n.captionUnpin : l10n.captionAlwaysOnTop;
+    final label = _isAlwaysOnTop ? l10n.captionUnpin : l10n.captionAlwaysOnTop;
 
     return Semantics(
       button: true,
@@ -662,6 +675,99 @@ class _WindowCaptionPinButtonState extends State<WindowCaptionPinButton>
                 _isAlwaysOnTop
                     ? 'assets/images/pin-fill.svg'
                     : 'assets/images/pin.svg',
+                width: iconSize,
+                height: iconSize,
+                colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Title-bar button that switches to the TV big-screen mode. Mirrors the
+/// pin button's look (compact 20×20 variant for the macOS caption row,
+/// 46×48 for the Windows/Linux caption) without the always-on-top state.
+class WindowCaptionTvModeButton extends StatefulWidget {
+  final Brightness? brightness;
+  final bool compact;
+  final double? buttonSize;
+  final double? iconSize;
+  final BorderRadius? borderRadius;
+  final VoidCallback? onPressed;
+
+  const WindowCaptionTvModeButton({
+    super.key,
+    this.brightness,
+    this.compact = false,
+    this.buttonSize,
+    this.iconSize,
+    this.borderRadius,
+    this.onPressed,
+  });
+
+  const WindowCaptionTvModeButton.compact({
+    super.key,
+    this.brightness,
+    this.buttonSize,
+    this.iconSize,
+    this.borderRadius,
+    this.onPressed,
+  }) : compact = true;
+
+  @override
+  State<WindowCaptionTvModeButton> createState() =>
+      _WindowCaptionTvModeButtonState();
+}
+
+class _WindowCaptionTvModeButtonState extends State<WindowCaptionTvModeButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black;
+    final buttonSize = widget.buttonSize ?? (widget.compact ? 20.0 : 46.0);
+    final iconSize = widget.iconSize ?? (widget.compact ? 16.0 : 18.0);
+    final hoverBackground = widget.compact
+        ? (isDark
+            ? Colors.white.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.06))
+        : (isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.05));
+    final backgroundColor = _isHovered ? hoverBackground : Colors.transparent;
+    final borderRadius =
+        widget.borderRadius ?? BorderRadius.circular(widget.compact ? 14 : 0);
+    final label = AppLocalizations.of(context).captionTvMode;
+
+    return Semantics(
+      button: true,
+      enabled: widget.onPressed != null,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: MouseRegion(
+          cursor: widget.onPressed != null
+              ? SystemMouseCursors.click
+              : MouseCursor.defer,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onPressed,
+            child: Container(
+              width: buttonSize,
+              height: widget.compact ? buttonSize : kWindowTitleBarHeight,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: borderRadius,
+              ),
+              child: SvgPicture.asset(
+                'assets/images/tv.svg',
                 width: iconSize,
                 height: iconSize,
                 colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),

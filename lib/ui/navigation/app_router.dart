@@ -17,6 +17,7 @@ import '../features/tv_detail/tv_season_detail_screen.dart';
 import '../features/person_detail/person_detail_screen.dart';
 import '../features/player/player_screen.dart';
 import '../features/player/live_player_screen.dart';
+import '../features/tv/tv_mode_screen.dart';
 import '../../core/utils/log/app_talker.dart';
 import '../../providers/providers.dart';
 import '../../services/watch_time_tracker.dart';
@@ -120,20 +121,20 @@ class SupportAuthorPromptObserver extends NavigatorObserver {
     final repromptInterval = donated
         ? WatchTimeTracker.donatedRepromptInterval
         : WatchTimeTracker.laterRepromptInterval;
-    final sinceLastPrompt =
-        totalSeconds - prefs.getDonationSupportLastPromptSeconds(
-              userGuid: userGuid,
-            );
+    final sinceLastPrompt = totalSeconds -
+        prefs.getDonationSupportLastPromptSeconds(
+          userGuid: userGuid,
+        );
     final due = prompted
         ? sinceLastPrompt >= repromptInterval.inSeconds
         : totalSeconds >= WatchTimeTracker.supportAuthorThreshold.inSeconds;
     AppTalker.info(
       'SupportAuthor',
       'playerExit userGuid=$userGuid total=${totalSeconds}s '
-      'threshold=${WatchTimeTracker.supportAuthorThreshold.inSeconds}s '
-      'donated=$donated prompted=$prompted '
-      'sinceLastPrompt=${sinceLastPrompt}s '
-      'interval=${repromptInterval.inSeconds}s due=$due',
+          'threshold=${WatchTimeTracker.supportAuthorThreshold.inSeconds}s '
+          'donated=$donated prompted=$prompted '
+          'sinceLastPrompt=${sinceLastPrompt}s '
+          'interval=${repromptInterval.inSeconds}s due=$due',
     );
     if (!due) return;
 
@@ -210,6 +211,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => LivePlayerScreen(
           guid: state.pathParameters['guid'] ?? '',
         ),
+      ),
+      // TV big-screen mode home. Outside the ShellRoute (like the player
+      // routes) so it renders fullscreen without the desktop app chrome.
+      GoRoute(
+        path: '/bigscreen',
+        builder: (context, state) => const TvModeScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) {

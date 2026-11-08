@@ -771,6 +771,146 @@
   "@captionUnpin": {
     "description": "Window caption unpin button tooltip."
   },
+  "captionTvMode": "Switch to TV mode",
+  "@captionTvMode": {
+    "description": "Window caption TV mode button tooltip."
+  },
+  "tvNavHome": "Home",
+  "@tvNavHome": {
+    "description": "TV mode rail navigation: home."
+  },
+  "tvNavLibrary": "Library",
+  "@tvNavLibrary": {
+    "description": "TV mode rail navigation: media library."
+  },
+  "tvNavSearch": "Search",
+  "@tvNavSearch": {
+    "description": "TV mode rail navigation: search."
+  },
+  "tvNavFavorites": "Favorites",
+  "@tvNavFavorites": {
+    "description": "TV mode rail navigation: favorites."
+  },
+  "tvNavHistory": "History",
+  "@tvNavHistory": {
+    "description": "TV mode rail navigation: watch history."
+  },
+  "tvNavSettings": "Settings",
+  "@tvNavSettings": {
+    "description": "TV mode rail navigation: settings."
+  },
+  "tvExitBigScreen": "Exit TV mode",
+  "@tvExitBigScreen": {
+    "description": "TV mode rail item that exits back to desktop mode."
+  },
+  "tvHeroKicker": "Continue watching · {suffix}",
+  "@tvHeroKicker": {
+    "description": "TV mode hero kicker line above the title.",
+    "placeholders": {
+      "suffix": {
+        "type": "String"
+      }
+    }
+  },
+  "tvHeroWatchedRemaining": "{percent}% watched · {time} left",
+  "@tvHeroWatchedRemaining": {
+    "description": "TV mode hero meta: watched percent and remaining time.",
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tvHeroDetails": "Details",
+  "@tvHeroDetails": {
+    "description": "TV mode hero secondary button: details."
+  },
+  "tvHeroFavorite": "Favorite",
+  "@tvHeroFavorite": {
+    "description": "TV mode hero secondary button: favorite."
+  },
+  "tvShelfResumeHint": "Focus a card to preview it above",
+  "@tvShelfResumeHint": {
+    "description": "TV mode resume shelf subtitle explaining hero sync."
+  },
+  "tvShelfAllCount": "All {count} ›",
+  "@tvShelfAllCount": {
+    "description": "TV mode shelf head: total resume entries link.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvShelfEnterLibrary": "Open library ›",
+  "@tvShelfEnterLibrary": {
+    "description": "TV mode shelf head: enter library link."
+  },
+  "tvShelfCountItems": "{count} titles",
+  "@tvShelfCountItems": {
+    "description": "TV mode shelf head: item count.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvCardPlayedOf": "Played to {played} · {total}",
+  "@tvCardPlayedOf": {
+    "description": "TV mode wide card subtitle: played position of total duration.",
+    "placeholders": {
+      "played": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "tvEmptyTitle": "Nothing watched yet",
+  "@tvEmptyTitle": {
+    "description": "TV mode empty hero title."
+  },
+  "tvEmptyDesc": "Pick something from your library to start playing. Your progress will gather here, so next time you can jump right back in.",
+  "@tvEmptyDesc": {
+    "description": "TV mode empty hero description."
+  },
+  "tvEmptyDescCount": "Your library already has {count} titles waiting.",
+  "@tvEmptyDescCount": {
+    "description": "TV mode empty hero description suffix with library total.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvEmptyGoLibrary": "Browse the library",
+  "@tvEmptyGoLibrary": {
+    "description": "TV mode empty hero primary button."
+  },
+  "tvEmptyGoSearch": "Search for something",
+  "@tvEmptyGoSearch": {
+    "description": "TV mode empty hero secondary button."
+  },
+  "tvHintMove": "Move",
+  "@tvHintMove": {
+    "description": "TV mode key hint: arrows to move focus."
+  },
+  "tvHintOk": "Play / Enter",
+  "@tvHintOk": {
+    "description": "TV mode key hint: OK to play or enter."
+  },
+  "tvHintBack": "Back",
+  "@tvHintBack": {
+    "description": "TV mode key hint: back."
+  },
+  "tvHintMore": "More options",
+  "@tvHintMore": {
+    "description": "TV mode key hint: more options."
+  },
   "toastInfo": "Info",
   "@toastInfo": {
     "description": "Toast title for informational messages."

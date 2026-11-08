@@ -587,6 +587,96 @@ class AppLocalizationsZh extends AppLocalizations {
   String get captionUnpin => '取消置顶';
 
   @override
+  String get captionTvMode => '切换大屏模式';
+
+  @override
+  String get tvNavHome => '主页';
+
+  @override
+  String get tvNavLibrary => '媒体库';
+
+  @override
+  String get tvNavSearch => '搜索';
+
+  @override
+  String get tvNavFavorites => '收藏';
+
+  @override
+  String get tvNavHistory => '观看历史';
+
+  @override
+  String get tvNavSettings => '设置';
+
+  @override
+  String get tvExitBigScreen => '退出大屏';
+
+  @override
+  String tvHeroKicker(String suffix) {
+    return '继续观看 · $suffix';
+  }
+
+  @override
+  String tvHeroWatchedRemaining(String percent, String time) {
+    return '已看 $percent% · 剩余 $time';
+  }
+
+  @override
+  String get tvHeroDetails => '详情';
+
+  @override
+  String get tvHeroFavorite => '收藏';
+
+  @override
+  String get tvShelfResumeHint => '焦点切换，上方同步';
+
+  @override
+  String tvShelfAllCount(String count) {
+    return '全部 $count 条 ›';
+  }
+
+  @override
+  String get tvShelfEnterLibrary => '进入媒体库 ›';
+
+  @override
+  String tvShelfCountItems(String count) {
+    return '$count 部';
+  }
+
+  @override
+  String tvCardPlayedOf(String played, String total) {
+    return '播放至 $played · $total';
+  }
+
+  @override
+  String get tvEmptyTitle => '还没有观看记录';
+
+  @override
+  String get tvEmptyDesc => '从媒体库挑一部影片开始播放，观看进度会汇集到这里，下次打开可以直接接着看。';
+
+  @override
+  String tvEmptyDescCount(String count) {
+    return '你的媒体库里已经有 $count 项内容在等待。';
+  }
+
+  @override
+  String get tvEmptyGoLibrary => '去媒体库挑选';
+
+  @override
+  String get tvEmptyGoSearch => '搜索想看的';
+
+  @override
+  String get tvHintMove => '移动';
+
+  @override
+  String get tvHintOk => '播放 / 进入';
+
+  @override
+  String get tvHintBack => '返回';
+
+  @override
+  String get tvHintMore => '更多选项';
+
+  @override
   String get toastInfo => '信息';
 
   @override
@@ -3413,6 +3503,96 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get captionUnpin => '取消置頂';
+
+  @override
+  String get captionTvMode => '切換大屏模式';
+
+  @override
+  String get tvNavHome => '主頁';
+
+  @override
+  String get tvNavLibrary => '媒體庫';
+
+  @override
+  String get tvNavSearch => '搜尋';
+
+  @override
+  String get tvNavFavorites => '收藏';
+
+  @override
+  String get tvNavHistory => '觀看歷史';
+
+  @override
+  String get tvNavSettings => '設置';
+
+  @override
+  String get tvExitBigScreen => '退出大屏';
+
+  @override
+  String tvHeroKicker(String suffix) {
+    return '繼續觀看 · $suffix';
+  }
+
+  @override
+  String tvHeroWatchedRemaining(String percent, String time) {
+    return '已看 $percent% · 剩餘 $time';
+  }
+
+  @override
+  String get tvHeroDetails => '詳情';
+
+  @override
+  String get tvHeroFavorite => '收藏';
+
+  @override
+  String get tvShelfResumeHint => '焦點切換，上方同步';
+
+  @override
+  String tvShelfAllCount(String count) {
+    return '全部 $count 條 ›';
+  }
+
+  @override
+  String get tvShelfEnterLibrary => '進入媒體庫 ›';
+
+  @override
+  String tvShelfCountItems(String count) {
+    return '$count 部';
+  }
+
+  @override
+  String tvCardPlayedOf(String played, String total) {
+    return '播放至 $played · $total';
+  }
+
+  @override
+  String get tvEmptyTitle => '還沒有觀看記錄';
+
+  @override
+  String get tvEmptyDesc => '從媒體庫挑一部影片開始播放，觀看進度會匯集到這裡，下次打開可以直接接著看。';
+
+  @override
+  String tvEmptyDescCount(String count) {
+    return '你的媒體庫裡已經有 $count 項內容在等待。';
+  }
+
+  @override
+  String get tvEmptyGoLibrary => '去媒體庫挑選';
+
+  @override
+  String get tvEmptyGoSearch => '搜尋想看的';
+
+  @override
+  String get tvHintMove => '移動';
+
+  @override
+  String get tvHintOk => '播放 / 進入';
+
+  @override
+  String get tvHintBack => '返回';
+
+  @override
+  String get tvHintMore => '更多選項';
 
   @override
   String get toastInfo => '資訊';

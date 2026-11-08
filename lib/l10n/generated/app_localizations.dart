@@ -1197,6 +1197,162 @@ abstract class AppLocalizations {
   /// **'取消置顶'**
   String get captionUnpin;
 
+  /// Window caption TV mode button tooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换大屏模式'**
+  String get captionTvMode;
+
+  /// TV mode rail navigation: home.
+  ///
+  /// In zh, this message translates to:
+  /// **'主页'**
+  String get tvNavHome;
+
+  /// TV mode rail navigation: media library.
+  ///
+  /// In zh, this message translates to:
+  /// **'媒体库'**
+  String get tvNavLibrary;
+
+  /// TV mode rail navigation: search.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索'**
+  String get tvNavSearch;
+
+  /// TV mode rail navigation: favorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get tvNavFavorites;
+
+  /// TV mode rail navigation: watch history.
+  ///
+  /// In zh, this message translates to:
+  /// **'观看历史'**
+  String get tvNavHistory;
+
+  /// TV mode rail navigation: settings.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置'**
+  String get tvNavSettings;
+
+  /// TV mode rail item that exits back to desktop mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出大屏'**
+  String get tvExitBigScreen;
+
+  /// TV mode hero kicker line above the title.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续观看 · {suffix}'**
+  String tvHeroKicker(String suffix);
+
+  /// TV mode hero meta: watched percent and remaining time.
+  ///
+  /// In zh, this message translates to:
+  /// **'已看 {percent}% · 剩余 {time}'**
+  String tvHeroWatchedRemaining(String percent, String time);
+
+  /// TV mode hero secondary button: details.
+  ///
+  /// In zh, this message translates to:
+  /// **'详情'**
+  String get tvHeroDetails;
+
+  /// TV mode hero secondary button: favorite.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get tvHeroFavorite;
+
+  /// TV mode resume shelf subtitle explaining hero sync.
+  ///
+  /// In zh, this message translates to:
+  /// **'焦点切换，上方同步'**
+  String get tvShelfResumeHint;
+
+  /// TV mode shelf head: total resume entries link.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部 {count} 条 ›'**
+  String tvShelfAllCount(String count);
+
+  /// TV mode shelf head: enter library link.
+  ///
+  /// In zh, this message translates to:
+  /// **'进入媒体库 ›'**
+  String get tvShelfEnterLibrary;
+
+  /// TV mode shelf head: item count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 部'**
+  String tvShelfCountItems(String count);
+
+  /// TV mode wide card subtitle: played position of total duration.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放至 {played} · {total}'**
+  String tvCardPlayedOf(String played, String total);
+
+  /// TV mode empty hero title.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有观看记录'**
+  String get tvEmptyTitle;
+
+  /// TV mode empty hero description.
+  ///
+  /// In zh, this message translates to:
+  /// **'从媒体库挑一部影片开始播放，观看进度会汇集到这里，下次打开可以直接接着看。'**
+  String get tvEmptyDesc;
+
+  /// TV mode empty hero description suffix with library total.
+  ///
+  /// In zh, this message translates to:
+  /// **'你的媒体库里已经有 {count} 项内容在等待。'**
+  String tvEmptyDescCount(String count);
+
+  /// TV mode empty hero primary button.
+  ///
+  /// In zh, this message translates to:
+  /// **'去媒体库挑选'**
+  String get tvEmptyGoLibrary;
+
+  /// TV mode empty hero secondary button.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索想看的'**
+  String get tvEmptyGoSearch;
+
+  /// TV mode key hint: arrows to move focus.
+  ///
+  /// In zh, this message translates to:
+  /// **'移动'**
+  String get tvHintMove;
+
+  /// TV mode key hint: OK to play or enter.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放 / 进入'**
+  String get tvHintOk;
+
+  /// TV mode key hint: back.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回'**
+  String get tvHintBack;
+
+  /// TV mode key hint: more options.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多选项'**
+  String get tvHintMore;
+
   /// Toast title for informational messages.
   ///
   /// In zh, this message translates to:

@@ -610,6 +610,97 @@ class AppLocalizationsEn extends AppLocalizations {
   String get captionUnpin => 'Stop keeping on top';
 
   @override
+  String get captionTvMode => 'Switch to TV mode';
+
+  @override
+  String get tvNavHome => 'Home';
+
+  @override
+  String get tvNavLibrary => 'Library';
+
+  @override
+  String get tvNavSearch => 'Search';
+
+  @override
+  String get tvNavFavorites => 'Favorites';
+
+  @override
+  String get tvNavHistory => 'History';
+
+  @override
+  String get tvNavSettings => 'Settings';
+
+  @override
+  String get tvExitBigScreen => 'Exit TV mode';
+
+  @override
+  String tvHeroKicker(String suffix) {
+    return 'Continue watching · $suffix';
+  }
+
+  @override
+  String tvHeroWatchedRemaining(String percent, String time) {
+    return '$percent% watched · $time left';
+  }
+
+  @override
+  String get tvHeroDetails => 'Details';
+
+  @override
+  String get tvHeroFavorite => 'Favorite';
+
+  @override
+  String get tvShelfResumeHint => 'Focus a card to preview it above';
+
+  @override
+  String tvShelfAllCount(String count) {
+    return 'All $count ›';
+  }
+
+  @override
+  String get tvShelfEnterLibrary => 'Open library ›';
+
+  @override
+  String tvShelfCountItems(String count) {
+    return '$count titles';
+  }
+
+  @override
+  String tvCardPlayedOf(String played, String total) {
+    return 'Played to $played · $total';
+  }
+
+  @override
+  String get tvEmptyTitle => 'Nothing watched yet';
+
+  @override
+  String get tvEmptyDesc =>
+      'Pick something from your library to start playing. Your progress will gather here, so next time you can jump right back in.';
+
+  @override
+  String tvEmptyDescCount(String count) {
+    return 'Your library already has $count titles waiting.';
+  }
+
+  @override
+  String get tvEmptyGoLibrary => 'Browse the library';
+
+  @override
+  String get tvEmptyGoSearch => 'Search for something';
+
+  @override
+  String get tvHintMove => 'Move';
+
+  @override
+  String get tvHintOk => 'Play / Enter';
+
+  @override
+  String get tvHintBack => 'Back';
+
+  @override
+  String get tvHintMore => 'More options';
+
+  @override
   String get toastInfo => 'Info';
 
   @override
