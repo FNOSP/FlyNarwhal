@@ -74,32 +74,38 @@ class _TvRailState extends ConsumerState<TvRail> {
                 _TvNavItem(
                   label: l10n.tvNavHome,
                   icon: _kIconHome,
+                  keyName: 'home',
                   active: true,
                   order: 900,
                 ),
                 _TvNavItem(
                   label: l10n.tvNavLibrary,
                   icon: _kIconLibrary,
+                  keyName: 'library',
                   order: 901,
                 ),
                 _TvNavItem(
                   label: l10n.tvNavSearch,
                   icon: _kIconSearch,
+                  keyName: 'search',
                   order: 902,
                 ),
                 _TvNavItem(
                   label: l10n.tvNavFavorites,
                   icon: _kIconFavorite,
+                  keyName: 'favorites',
                   order: 903,
                 ),
                 _TvNavItem(
                   label: l10n.tvNavHistory,
                   icon: _kIconHistory,
+                  keyName: 'history',
                   order: 904,
                 ),
                 _TvNavItem(
                   label: l10n.tvNavSettings,
                   icon: _kIconSettings,
+                  keyName: 'settings',
                   order: 905,
                 ),
                 const SizedBox(width: 20),
@@ -112,6 +118,7 @@ class _TvRailState extends ConsumerState<TvRail> {
                 _TvNavItem(
                   label: l10n.tvExitBigScreen,
                   icon: _kIconExit,
+                  keyName: 'exit',
                   order: 906,
                   onActivate: () {
                     ref.read(tvModeControllerProvider).exitTvMode();
@@ -220,6 +227,7 @@ class _TvNavItem extends StatefulWidget {
   const _TvNavItem({
     required this.label,
     required this.icon,
+    required this.keyName,
     this.active = false,
     this.onActivate,
     this.order = 100,
@@ -227,6 +235,9 @@ class _TvNavItem extends StatefulWidget {
 
   final String label;
   final String icon;
+
+  /// Stable automation anchor: `tv-rail-<keyName>`.
+  final String keyName;
   final bool active;
   final VoidCallback? onActivate;
   final int order;
@@ -244,6 +255,7 @@ class _TvNavItemState extends State<_TvNavItem> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3),
       child: TvFocusable(
+        key: ValueKey('tv-rail-${widget.keyName}'),
         style: TvFocusStyle.nav,
         order: widget.order,
         onActivate: widget.onActivate,

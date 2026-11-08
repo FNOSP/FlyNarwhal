@@ -56,6 +56,7 @@ class _TvWideCardState extends State<TvWideCard> {
         : (buildPlayDetailSubtitle(item, l10n) ?? '');
 
     return TvFocusable(
+      key: ValueKey('tv-resume-card-${item.guid}'),
       order: widget.order,
       onActivate: widget.onActivate,
       onFocusGained: widget.onFocusGained,

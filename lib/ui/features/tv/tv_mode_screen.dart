@@ -191,7 +191,9 @@ class _TvModeScreenState extends ConsumerState<TvModeScreen>
                                   itemCount: resumeItems.length,
                                   itemExtent:
                                       TvTheme.wideCardWidth + TvTheme.cardGap,
-                                  rowHeight: 316,
+                                  // Card column ~302 + 14 halo; keep slack
+                                  // so font-metric jitter never overflows.
+                                  rowHeight: 330,
                                   itemBuilder: (context, index) {
                                     final item = resumeItems[index];
                                     return TvWideCard(
@@ -263,7 +265,8 @@ class _TvModeScreenState extends ConsumerState<TvModeScreen>
       moreLabel: l10n.tvShelfEnterLibrary,
       itemCount: items.length,
       itemExtent: TvTheme.posterCardWidth + TvTheme.cardGap,
-      rowHeight: 430,
+      // Poster 360 + drawer (~56) + 14 halo + slack.
+      rowHeight: 448,
       itemBuilder: (context, index) => TvPosterCard(
         item: items[index],
         order: 200 + index,

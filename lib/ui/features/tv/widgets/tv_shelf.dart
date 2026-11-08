@@ -39,7 +39,7 @@ class TvShelf extends StatelessWidget {
 
   /// Vertical breathing room so the focus ring/glow of scaled cards is not
   /// clipped by the row viewport.
-  static const double _glowMargin = 48;
+  static const double _glowMargin = 24;
 
   @override
   Widget build(BuildContext context) {

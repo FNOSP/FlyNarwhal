@@ -46,6 +46,7 @@ class _TvPosterCardState extends State<TvPosterCard> {
     final subtitle = buildPosterSubtitle(item, l10n) ?? '';
 
     return TvFocusable(
+      key: ValueKey('tv-poster-card-${item.guid}'),
       order: widget.order,
       onActivate: widget.onActivate,
       onFocusChanged: (focused) => setState(() => _focused = focused),

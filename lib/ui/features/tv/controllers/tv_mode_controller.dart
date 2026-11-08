@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/utils/log/app_talker.dart';
 import '../../../navigation/app_router.dart';
 import 'tv_fullscreen_driver.dart';
 
@@ -40,6 +41,21 @@ class TvModeController extends ChangeNotifier {
       }
       await WidgetsBinding.instance.endOfFrame;
       await _driver.enter();
+      // macOS occasionally refuses the toggle when it lands inside another
+      // window transition; confirm and retry before giving up.
+      for (var attempt = 0; attempt < 3; attempt++) {
+        if (await _driver.isFullscreenActive()) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        if (attempt < 2) {
+          await _driver.enter();
+        }
+      }
+      AppTalker.info(
+        'TvMode',
+        'enterTvMode fullscreen=${await _driver.isFullscreenActive()}',
+      );
       _isInTvMode = true;
       notifyListeners();
     } finally {
@@ -73,6 +89,10 @@ class TvModeController extends ChangeNotifier {
       if (wasInTvMode || await _driver.isFullscreenActive()) {
         await _driver.exit();
       }
+      AppTalker.info(
+        'TvMode',
+        'exitTvMode fullscreen=${await _driver.isFullscreenActive()}',
+      );
     } finally {
       _isTransitioning = false;
     }

@@ -317,6 +317,7 @@ class _HeroBody extends StatelessWidget {
         Row(
           children: [
             TvButton(
+              key: const ValueKey('tv-hero-play'),
               label: l10n.actionContinuePlay,
               iconSvg: _kIconPlay,
               primary: true,

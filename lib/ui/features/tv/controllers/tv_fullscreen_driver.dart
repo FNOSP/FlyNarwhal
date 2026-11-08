@@ -46,8 +46,12 @@ class TvFullscreenDriver {
         // The pseudo controller suspends/resumes the persistence guard itself.
         await _pseudo.enter();
       } else {
-        MainWindowPersistenceGuard.suspend();
-        _guardSuspended = true;
+        // Idempotent per enter/exit cycle so callers may retry a refused
+        // fullscreen toggle without unbalancing the guard counter.
+        if (!_guardSuspended) {
+          MainWindowPersistenceGuard.suspend();
+          _guardSuspended = true;
+        }
         try {
           await windowManager.setFullScreen(true);
         } catch (_) {

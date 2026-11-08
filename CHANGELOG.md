@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 新增 TV 大屏模式：标题栏切换按钮进入 10 英尺首页（Hero 聚光联动继续观看、电影/电视节目货架、方向键几何焦点导航、底部按键提示），macOS/Linux 进入系统全屏、Windows 进入伪全屏，Esc 或导航栏「退出大屏」返回桌面模式
+
 ### Changed
 
 ### Fixed
