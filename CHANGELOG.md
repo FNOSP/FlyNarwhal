@@ -22,6 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.4.1] - 2026-11-08
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Fixed
+
+- **媒体库**：修复了「其他」分类页面视频显示不全的问题。
+- **播放器全屏**：修复了从最大化窗口进入播放器后切换为全屏时窗口被缩小，以及退出播放器后窗口退出全屏的问题。
+- **标题栏**：修复了 macOS 全屏时标题栏左侧留有空隙的问题。
+- **界面字号调节**：修复了英文界面下字号选项文字被截断的问题。
+- **服务端版本提醒**：修复了应用启动时执行的服务端版本检查会出错、导致服务端有新版本时不会提示的问题。
+
 ## [2.4.0] - 2026-11-02
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
