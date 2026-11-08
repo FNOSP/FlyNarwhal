@@ -187,6 +187,7 @@ class PlaybackSourceController {
           effectiveUri = (await lifetime.guard(() => proxy.open(
                     uri: Uri.parse(source.playUri),
                     headers: capturedUpstreamHeaders,
+                    bitrate: source.bitrate,
                   )))
               .toString();
         } catch (_) {

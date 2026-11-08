@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 
 import '../api_result.dart';
 import 'cdn_cancellation.dart';
+import 'cdn_concurrency_policy.dart';
 import 'cdn_proxy_constants.dart';
 import 'cdn_proxy_errors.dart';
 import 'cdn_range_diagnostics.dart';
@@ -31,12 +32,17 @@ class _StreamingChunk {
 }
 
 class _ReadRequest {
-  _ReadRequest(this.range, {this.probe = false})
+  _ReadRequest(this.range,
+      {this.probe = false,
+      this.bitrate = 0,
+      })
       : ranges = (probe ? [range] : splitCdnRange(range)).iterator,
-        single = probe || range.length <= CdnProxyDefaults.chunkSize;
+        single = probe || range.length <= CdnProxyDefaults.chunkSize,
+        _concurrency = initialConcurrency(bitrate);
   final CdnByteRange range;
   final bool probe;
   final bool single;
+  final int bitrate;
   final Iterator<CdnByteRange> ranges;
   final CdnCancellation cancellation = CdnCancellation();
   final Map<int, _StreamingChunk> chunks = {};
@@ -52,6 +58,73 @@ class _ReadRequest {
   bool prefetchAllowed = false;
   int nextId = 0;
   int readingId = 0;
+
+  /// Current number of simultaneous downloads allowed for this reader.
+  int _concurrency;
+
+  /// Cumulative bytes pulled since the current measurement window opened.
+  int _windowBytes = 0;
+
+  /// Active download time accumulated since the current measurement window
+  /// opened. Gaps where the player paused reading are excluded, so the
+  /// measured rate reflects the transport rather than downstream backpressure.
+  int _windowActiveMs = 0;
+
+  /// Wall-clock start of the current active download segment, or zero when no
+  /// chunk is downloading. Backpressure gaps are excluded from [_windowActiveMs].
+  int _activeSegmentStartMs = 0;
+  int _unproductiveProbes = 0;
+  bool _probePending = false;
+  double _preProbeThroughput = 0;
+
+  void _markDownloadStarted() {
+    if (_activeSegmentStartMs == 0) {
+      _activeSegmentStartMs = DateTime.now().millisecondsSinceEpoch;
+    }
+  }
+
+  void _markDownloadStopped() {
+    if (work.isNotEmpty) return;
+    if (_activeSegmentStartMs == 0) return;
+    _windowActiveMs +=
+        DateTime.now().millisecondsSinceEpoch - _activeSegmentStartMs;
+    _activeSegmentStartMs = 0;
+  }
+
+  /// Records one completed chunk download and, once an active-download
+  /// measurement window has elapsed, moves the concurrency in response.
+  void recordNetworkWindow(int bytes) {
+    if (probe || bytes <= 0 || bitrate <= 0) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final activeMs = _windowActiveMs +
+        (_activeSegmentStartMs == 0 ? 0 : now - _activeSegmentStartMs);
+    _windowBytes += bytes;
+    if (activeMs < CdnProxyDefaults.throughputMeasurementWindowMs) return;
+    final measured = _windowBytes * 1000 / activeMs;
+    _windowBytes = 0;
+    _windowActiveMs = 0;
+    if (_activeSegmentStartMs != 0) {
+      _activeSegmentStartMs = now;
+    }
+    _adjustConcurrency(measured);
+  }
+
+  /// Moves the concurrency in response to [measured] aggregate throughput.
+  void _adjustConcurrency(double measured) {
+    final previous = _concurrency;
+    final decision = decideConcurrency(
+      concurrency: previous,
+      bitrate: bitrate,
+      measured: measured,
+      probePending: _probePending,
+      unproductiveProbes: _unproductiveProbes,
+      preProbeThroughput: _preProbeThroughput,
+    );
+    _concurrency = decision.concurrency;
+    _probePending = decision.probePending;
+    _unproductiveProbes = decision.unproductiveProbes;
+    _preProbeThroughput = decision.preProbeThroughput;
+  }
 
   /// Reserves the right to end an attempt's body connection. A later body
   /// teardown only cancels the token when it won this race, so the token never
@@ -141,7 +214,7 @@ class _ReadRequest {
   }
 
   int get windowLimit => prefetchAllowed
-      ? min(CdnProxyDefaults.maxChunksPerReader,
+      ? min(_concurrency,
           (range.length - 1) ~/ CdnProxyDefaults.chunkSize + 1)
       : 1;
 }
@@ -152,6 +225,7 @@ class CdnRangeSession {
     required this.source,
     required this.uri,
     required Map<String, String> headers,
+    this.bitrate = 0,
     this.onError,
     Duration Function()? retryJitter,
     this.diagnostics,
@@ -163,6 +237,7 @@ class CdnRangeSession {
   final CdnRangeSource source;
   final Uri uri;
   final Map<String, String> headers;
+  final int bitrate;
   final void Function(Object)? onError;
   final Duration Function() retryJitter;
   final CdnRangeDiagnostics? diagnostics;
@@ -204,8 +279,8 @@ class CdnRangeSession {
   Future<void> initialize() => _initializing ??= _initialize();
   Future<void> _initialize() async {
     _checkActive();
-    final request =
-        _ReadRequest(const CdnByteRange(start: 0, end: 0), probe: true);
+    final request = _ReadRequest(const CdnByteRange(start: 0, end: 0),
+        probe: true, bitrate: bitrate);
     try {
       await _read(request).drain<void>();
       _checkActive();
@@ -227,7 +302,7 @@ class CdnRangeSession {
     } catch (cause, stack) {
       return Stream<Uint8List>.error(cause, stack);
     }
-    final request = _ReadRequest(range);
+    final request = _ReadRequest(range, bitrate: bitrate);
     StreamSubscription<Uint8List>? subscription;
     late final StreamController<Uint8List> controller;
     controller = StreamController(
@@ -316,6 +391,7 @@ class CdnRangeSession {
           request.fail(_safeError(cause));
         } finally {
           request.work.remove(task);
+          request._markDownloadStopped();
         }
       });
       request.work.add(task);
@@ -376,9 +452,11 @@ class CdnRangeSession {
             }
             bodyPhase = true;
             unreadBody = null;
+            request._markDownloadStarted();
             await _consume(
                 response.stream, request, chunk, token, trace, owning);
             chunk.complete = true;
+            request.recordNetworkWindow(chunk.accepted);
           }
           request.signal();
           outcome = 'success';
