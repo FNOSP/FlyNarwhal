@@ -65,13 +65,13 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       (previous, next) {
         if (previous != next) {
           _loadStaticTags(
-            type: widget.categoryType == 'live' ? 'LiveChannel' : null,
+            type: _tagListType,
           );
         }
       },
     );
     _loadStaticTags(
-      type: widget.categoryType == 'live' ? 'LiveChannel' : null,
+      type: _tagListType,
     );
     _bootstrapLibrarySettings();
   }
@@ -92,7 +92,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         _iso3166 = null;
       });
       _loadStaticTags(
-        type: widget.categoryType == 'live' ? 'LiveChannel' : null,
+        type: _tagListType,
       );
       _bootstrapLibrarySettings();
     }
@@ -145,11 +145,26 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     return MediaType.valuesFromCategory(category);
   }
 
+  /// tag/list 的 type 参数：与 Web 一致，以逗号分隔的类型串下发。
+  /// 直播库传 LiveChannel；“其他”页（/v/list/other）传 Directory,Video；
+  /// 其余分类不传。
+  String? get _tagListType {
+    switch (widget.categoryType) {
+      case 'live':
+        return MediaType.liveChannel.value;
+      case 'video':
+        return '${MediaType.directory.value},${MediaType.video.value}';
+      default:
+        return null;
+    }
+  }
+
   Future<void> _loadStaticTags({String? type}) async {
     final repo = ref.read(iTagRepositoryProvider);
     try {
       // Match the KMP metadata request and keep tag list type unset here;
-      // live pages request LiveChannel tags so the genre row mirrors web.
+      // live and other pages scope the tags to their own media types so the
+      // filter rows mirror web.
       final tagListResult = await repo.getTagList(
         ancestorGuid: widget.id,
         isFavorite: 0,
@@ -386,7 +401,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     // Reload page-specific data after the shared metadata has completed.
     await Future.wait([
       _loadStaticTags(
-        type: widget.categoryType == 'live' ? 'LiveChannel' : null,
+        type: _tagListType,
       ),
       ref
           .read(mediaLibraryNotifierProvider(_providerGuid).notifier)
@@ -1109,6 +1124,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                             genres: _genres,
                             iso3166: _iso3166,
                             liveOnly: _isLiveLibrary,
+                            categoryType: widget.categoryType,
                             initialSelectedFilters: _selectedFilters,
                             onFilterChanged: (filters) {
                               _selectedFilters =

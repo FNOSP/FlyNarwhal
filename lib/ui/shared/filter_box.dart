@@ -234,6 +234,10 @@ class FilterBox extends StatefulWidget {
   /// 当指定时，筛选内容超过该高度可滚动，避免在窄窗口中撑破布局。
   final double? maxHeight;
 
+  /// 媒体库分类页（`/category/:type`）传当前分类：Web `/v/list/other`
+  /// 隐藏“影视类型、国家和地区、发行年份”三行。
+  final String? categoryType;
+
   const FilterBox({
     super.key,
     this.tagList,
@@ -245,6 +249,7 @@ class FilterBox extends StatefulWidget {
     this.liveOnly = false,
     this.folderOnly = false,
     this.maxHeight,
+    this.categoryType,
   });
 
   @override
@@ -285,9 +290,23 @@ class _FilterBoxState extends State<FilterBox> {
       iso3166: widget.iso3166,
       liveOnly: widget.liveOnly,
       folderOnly: widget.folderOnly,
+      categoryType: widget.categoryType,
     );
     for (final group in groups) {
-      _selectedOptions.putIfAbsent(group.key, () => group.options.first);
+      // 与 Web 一致：每一类默认选中“全部”。清除筛选会留下 label 为空的
+      // 占位项，标签重新加载后旧选项对象也会失配；两者都按 value 归一化，
+      // 匹配不到时回落到该行首项（“全部”）。
+      final current = _selectedOptions[group.key];
+      FilterItem? resolved;
+      if (current != null) {
+        for (final option in group.options) {
+          if (option.value == current.value) {
+            resolved = option;
+            break;
+          }
+        }
+      }
+      _selectedOptions[group.key] = resolved ?? group.options.first;
     }
 
     final content = Column(
@@ -448,9 +467,13 @@ List<FilterGroup> _buildFilterGroups({
   Map<String, String>? iso3166,
   bool liveOnly = false,
   bool folderOnly = false,
+  String? categoryType,
 }) {
+  // 与 Web `/v/list/other` 一致：目录/散装视频隐藏“影视类型、
+  // 国家和地区、发行年份”三行；“类型”保留。
+  final otherOnly = !liveOnly && !folderOnly && categoryType == 'video';
   final groups = <FilterGroup>[];
-  if (!liveOnly && !folderOnly) {
+  if (!liveOnly && !folderOnly && !otherOnly) {
     groups.add(
       FilterGroup(
         FilterRowKey.mediaType,
@@ -637,14 +660,14 @@ List<FilterGroup> _buildFilterGroups({
     );
   }
 
-  if (tagList != null && iso3166 != null) {
+  if (tagList != null && iso3166 != null && !otherOnly) {
     final isoMap = iso3166;
     final options = <FilterItem>[FilterItem(l10n.filterOptionAll, null)];
     for (final code in tagList.locations) {
       options.add(FilterItem(isoMap[code] ?? code, code));
     }
     groups.add(FilterGroup(FilterRowKey.location, l10n.filterRowLocation, options));
-  } else {
+  } else if (!otherOnly) {
     groups.add(
       FilterGroup(
         FilterRowKey.location,
@@ -654,7 +677,7 @@ List<FilterGroup> _buildFilterGroups({
     );
   }
 
-  if (tagList != null) {
+  if (tagList != null && !otherOnly) {
     final options = <FilterItem>[FilterItem(l10n.filterOptionAll, null)];
     for (final decade in tagList.decades) {
       final label = switch (decade) {
@@ -667,7 +690,7 @@ List<FilterGroup> _buildFilterGroups({
       options.add(FilterItem(label, decade));
     }
     groups.add(FilterGroup(FilterRowKey.decade, l10n.filterRowDecade, options));
-  } else {
+  } else if (!otherOnly) {
     groups.add(
       FilterGroup(
         FilterRowKey.decade,

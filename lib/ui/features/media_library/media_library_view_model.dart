@@ -156,8 +156,9 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
         return ["Movie"];
       case 'tv':
         return ["TV"];
+      // 与 Web `/v/list/other` 一致：Directory + Video，单独 Video 查不到内容。
       case 'video':
-        return ["Video"];
+        return ["Directory", "Video"];
       case 'live':
         return ["LiveChannel"];
       case 'total':
