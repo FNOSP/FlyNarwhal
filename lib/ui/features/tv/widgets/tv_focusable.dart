@@ -69,7 +69,8 @@ class TvFocusable extends StatefulWidget {
 }
 
 class TvFocusableState extends State<TvFocusable> {
-  final FocusNode _focusNode = FocusNode();
+  late final FocusNode _focusNode =
+      FocusNode(debugLabel: 'tv-focus:${widget.order}');
   final GlobalKey _childKey = GlobalKey();
   TvFocusEntry? _entry;
   TvFocusController? _controller;
@@ -156,9 +157,11 @@ class TvFocusableState extends State<TvFocusable> {
       _ => null,
     };
     if (direction != null) {
-      // Consume even when no candidate is found so the scrollables'
-      // arrow-to-scroll shortcuts never fire.
-      _controller?.moveFocus(direction);
+      // Consume the key-up too: otherwise the scrollables' built-in
+      // arrow-to-scroll shortcuts fire on it and double-scroll the page.
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        _controller?.moveFocus(direction);
+      }
       return KeyEventResult.handled;
     }
 

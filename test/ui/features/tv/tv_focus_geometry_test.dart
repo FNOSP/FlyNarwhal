@@ -96,4 +96,84 @@ void main() {
       );
     });
   });
+
+  group('TvFocusGeometry.revealOffset', () {
+    const pixels = 500.0;
+    const viewport = 1080.0;
+
+    double? reveal({
+      double contentLeading = 0,
+      double contentTrailing = 100,
+      double leadingInset = 0,
+      double trailingInset = 0,
+      double current = pixels,
+      double min = 0,
+      double max = 4000,
+    }) =>
+        TvFocusGeometry.revealOffset(
+          pixels: current,
+          viewportExtent: viewport,
+          contentLeading: contentLeading,
+          contentTrailing: contentTrailing,
+          leadingInset: leadingInset,
+          trailingInset: trailingInset,
+          minScrollExtent: min,
+          maxScrollExtent: max,
+        );
+
+    test('returns null when fully visible inside the insets', () {
+      expect(
+        reveal(contentLeading: 600, contentTrailing: 700),
+        isNull,
+      );
+    });
+
+    test('reveals upward when the element sits above the viewport', () {
+      // Element top at content 100 while viewport shows 500..1580.
+      expect(reveal(contentLeading: 100, contentTrailing: 300), 100);
+    });
+
+    test('reveals downward when the element sits below the viewport', () {
+      // Element bottom at content 2000 while viewport ends at 1580.
+      expect(
+        reveal(contentLeading: 1800, contentTrailing: 2000),
+        2000 - viewport,
+      );
+    });
+
+    test('respects leading and trailing insets', () {
+      // Up: target aligns the element top to the leading inset.
+      expect(
+        reveal(contentLeading: 300, contentTrailing: 500, leadingInset: 108),
+        300 - 108,
+      );
+      // Down: element bottom lands trailingInset above the viewport end.
+      expect(
+        reveal(
+          contentLeading: 1800,
+          contentTrailing: 2000,
+          trailingInset: 84,
+        ),
+        2000 - (viewport - 84),
+      );
+    });
+
+    test('clamps to the scroll extents', () {
+      expect(
+        reveal(contentLeading: 10, contentTrailing: 50, min: 100),
+        100,
+      );
+      expect(
+        reveal(contentLeading: 5000, contentTrailing: 5200, max: 4000),
+        4000,
+      );
+    });
+
+    test('sub-pixel deltas are ignored', () {
+      expect(
+        reveal(contentLeading: 499.5, contentTrailing: 700),
+        isNull,
+      );
+    });
+  });
 }

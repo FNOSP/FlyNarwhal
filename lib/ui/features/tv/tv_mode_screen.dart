@@ -76,6 +76,26 @@ class _TvModeScreenState extends ConsumerState<TvModeScreen>
   }
 
   KeyEventResult _handleRootKey(FocusNode node, KeyEvent event) {
+    // Arrow fallback while nothing else is focused (e.g. right after the
+    // route was pushed, or after a mouse user clicked a blank area). Consume
+    // the key-up as well so the scrollables' built-in arrow-to-scroll
+    // shortcuts cannot double-scroll on it.
+    final direction = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowLeft => TvDirection.left,
+      LogicalKeyboardKey.arrowRight => TvDirection.right,
+      LogicalKeyboardKey.arrowUp => TvDirection.up,
+      LogicalKeyboardKey.arrowDown => TvDirection.down,
+      _ => null,
+    };
+    if (direction != null) {
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        if (!_focusController.moveFocus(direction)) {
+          _focusController.focusInitial();
+        }
+      }
+      return KeyEventResult.handled;
+    }
+
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
@@ -85,22 +105,6 @@ class _TvModeScreenState extends ConsumerState<TvModeScreen>
         (event.logicalKey == LogicalKeyboardKey.escape ||
             event.logicalKey == LogicalKeyboardKey.backspace)) {
       ref.read(tvModeControllerProvider).exitTvMode();
-      return KeyEventResult.handled;
-    }
-
-    // Arrow fallback while nothing else is focused (e.g. right after the
-    // route was pushed, or after a mouse user clicked a blank area).
-    final direction = switch (event.logicalKey) {
-      LogicalKeyboardKey.arrowLeft => TvDirection.left,
-      LogicalKeyboardKey.arrowRight => TvDirection.right,
-      LogicalKeyboardKey.arrowUp => TvDirection.up,
-      LogicalKeyboardKey.arrowDown => TvDirection.down,
-      _ => null,
-    };
-    if (direction != null) {
-      if (!_focusController.moveFocus(direction)) {
-        _focusController.focusInitial();
-      }
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;

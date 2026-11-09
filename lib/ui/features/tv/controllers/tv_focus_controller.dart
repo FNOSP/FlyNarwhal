@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../tv_theme.dart';
+
 /// Arrow directions for the TV focus navigation.
 enum TvDirection { up, down, left, right }
 
@@ -10,6 +12,40 @@ enum TvDirection { up, down, left, right }
 abstract final class TvFocusGeometry {
   static const double deadZone = 8;
   static const double acrossWeight = 2.2;
+
+  /// Scroll offset that reveals an element sitting between [contentLeading]
+  /// and [contentTrailing] (content coordinates), or null when it is already
+  /// fully visible inside the inset-adjusted viewport.
+  ///
+  /// `Scrollable.ensureVisible` cannot be used here: its one-sided policies
+  /// (`keepVisibleAtEnd`/`keepVisibleAtStart`) clamp the offset to the current
+  /// position for the opposite direction, so focus moves up/left never
+  /// scrolled. This reveals in both directions.
+  static double? revealOffset({
+    required double pixels,
+    required double viewportExtent,
+    required double contentLeading,
+    required double contentTrailing,
+    required double leadingInset,
+    required double trailingInset,
+    required double minScrollExtent,
+    required double maxScrollExtent,
+  }) {
+    double? target;
+    if (contentLeading < pixels + leadingInset) {
+      target = contentLeading - leadingInset;
+    } else if (contentTrailing > pixels + viewportExtent - trailingInset) {
+      target = contentTrailing - (viewportExtent - trailingInset);
+    }
+    if (target == null) {
+      return null;
+    }
+    target = target.clamp(minScrollExtent, maxScrollExtent);
+    if ((target - pixels).abs() < 1) {
+      return null;
+    }
+    return target;
+  }
 
   /// Returns the index into [candidates] to focus, or null when nothing lies
   /// in [direction].
@@ -180,16 +216,70 @@ class TvFocusController {
     return best;
   }
 
+  // Reveal insets per axis: keep focused cards clear of the floating rail /
+  // key hints overlays (vertical) and of the row's leading padding /
+  // trailing fade (horizontal).
+  static const double _verticalLeadingInset = TvTheme.railHeight + 12;
+  static const double _verticalTrailingInset = TvTheme.keyHintsHeight + 12;
+  static const double _horizontalLeadingInset =
+      TvTheme.sidePadding - TvTheme.focusHaloExtent;
+  static const double _horizontalTrailingInset =
+      TvTheme.shelfFadeWidth + TvTheme.focusHaloExtent;
+
+  static const Duration _revealDuration = Duration(milliseconds: 220);
+
   void _ensureVisible(TvFocusEntry entry) {
     final context = entry.key.currentContext;
     if (context == null) return;
+    final targetBox = context.findRenderObject();
+    if (targetBox is! RenderBox || !targetBox.attached || !targetBox.hasSize) {
+      return;
+    }
+
     // Walk every scrollable ancestor (the shelf row and the vertical page
-    // scroll) so focus moves never hide behind an edge.
-    Scrollable.ensureVisible(
-      context,
-      duration: const Duration(milliseconds: 220),
+    // scroll) so focus moves never hide behind an edge or an overlay.
+    var scrollable = context.findAncestorStateOfType<ScrollableState>();
+    while (scrollable != null) {
+      _revealInScrollable(scrollable, targetBox);
+      scrollable =
+          scrollable.context.findAncestorStateOfType<ScrollableState>();
+    }
+  }
+
+  void _revealInScrollable(ScrollableState scrollable, RenderBox targetBox) {
+    final position = scrollable.position;
+    final viewportBox = scrollable.context.findRenderObject();
+    if (viewportBox is! RenderBox ||
+        !viewportBox.attached ||
+        !viewportBox.hasSize) {
+      return;
+    }
+
+    final rect = MatrixUtils.transformRect(
+      targetBox.getTransformTo(viewportBox),
+      Offset.zero & targetBox.size,
+    );
+    final horizontal = position.axis == Axis.horizontal;
+    final target = TvFocusGeometry.revealOffset(
+      pixels: position.pixels,
+      viewportExtent: position.viewportDimension,
+      contentLeading: (horizontal ? rect.left : rect.top) + position.pixels,
+      contentTrailing:
+          (horizontal ? rect.right : rect.bottom) + position.pixels,
+      leadingInset:
+          horizontal ? _horizontalLeadingInset : _verticalLeadingInset,
+      trailingInset:
+          horizontal ? _horizontalTrailingInset : _verticalTrailingInset,
+      minScrollExtent: position.minScrollExtent,
+      maxScrollExtent: position.maxScrollExtent,
+    );
+    if (target == null) {
+      return;
+    }
+    position.animateTo(
+      target,
+      duration: _revealDuration,
       curve: Curves.easeOutCubic,
-      alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
     );
   }
 }
