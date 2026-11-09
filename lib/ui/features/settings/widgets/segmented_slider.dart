@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_ui/fluent_ui.dart';
 
 /// 分段式选择器：圆角矩形凹槽内一枚滑块随选中项平移，滑块可悬停高亮。
@@ -11,7 +13,8 @@ class SegmentedSlider<T> extends StatefulWidget {
     required this.selected,
     required this.labelBuilder,
     required this.onChanged,
-    this.itemWidth = 46,
+    this.maxItemWidth = 120,
+    this.padding = 16,
     this.height = 24,
     this.spacing = 2,
     this.cornerRadius = 4,
@@ -28,8 +31,11 @@ class SegmentedSlider<T> extends StatefulWidget {
 
   final ValueChanged<T> onChanged;
 
-  /// 单项宽度，整体宽度 = itemWidth * 项数 + spacing * (项数 + 1)。
-  final double itemWidth;
+  /// 单项宽度上限；超过它的文案会被省略号截断，防止超长翻译撑破布局。
+  final double maxItemWidth;
+
+  /// 单项左右内边距，决定文字与凹槽边缘的最小留白。
+  final double padding;
 
   final double height;
 
@@ -69,9 +75,27 @@ class _SegmentedSliderState<T> extends State<SegmentedSlider<T>> {
     final idleTextColor =
         isDark ? const Color(0xFF9A9A9A) : const Color(0xFF6B6B6B);
 
-    // 各项等宽，整体宽度由项数与项宽推出，选中下标直接换算成滑块左偏移。
-    final trackWidth = widget.itemWidth * count + gap * (count - 1);
-    final thumbLeft = _selectedIndex * (widget.itemWidth + gap);
+    // 档位文案随语言变化，实测最长文案的固有宽度后反推单项宽度：
+    // 各项等宽（文案切换档时不跳动），凹槽与滑块的外围尺寸都由它推出。
+    final textScaler = MediaQuery.textScalerOf(context);
+    final labelStyle = const TextStyle(fontSize: 13);
+    var widest = 0.0;
+    for (final value in widget.values) {
+      final painter = TextPainter(
+        text: TextSpan(text: widget.labelBuilder(value), style: labelStyle),
+        textDirection: Directionality.of(context),
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      widest = math.max(widest, painter.width);
+      painter.dispose();
+    }
+    final itemWidth =
+        math.min(widest + widget.padding * 2, widget.maxItemWidth);
+
+    // 整体宽度由项数与项宽推出，选中下标直接换算成滑块左偏移。
+    final trackWidth = itemWidth * count + gap * (count - 1);
+    final thumbLeft = _selectedIndex * (itemWidth + gap);
 
     return SizedBox(
       width: trackWidth + gap * 2,
@@ -92,7 +116,7 @@ class _SegmentedSliderState<T> extends State<SegmentedSlider<T>> {
                 curve: Curves.easeOutCubic,
                 left: thumbLeft,
                 top: 0,
-                width: widget.itemWidth,
+                width: itemWidth,
                 height: widget.height,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -112,7 +136,7 @@ class _SegmentedSliderState<T> extends State<SegmentedSlider<T>> {
                     if (i > 0) SizedBox(width: gap),
                     _buildItem(
                       index: i,
-                      width: widget.itemWidth,
+                      width: itemWidth,
                       isSelected: i == _selectedIndex,
                       selectedTextColor: selectedTextColor,
                       idleTextColor: idleTextColor,
@@ -161,7 +185,17 @@ class _SegmentedSliderState<T> extends State<SegmentedSlider<T>> {
                         ? selectedTextColor
                         : idleTextColor),
               ),
-              child: Text(widget.labelBuilder(value)),
+              // 宽度已按最长文案留足内边距，单行 + 省略号只兜底超长翻译。
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: widget.spacing),
+                child: Text(
+                  widget.labelBuilder(value),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ),
             ),
           ),
         ),

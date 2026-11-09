@@ -430,11 +430,11 @@
   "@supportAuthorTitle": {
     "description": "Title of the support-the-author dialog."
   },
-  "supportAuthorBody": "Your support keeps this project going. If you find it useful, please give it a Star ⭐. Thank you! (^_−)☆",
+  "supportAuthorBody": "Your support keeps this project going. If you think this software is well made, please give it a Star ⭐, or you can tip the developer's blue big fat fish to keep her working harder. Thank you! (^_−)☆",
   "@supportAuthorBody": {
     "description": "Body of the support-the-author dialog."
   },
-  "supportAuthorIssues": "The project still has room to improve. If you hit a problem or a bug, feel free to open an Issue or a PR.",
+  "supportAuthorIssues": "The project admittedly still has plenty of room for improvement. If you hit a problem or a bug, feel free to open an Issue or a PR.",
   "@supportAuthorIssues": {
     "description": "Body text inviting bug reports."
   },
@@ -445,6 +445,14 @@
   "supportAuthorLater": "Maybe later",
   "@supportAuthorLater": {
     "description": "Button that dismisses the dialog."
+  },
+  "supportAuthorDonated": "I've Donated",
+  "@supportAuthorDonated": {
+    "description": "Button confirming the user already donated."
+  },
+  "donationThanks": "Thank you, boss!",
+  "@donationThanks": {
+    "description": "Celebration sticker text shown after the user confirms a donation."
   },
   "fontScaleSmall": "Small",
   "@fontScaleSmall": {

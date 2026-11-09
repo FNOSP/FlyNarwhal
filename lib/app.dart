@@ -40,6 +40,7 @@ import 'providers/providers.dart';
 import 'providers/reporting_providers.dart';
 import 'providers/update_providers.dart';
 import 'services/update/update_scheduler.dart';
+import 'services/watch_time_tracker.dart';
 import 'services/window/main_window_lifecycle_controller.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'tooling/driver_test_mode.dart';
@@ -48,6 +49,7 @@ import 'ui/settings/app_language.dart';
 import 'ui/settings/ui_font_scale.dart';
 import 'ui/shared/ssl_trust_dialog_host.dart';
 import 'ui/shared/toast.dart';
+import 'ui/shared/celebration_overlay.dart';
 
 /// Windows clipboard-history (Win+V) paste workaround.
 ///
@@ -91,6 +93,11 @@ void _installWindowsClipboardHistoryPasteFallback() {
 MainWindowLifecycleController? mainWindowLifecycleController;
 
 const _windowChannel = MethodChannel('fly_narwhal/window');
+
+/// The watch-time tracker shared with the window lifecycle controller, so a
+/// window close checkpoints the same session the players report into.
+/// Null on platforms without desktop window management.
+WatchTimeTracker? _watchTimeTracker;
 
 Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
@@ -213,8 +220,19 @@ Future<void> bootstrapApp() async {
         await windowManager.show();
         await windowManager.focus();
       });
-      mainWindowLifecycleController = MainWindowLifecycleController(prefs)
-        ..start();
+      // The tracker is created before the provider scope exists, so closing
+      // the window checkpoints through this instance; the ProviderScope
+      // override below makes it the app-wide one.
+      final watchTimeTracker = WatchTimeTracker(prefs);
+      _watchTimeTracker = watchTimeTracker;
+      mainWindowLifecycleController = MainWindowLifecycleController(
+        prefs,
+        onBeforeClose: watchTimeTracker.checkpoint,
+      )..start();
+      AppShutdown.register(() {
+        watchTimeTracker.checkpoint();
+        return mainWindowLifecycleController!.requestShutdown();
+      });
       AppShutdown.register(mainWindowLifecycleController!.requestShutdown);
       AppTalker.info('Window', 'Desktop initialization complete');
     }
@@ -231,6 +249,10 @@ Future<void> bootstrapApp() async {
       ProviderScope(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
+          // Share the instance the window lifecycle controller checkpoints
+          // on close, so the whole app has a single stopwatch.
+          if (_watchTimeTracker != null)
+            watchTimeTrackerProvider.overrideWithValue(_watchTimeTracker!),
         ],
         child: const _UpdateSchedulerHost(child: MyApp()),
       ),
@@ -376,8 +398,13 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
   /// Skipped when settings aren't loaded yet — the settings page runs the same
   /// check on entry, so a user whose session lands late is still told.
   Future<void> _checkServerUpdateAtLaunch() async {
-    if (!ref.read(settingsProvider).isFlyNarwhalServerAvailable) return;
-    final l10n = AppLocalizations.of(context);
+    final settings = ref.read(settingsProvider);
+    if (!settings.isFlyNarwhalServerAvailable) return;
+    // This host wraps MyApp, so it sits above the MaterialApp's Localizations
+    // scope and cannot resolve AppLocalizations from its own context.
+    final l10n = lookupAppLocalizations(
+      AppLanguage.localeFromValue(settings.language),
+    );
     await ref.read(serverVersionProbeProvider.future);
     if (!mounted) return;
     showServerUpdateAvailableToast(
@@ -398,6 +425,19 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Persist any in-flight watch session before the process can be torn
+    // down. The tracker keeps counting while the app is backgrounded (macOS
+    // only hides the window), so a checkpoint here never ends the session.
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        ref.read(watchTimeTrackerProvider).checkpoint();
+      case AppLifecycleState.resumed:
+        break;
+    }
+
     final scheduler = _scheduler;
     if (scheduler == null) return;
     switch (state) {
@@ -498,6 +538,7 @@ class MyApp extends ConsumerWidget {
                 if (child != null) child,
                 const ToastHost(),
                 const SslTrustDialogHost(),
+                const CelebrationOverlayHost(),
               ],
             ),
           ),

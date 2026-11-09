@@ -10,8 +10,15 @@ import '../../core/window/main_window_persistence_guard.dart';
 import '../../data/storage/main_window_settings_store.dart';
 
 class MainWindowLifecycleController with WindowListener {
-  MainWindowLifecycleController(SharedPreferences preferences)
-      : _settingsStore = MainWindowSettingsStore(preferences);
+  MainWindowLifecycleController(
+    SharedPreferences preferences, {
+    this.onBeforeClose,
+  }) : _settingsStore = MainWindowSettingsStore(preferences);
+
+  /// Runs right before the window is closed or the process is shut down for
+  /// an update, so state that only lives in memory (e.g. an in-flight watch
+  /// session) reaches the disk before the engine is torn down.
+  final void Function()? onBeforeClose;
 
   static const Duration _saveDebounce = Duration(milliseconds: 500);
 
@@ -107,6 +114,7 @@ class MainWindowLifecycleController with WindowListener {
     _closeInFlight = true;
     _saveTimer?.cancel();
 
+    onBeforeClose?.call();
     await flush();
 
     if (!kIsWeb && Platform.isMacOS) {
@@ -137,6 +145,7 @@ class MainWindowLifecycleController with WindowListener {
     _closeInFlight = true;
     _saveTimer?.cancel();
 
+    onBeforeClose?.call();
     await flush();
 
     // Best effort: let the window close through the normal path so the engine

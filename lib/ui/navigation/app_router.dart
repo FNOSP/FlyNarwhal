@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
 import '../../tooling/driver_test_mode.dart';
 import '../features/home/home_screen.dart';
 import '../features/home/home_view_model.dart';
@@ -18,6 +19,8 @@ import '../features/player/player_screen.dart';
 import '../features/player/live_player_screen.dart';
 import '../../core/utils/log/app_talker.dart';
 import '../../providers/providers.dart';
+import '../../services/watch_time_tracker.dart';
+import '../shared/support_author_dialog.dart';
 
 // Driver-only: opens a specific route on launch (e.g. /player/<guid>) so
 // automated verification can bypass hover/tap navigation on static screens.
@@ -62,13 +65,106 @@ class _PlayerExitPlayListRefreshObserver extends NavigatorObserver {
   }
 }
 
+/// Key of the root [Navigator], so code outside the widget tree (navigator
+/// observers, timers) can present dialogs above every route, including the
+/// fullscreen player routes that live outside the ShellRoute.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
+/// Shows the "支持作者" dialog two seconds after a player exit once the user's
+/// accumulated watch time reaches three hours. Afterwards the dialog re-shows
+/// per additional watch time since the previous prompt: every 20 hours if the
+/// user's last response was "我已赞赏", otherwise (稍后再说 / open repo /
+/// dismissed) every 10 hours.
+///
+/// Public so widget tests can drive the observer against a test navigator.
+class SupportAuthorPromptObserver extends NavigatorObserver {
+  SupportAuthorPromptObserver(this._ref);
+
+  static const _promptDelay = Duration(seconds: 2);
+
+  final Ref _ref;
+  Timer? _pendingPrompt;
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _maybePrompt(route);
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _maybePrompt(route);
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (oldRoute != null) {
+      _maybePrompt(oldRoute);
+    }
+  }
+
+  void _maybePrompt(Route<dynamic> route) {
+    final name = route.settings.name ?? '';
+    if (name != '/player/:guid' && name != '/live/:guid') return;
+
+    // Flush the in-flight session first so the last playing stretch counts
+    // toward the threshold.
+    final tracker = _ref.read(watchTimeTrackerProvider);
+    tracker.stopSession();
+
+    final prefs = _ref.read(preferencesManagerProvider);
+    final userGuid = _ref.read(currentUserGuidProvider);
+    final totalSeconds = tracker.totalSeconds(userGuid: userGuid);
+    final donated = prefs.isDonationSupportDonated(userGuid: userGuid);
+    final prompted = prefs.isDonationSupportPrompted(userGuid: userGuid);
+    // First prompt at the 3h threshold; afterwards the watch time accrued
+    // since the previous prompt must reach the interval matching the user's
+    // last response: 20h after "我已赞赏", 10h otherwise.
+    final repromptInterval = donated
+        ? WatchTimeTracker.donatedRepromptInterval
+        : WatchTimeTracker.laterRepromptInterval;
+    final sinceLastPrompt =
+        totalSeconds - prefs.getDonationSupportLastPromptSeconds(
+              userGuid: userGuid,
+            );
+    final due = prompted
+        ? sinceLastPrompt >= repromptInterval.inSeconds
+        : totalSeconds >= WatchTimeTracker.supportAuthorThreshold.inSeconds;
+    AppTalker.info(
+      'SupportAuthor',
+      'playerExit userGuid=$userGuid total=${totalSeconds}s '
+      'threshold=${WatchTimeTracker.supportAuthorThreshold.inSeconds}s '
+      'donated=$donated prompted=$prompted '
+      'sinceLastPrompt=${sinceLastPrompt}s '
+      'interval=${repromptInterval.inSeconds}s due=$due',
+    );
+    if (!due) return;
+
+    // Mark before scheduling so a crash in the gap doesn't re-prompt. The
+    // baseline advances to the current total, so two prompts are always at
+    // least one full interval of watch time apart.
+    unawaited(prefs.markDonationSupportPrompted(userGuid: userGuid));
+    unawaited(
+      prefs.setDonationSupportLastPromptSeconds(
+        totalSeconds,
+        userGuid: userGuid,
+      ),
+    );
+    _pendingPrompt?.cancel();
+    _pendingPrompt = Timer(_promptDelay, () {
+      final context = rootNavigatorKey.currentContext;
+      if (context == null) return;
+      unawaited(showSupportAuthorDialog(context));
+    });
+  }
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
   ref.watch(authRefreshProvider);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     observers: [
       _PlayerExitPlayListRefreshObserver(ref),
+      SupportAuthorPromptObserver(ref),
     ],
     initialLocation: (kDriverTestMode && _driverInitialRoute.isNotEmpty)
         ? _driverInitialRoute

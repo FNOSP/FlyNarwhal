@@ -726,7 +726,7 @@ abstract class AppLocalizations {
   /// Body of the support-the-author dialog.
   ///
   /// In zh, this message translates to:
-  /// **'您的支持就是我持续更新的动力，如果觉得好用的话，请给项目点一个 Star ⭐，谢谢！(^_−)☆'**
+  /// **'您的支持就是我持续更新的动力，如果觉得这个软件做的不错的话，请给项目点一个 Star ⭐，也可以选择给开发者的蓝色大肥鱼打米，让她更加努力工作，谢谢！(^_−)☆'**
   String get supportAuthorBody;
 
   /// Body text inviting bug reports.
@@ -746,6 +746,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'稍后再说'**
   String get supportAuthorLater;
+
+  /// Button confirming the user already donated.
+  ///
+  /// In zh, this message translates to:
+  /// **'我已赞赏'**
+  String get supportAuthorDonated;
+
+  /// Celebration sticker text shown after the user confirms a donation.
+  ///
+  /// In zh, this message translates to:
+  /// **'谢谢老板'**
+  String get donationThanks;
 
   /// Font size option: small.
   ///

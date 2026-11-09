@@ -31,6 +31,7 @@ import '../data/storage/shortcut_settings_store.dart';
 import '../data/storage/user_settings_migrator.dart';
 import '../domain/repositories/i_tag_repository.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../services/watch_time_tracker.dart';
 import '../ui/settings/app_language.dart';
 import '../ui/shared/toast.dart';
 import 'danmaku_controller.dart';
@@ -52,6 +53,12 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 final preferencesManagerProvider = Provider<PreferencesManager>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return PreferencesManager(prefs);
+});
+
+// 累计观看时长统计器：播放器在播放/暂停/退出时上报，用于达到阈值后
+// 自动弹出「支持作者」弹框。
+final watchTimeTrackerProvider = Provider<WatchTimeTracker>((ref) {
+  return WatchTimeTracker(ref.watch(sharedPreferencesProvider));
 });
 
 final accountSettingsStoreProvider = Provider<AccountSettingsStore>((ref) {

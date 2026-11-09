@@ -451,7 +451,7 @@
   "@supportAuthorTitle": {
     "description": "Title of the support-the-author dialog."
   },
-  "supportAuthorBody": "您的支持就是我持续更新的动力，如果觉得好用的话，请给项目点一个 Star ⭐，谢谢！(^_−)☆",
+  "supportAuthorBody": "您的支持就是我持续更新的动力，如果觉得这个软件做的不错的话，请给项目点一个 Star ⭐，也可以选择给开发者的蓝色大肥鱼打米，让她更加努力工作，谢谢！(^_−)☆",
   "@supportAuthorBody": {
     "description": "Body of the support-the-author dialog."
   },
@@ -466,6 +466,14 @@
   "supportAuthorLater": "稍后再说",
   "@supportAuthorLater": {
     "description": "Button that dismisses the dialog."
+  },
+  "supportAuthorDonated": "我已赞赏",
+  "@supportAuthorDonated": {
+    "description": "Button confirming the user already donated."
+  },
+  "donationThanks": "谢谢老板",
+  "@donationThanks": {
+    "description": "Celebration sticker text shown after the user confirms a donation."
   },
   "fontScaleSmall": "小",
   "@fontScaleSmall": {

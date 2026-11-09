@@ -361,17 +361,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get supportAuthorBody =>
-      'Your support keeps this project going. If you find it useful, please give it a Star ⭐. Thank you! (^_−)☆';
+      'Your support keeps this project going. If you think this software is well made, please give it a Star ⭐, or you can tip the developer\'s blue big fat fish to keep her working harder. Thank you! (^_−)☆';
 
   @override
   String get supportAuthorIssues =>
-      'The project still has room to improve. If you hit a problem or a bug, feel free to open an Issue or a PR.';
+      'The project admittedly still has plenty of room for improvement. If you hit a problem or a bug, feel free to open an Issue or a PR.';
 
   @override
   String get supportAuthorOpenRepo => 'Open the GitHub repository';
 
   @override
   String get supportAuthorLater => 'Maybe later';
+
+  @override
+  String get supportAuthorDonated => 'I\'ve Donated';
+
+  @override
+  String get donationThanks => 'Thank you, boss!';
 
   @override
   String get fontScaleSmall => 'Small';

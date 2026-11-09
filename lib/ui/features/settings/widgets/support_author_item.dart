@@ -1,19 +1,19 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../shared/dialogs/app_dialog.dart';
+import '../../../shared/support_author_dialog.dart';
+import '../../../shared/app_button.dart';
 import 'card_expander_item.dart';
-import 'package:fly_narwhal/ui/shared/app_button.dart';
 
-const _projectUrl = 'https://github.com/FNOSP/FlyNarwhal';
-
-class SupportAuthorItem extends StatelessWidget {
+class SupportAuthorItem extends ConsumerWidget {
   const SupportAuthorItem({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     return CardExpanderItem(
       key: const ValueKey('settings-support-author'),
@@ -31,31 +31,12 @@ class SupportAuthorItem extends StatelessWidget {
         },
       ),
       heading: const Text('FlyNarwhal'),
-      caption: const Text(_projectUrl),
+      caption: const Text(flyNarwhalProjectUrl),
       trailing: AppButton(
         key: const ValueKey('settings-support-author-button'),
-        onPressed: () => _showSupportAuthorDialog(context),
+        onPressed: () => unawaited(showSupportAuthorDialog(context)),
         child: Text(l10n.supportAuthorTitle),
       ),
     );
   }
-}
-
-void _showSupportAuthorDialog(BuildContext context) {
-  final l10n = AppLocalizations.of(context);
-  showAppDialog<void>(
-    context: context,
-    title: l10n.supportAuthorTitle,
-    content: Text(
-      '${l10n.supportAuthorBody}\n\n${l10n.supportAuthorIssues}',
-    ),
-    secondaryButtonText: l10n.supportAuthorLater,
-    primaryButtonText: l10n.supportAuthorOpenRepo,
-    onPrimaryPressed: () {
-      // showDialog 默认挂在根 Navigator 上,必须从根 Navigator 弹出,
-      // 否则会误弹 GoRouter 内部 Navigator 上的设置页路由。
-      Navigator.of(context, rootNavigator: true).pop();
-      launchUrl(Uri.parse(_projectUrl), mode: LaunchMode.externalApplication);
-    },
-  );
 }

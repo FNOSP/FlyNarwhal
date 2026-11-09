@@ -58,6 +58,8 @@ enum MediaType {
         return const [MediaType.movie];
       case 'tv':
         return const [MediaType.tv];
+      // Web `/v/list/other`（defaultType=Other）固定按 Directory + Video
+      // 查询；仅发 Video 时服务端返回空。
       case 'video':
         return const [MediaType.directory, MediaType.video];
       case 'live':

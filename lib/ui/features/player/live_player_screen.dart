@@ -18,6 +18,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
+import '../../../services/watch_time_tracker.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
 import '../../shared/window_caption.dart';
@@ -54,6 +55,13 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   static const Duration _sessionRequestTimeout = Duration(seconds: 15);
   static const double _trailingControlSpacing = 12;
   static const Duration _pipIdleHideDuration = Duration(seconds: 3);
+  // Eases the back button between the windowed and fullscreen top-bar
+  // layouts on macOS. The switch happens once the native fullscreen
+  // transition settles (see [_topBarFullscreenLayout]) so the motion is
+  // actually visible instead of jumping with AppKit's content swap.
+  static const Duration _topBarOffsetAnimationDuration =
+      Duration(milliseconds: 260);
+  static const Curve _topBarOffsetAnimationCurve = Curves.easeInOutCubic;
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'live-player');
   Player? _player;
@@ -62,8 +70,17 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   bool _isLoading = true;
   bool _isInitialized = false;
   bool _isPlaying = false;
+  // Cached at init so dispose() can flush the watch session without touching
+  // `ref` — Riverpod forbids ref access once unmount has started.
+  late final WatchTimeTracker _watchTimeTracker;
   bool _isBuffering = false;
   bool _isFullscreen = false;
+  // Drives the overlay top bar's windowed/fullscreen layout. On macOS it
+  // follows the native transition's completion callbacks rather than
+  // [_isFullscreen], which flips as soon as the toggle starts: AppKit animates
+  // the window from a snapshot and only swaps in live content once it settles,
+  // so offsetting the bar during the zoom is invisible and reads as a jump.
+  bool _topBarFullscreenLayout = false;
   bool _isPipMode = false;
   bool _isPipHovered = false;
   String? _errorMessage;
@@ -94,6 +111,15 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   // must not leak resizes into the app window state used by other routes.
   Rect? _prePlayerWindowBounds;
   bool _prePlayerWasMaximized = false;
+  bool _prePlayerWasFullScreen = false;
+  // The app window was fullscreen when this player opened. Kept for the whole
+  // lifetime of the route: the leave-time restore clears the snapshot above,
+  // but dispose() still needs to know the window must stay fullscreen.
+  bool _appWasFullscreenOnEnter = false;
+  // True while the player runs inside a fullscreen Space that belongs to the
+  // app: fullscreen is the user's window form here, not the player's, so it
+  // must not be remembered as the player form or toggled on leave.
+  bool _playerUsesAppFullscreen = false;
   bool _windowPersistenceSuspended = false;
   bool _windowSessionCaptured = false;
   // True while this screen is programmatically restoring window geometry
@@ -117,6 +143,15 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   @override
   void initState() {
     super.initState();
+    _watchTimeTracker = ref.read(watchTimeTrackerProvider);
+    // Watch time is scoped by the logged-in user's guid; a player opened from
+    // a deep link never mounts the home page that normally loads it.
+    // Deferred: loadUserInfo flips provider state, which must not happen
+    // during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(userInfoProvider.notifier).loadUserInfo());
+    });
     if (_isDesktop) {
       windowManager.addListener(this);
       unawaited(_syncFullscreenState());
@@ -130,6 +165,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
 
   @override
   void dispose() {
+    _watchTimeTracker.stopSession();
     _playRecordTimer?.cancel();
     _pipIdleTimer?.cancel();
     _pipBoundsSaveTimer?.cancel();
@@ -141,7 +177,11 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     if (_isDesktop) {
       windowManager.removeListener(this);
       unawaited(_windowAspectRatioController.release());
-      unawaited(_fullscreenController.exitForRouteLeave());
+      unawaited(
+        _fullscreenController.exitForRouteLeave(
+          keepFullscreen: _appWasFullscreenOnEnter,
+        ),
+      );
       // Ensure the window is restored to its normal form when leaving while in
       // PiP mode so the next route is not stuck in a tiny borderless window,
       // then hand the window back to the app routes at its pre-player size.
@@ -157,6 +197,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     final player = _player!;
 
     _playingSubscription = player.stream.playing.listen((isPlaying) {
+      _watchTimeTracker.onPlaybackChanged(
+        isPlaying,
+        userGuid: ref.read(currentUserGuidProvider),
+      );
       if (!mounted) return;
       setState(() => _isPlaying = isPlaying);
       // Keep the overlay pinned while paused, resume idle hiding on play.
@@ -391,7 +435,13 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     try {
       final isFullscreen = await _fullscreenController.toggle();
       if (mounted) {
-        setState(() => _isFullscreen = isFullscreen);
+        // macOS moves the top bar layout when the native transition completes
+        // (onWindowEnterFullScreen / onWindowLeaveFullScreen); the
+        // pseudo-fullscreen platforms have no such callback and switch here.
+        setState(() {
+          _isFullscreen = isFullscreen;
+          if (!_isMacOS) _topBarFullscreenLayout = isFullscreen;
+        });
       }
       _syncWindowAspectRatioWithFullscreen(isFullscreen);
     } catch (e, st) {
@@ -407,7 +457,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   Future<void> _syncFullscreenState() async {
     final isFullscreen = await _fullscreenController.syncState();
     if (mounted) {
-      setState(() => _isFullscreen = isFullscreen);
+      setState(() {
+        _isFullscreen = isFullscreen;
+        _topBarFullscreenLayout = isFullscreen;
+      });
     }
   }
 
@@ -667,9 +720,12 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
                 ),
               ),
             if (!_isInitialized && !_isPipMode)
-              Positioned(
-                top: _isMacOS && !_isFullscreen ? 12.0 : 6.0,
-                left: 16 + (_isMacOS && !_isFullscreen ? 72.0 : 0.0),
+              AnimatedPositioned(
+                duration: _topBarOffsetAnimationDuration,
+                curve: _topBarOffsetAnimationCurve,
+                top: _isMacOS && !_topBarFullscreenLayout ? 12.0 : 6.0,
+                left:
+                    16 + (_isMacOS && !_topBarFullscreenLayout ? 72.0 : 0.0),
                 child: _buildBackButton(),
               ),
             if (_isInitialized && !_isPipMode)
@@ -758,27 +814,36 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   }
 
   Widget _buildTopBar() {
-    final leftInset = _isMacOS && !_isFullscreen ? 72.0 : 0.0;
-    final topPadding = _isMacOS && !_isFullscreen ? 12.0 : 6.0;
+    final leftInset = _isMacOS && !_topBarFullscreenLayout ? 72.0 : 0.0;
+    final topPadding = _isMacOS && !_topBarFullscreenLayout ? 12.0 : 6.0;
     final topBarContentHeight = _isMacOS ? 30.0 : 36.0;
+    // Size the strip for the taller windowed layout so the animated top
+    // offset below never clips the back button while the layouts swap.
+    final topBarDragHeight = (_isMacOS ? 12.0 : 6.0) + topBarContentHeight;
     final title = _playInfo?.item.title ?? '';
 
     return SafeArea(
       child: SizedBox(
-        height: topPadding + topBarContentHeight,
+        height: topBarDragHeight,
         child: Stack(
           children: [
             const Positioned.fill(
               child: DragToMoveArea(child: SizedBox.expand()),
             ),
-            Positioned(
+            AnimatedPositioned(
+              duration: _topBarOffsetAnimationDuration,
+              curve: _topBarOffsetAnimationCurve,
               top: topPadding,
               left: 16,
               right: 16,
               height: topBarContentHeight,
               child: Row(
                 children: [
-                  if (leftInset > 0) SizedBox(width: leftInset),
+                  AnimatedContainer(
+                    duration: _topBarOffsetAnimationDuration,
+                    curve: _topBarOffsetAnimationCurve,
+                    width: leftInset,
+                  ),
                   _buildBackButton(),
                   const SizedBox(width: 8),
                   Flexible(
@@ -1027,6 +1092,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     if (!_windowSessionCaptured) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isFullscreen || !_isInitialized) return;
+    // A pseudo-fullscreen transition owns the window shape while in flight;
+    // a ratio resize landing mid-transition (or right after it) would undo
+    // the fullscreen frame.
+    if (_fullscreenController.isTransitioning) return;
     // A maximized player window owns its shape. The persisted flag is checked
     // in addition to the controller's own isMaximized() probe because macOS
     // can transiently report a zoomed window as not maximized; the flag keeps
@@ -1046,6 +1115,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     if (!mounted) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isFullscreen) return;
+    // Re-check after the delay: a transition may have started while waiting,
+    // and a ratio resize landing after its setBounds would undo the
+    // fullscreen frame.
+    if (_fullscreenController.isTransitioning) return;
     if (ref.read(playerSettingsManagerProvider).getPlayerWindowMaximized()) {
       unawaited(
         _windowAspectRatioController.release(restoreNormalMinimumSize: false),
@@ -1056,6 +1129,12 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     await _windowAspectRatioController.apply(
       setting: _windowAspectRatio,
       videoAspectRatio: _resolveVideoAspectRatio(),
+      shouldAbort: () =>
+          !mounted ||
+          _isFullscreen ||
+          _isPipMode ||
+          _pipController.isPipMode ||
+          _fullscreenController.isTransitioning,
     );
   }
 
@@ -1088,13 +1167,20 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       // The player route owns the window ratio lock; release it so other
       // routes can resize the window freely again.
       await _windowAspectRatioController.release();
-      final isFullscreen = await _fullscreenController.exitForRouteLeave();
+      // A player running inside the app's fullscreen Space hands the window
+      // back still fullscreen; otherwise native fullscreen is left here.
+      final isFullscreen = await _fullscreenController.exitForRouteLeave(
+        keepFullscreen: _prePlayerWasFullScreen,
+      );
       await _restoreAppWindowSession();
       if (!mounted || _isFullscreen == isFullscreen) {
         return;
       }
 
-      setState(() => _isFullscreen = isFullscreen);
+      setState(() {
+        _isFullscreen = isFullscreen;
+        _topBarFullscreenLayout = isFullscreen;
+      });
     } finally {
       _isRestoringWindowSession = false;
     }
@@ -1112,11 +1198,18 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     // Claim the window session synchronously before any await so a disposed
     // predecessor can see the takeover and skip its own window restore.
     _windowSessionId = ++_windowSessionGeneration;
+    _playerUsesAppFullscreen = false;
     Rect? bounds;
     var wasMaximized = false;
+    var wasFullScreen = false;
     try {
       bounds = await windowManager.getBounds();
       wasMaximized = await windowManager.isMaximized();
+      // Entering the player from a fullscreen app window: leaving it must
+      // leave that fullscreen Space untouched instead of exiting and
+      // re-entering it (which strands the app's frozen frame in a second
+      // window on another Space).
+      wasFullScreen = await windowManager.isFullScreen();
     } catch (error, stackTrace) {
       AppTalker.error(
         'LivePlayer',
@@ -1130,6 +1223,8 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     }
     _prePlayerWindowBounds = bounds;
     _prePlayerWasMaximized = wasMaximized;
+    _prePlayerWasFullScreen = wasFullScreen;
+    _appWasFullscreenOnEnter = wasFullScreen;
     _windowSessionCaptured = true;
     AppTalker.info(
       'WindowSession',
@@ -1147,8 +1242,14 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     _isRestoringWindowSession = true;
     try {
       if (await windowManager.isFullScreen()) {
+        // The window is in the app's fullscreen Space (the video was opened
+        // from a fullscreen app window). Keep it there: leaving fullscreen
+        // here would move it to another Space and back, which strands the
+        // previous route's frozen frame behind a second window.
+        _playerUsesAppFullscreen = _prePlayerWasFullScreen;
         return;
       }
+      _playerUsesAppFullscreen = false;
       // The player remembers fullscreen as its own window form, like the
       // maximized one: leaving the player while fullscreen exits native
       // fullscreen (the next route cannot be fullscreen), so the remembered
@@ -1290,18 +1391,29 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
 
     final appBounds = _prePlayerWindowBounds;
     final wasMaximized = _prePlayerWasMaximized;
+    final wasFullScreen = _prePlayerWasFullScreen;
     _prePlayerWindowBounds = null;
+    _prePlayerWasFullScreen = false;
 
     try {
-      await _fullscreenController.exitForRouteLeave();
+      // When the app window was fullscreen before the player opened, the
+      // player shares that Space: leaving it must keep fullscreen instead of
+      // animating the window out of the Space and back in.
+      await _fullscreenController.exitForRouteLeave(
+        keepFullscreen: wasFullScreen,
+      );
       // Native fullscreen exits animate; wait for the window to settle
       // before restoring the captured bounds.
-      for (var attempt = 0;
-          attempt < 15 && await windowManager.isFullScreen();
-          attempt++) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+      if (!wasFullScreen) {
+        for (var attempt = 0;
+            attempt < 15 && await windowManager.isFullScreen();
+            attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
       }
-      if (appBounds != null && !await windowManager.isFullScreen()) {
+      if (!wasFullScreen &&
+          appBounds != null &&
+          !await windowManager.isFullScreen()) {
         if (await windowManager.isMaximized()) {
           await windowManager.unmaximize();
           await Future<void>.delayed(const Duration(milliseconds: 16));
@@ -1378,7 +1490,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
             .setPlayerWindowFullscreen(true),
       );
     }
-    setState(() => _isFullscreen = true);
+    setState(() {
+      _isFullscreen = true;
+      _topBarFullscreenLayout = true;
+    });
     _syncWindowAspectRatioWithFullscreen(true);
   }
 
@@ -1397,7 +1512,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
             .setPlayerWindowFullscreen(false),
       );
     }
-    setState(() => _isFullscreen = false);
+    setState(() {
+      _isFullscreen = false;
+      _topBarFullscreenLayout = false;
+    });
     _syncWindowAspectRatioWithFullscreen(false);
   }
 
@@ -1405,7 +1523,11 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   /// should be remembered as the player's window form. Restore-driven events
   /// and PiP transitions are our own, not the user's.
   bool get _persistsWindowForm =>
-      _isDesktop && !_isPipMode && !_pipController.isPipMode && !_isRestoringWindowSession;
+      _isDesktop &&
+      !_isPipMode &&
+      !_pipController.isPipMode &&
+      !_isRestoringWindowSession &&
+      !_playerUsesAppFullscreen;
 
   @override
   void onWindowMoved() {
@@ -1452,6 +1574,11 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     if (!mounted || !_isDesktop) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isRestoringWindowSession) return;
+    // The pseudo-fullscreen transition un-maximizes the window itself when
+    // entering from a maximized window; that event is not a user gesture —
+    // persisting a floating form or re-applying the ratio lock here would
+    // resize the window back and break the fullscreen transition.
+    if (_fullscreenController.isTransitioning) return;
     // The user returned to a floating window; persist that and re-apply the
     // ratio lock.
     unawaited(

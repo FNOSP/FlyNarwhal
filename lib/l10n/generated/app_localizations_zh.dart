@@ -339,7 +339,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get supportAuthorBody =>
-      '您的支持就是我持续更新的动力，如果觉得好用的话，请给项目点一个 Star ⭐，谢谢！(^_−)☆';
+      '您的支持就是我持续更新的动力，如果觉得这个软件做的不错的话，请给项目点一个 Star ⭐，也可以选择给开发者的蓝色大肥鱼打米，让她更加努力工作，谢谢！(^_−)☆';
 
   @override
   String get supportAuthorIssues =>
@@ -350,6 +350,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get supportAuthorLater => '稍后再说';
+
+  @override
+  String get supportAuthorDonated => '我已赞赏';
+
+  @override
+  String get donationThanks => '谢谢老板';
 
   @override
   String get fontScaleSmall => '小';
@@ -3161,7 +3167,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get supportAuthorBody =>
-      '您的支持就是我持續更新的動力，如果覺得好用，請給專案點一個 Star ⭐，謝謝！(^_−)☆';
+      '您的支持就是我持續更新的動力，如果覺得這個軟體做的不錯的話，請給專案點一個 Star ⭐，也可以選擇給開發者的藍色大肥魚打米，讓她更加努力工作，謝謝！(^_−)☆';
 
   @override
   String get supportAuthorIssues =>
@@ -3172,6 +3178,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get supportAuthorLater => '稍後再說';
+
+  @override
+  String get supportAuthorDonated => '我已讚賞';
+
+  @override
+  String get donationThanks => '謝謝老闆';
 
   @override
   String get fontScaleSmall => '小';
