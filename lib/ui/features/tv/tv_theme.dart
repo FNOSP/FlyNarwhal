@@ -38,7 +38,6 @@ abstract final class TvTheme {
   // ---- Accents ----
   /// Rating gold (`#f9c064`).
   static const Color ratingGold = Color(0xFFF9C064);
-  static const Color ratingGoldText = Color(0xFF17181A);
 
   // ---- Shadows ----
   static const List<BoxShadow> shadowCard = [
@@ -189,16 +188,15 @@ abstract final class TvTheme {
     letterSpacing: 13 * 0.03,
   );
   static const TextStyle posterRate = TextStyle(
-    fontSize: 13,
-    fontWeight: FontWeight.w800,
-    color: ratingGoldText,
-    letterSpacing: 13 * 0.02,
+    fontSize: 18,
+    fontWeight: FontWeight.w700,
+    color: Color(0xFFFBBF24),
   );
   static const TextStyle posterRes = TextStyle(
-    fontSize: 12,
-    fontWeight: FontWeight.w600,
+    fontSize: 16,
+    fontWeight: FontWeight.w700,
     color: text0,
-    letterSpacing: 12 * 0.04,
+    letterSpacing: 16 * 0.04,
   );
 
   static const TextStyle navItem = TextStyle(fontSize: 18, color: text2);

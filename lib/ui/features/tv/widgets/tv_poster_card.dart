@@ -72,16 +72,16 @@ class _TvPosterCardState extends State<TvPosterCard> {
                   _Poster(item: item),
                   if (ratingText != null)
                     Positioned(
-                      top: 8,
-                      left: 8,
+                      top: 6,
+                      left: 6,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
+                          horizontal: 5,
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: TvTheme.ratingGold.withValues(alpha: 0.95),
-                          borderRadius: BorderRadius.circular(6),
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(ratingText, style: TvTheme.posterRate),
                       ),
