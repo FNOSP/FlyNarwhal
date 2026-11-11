@@ -5547,6 +5547,24 @@ abstract class AppLocalizations {
   /// **'飞鲸影视无法访问「{dirs}」，请给飞鲸影视服务端添加目录访问权限'**
   String thumbnailScanDialogDirsInaccessible(String dirs);
 
+  /// Toast after a manually triggered scan finished successfully.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图扫描完成：发现 {scanned} 个视频，{queued} 个已加入生成队列'**
+  String thumbnailScanRunFinished(int scanned, int queued);
+
+  /// Toast after a manually triggered scan failed, with the server's reason.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图扫描失败：{error}'**
+  String thumbnailScanRunFailed(String error);
+
+  /// Toast after a manually triggered scan failed without a server reason.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图扫描失败'**
+  String get thumbnailScanRunFailedGeneric;
+
   /// No description provided for @thumbnailScanDialogUnsavedDirsTitle.
   ///
   /// In zh, this message translates to:

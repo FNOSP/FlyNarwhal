@@ -3111,6 +3111,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String thumbnailScanRunFinished(int scanned, int queued) {
+    return 'Scan finished: $scanned video(s) found, $queued queued for generation';
+  }
+
+  @override
+  String thumbnailScanRunFailed(String error) {
+    return 'Thumbnail scan failed: $error';
+  }
+
+  @override
+  String get thumbnailScanRunFailedGeneric => 'Thumbnail scan failed';
+
+  @override
   String get thumbnailScanDialogUnsavedDirsTitle =>
       'Unsaved scan folder changes';
 

@@ -3005,6 +3005,19 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String thumbnailScanRunFinished(int scanned, int queued) {
+    return '缩略图扫描完成：发现 $scanned 个视频，$queued 个已加入生成队列';
+  }
+
+  @override
+  String thumbnailScanRunFailed(String error) {
+    return '缩略图扫描失败：$error';
+  }
+
+  @override
+  String get thumbnailScanRunFailedGeneric => '缩略图扫描失败';
+
+  @override
   String get thumbnailScanDialogUnsavedDirsTitle => '发现尚未保存的扫描目录修改';
 
   @override
@@ -6186,6 +6199,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String thumbnailScanDialogDirsInaccessible(String dirs) {
     return '飛鯨影視無法存取「$dirs」，請給飛鯨影視服務端新增目錄存取權限';
   }
+
+  @override
+  String thumbnailScanRunFinished(int scanned, int queued) {
+    return '縮圖掃描完成：發現 $scanned 部影片，$queued 部已加入產生佇列';
+  }
+
+  @override
+  String thumbnailScanRunFailed(String error) {
+    return '縮圖掃描失敗：$error';
+  }
+
+  @override
+  String get thumbnailScanRunFailedGeneric => '縮圖掃描失敗';
 
   @override
   String get thumbnailScanDialogUnsavedDirsTitle => '發現尚未儲存的掃描目錄修改';

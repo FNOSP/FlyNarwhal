@@ -1,16 +1,15 @@
 import 'dart:async';
-import 'dart:ui' show PlatformDispatcher;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../data/models/file_models.dart';
 import '../../../../data/models/fly_narwhal/index.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../providers/file_providers.dart';
 import '../../../../providers/providers.dart';
 import '../../../../providers/thumbnail/thumbnail_scan_config_controller.dart';
+import '../../../../providers/thumbnail/thumbnail_scan_run_watcher.dart';
 import '../../../shared/app_button.dart';
 import '../../../shared/dialogs/app_dialog.dart';
 import '../../../shared/hover_tip.dart';
@@ -19,13 +18,6 @@ import '../../../shared/tip_box.dart';
 import '../../../shared/toast.dart';
 import 'cron/cron_description.dart';
 import 'cron/cron_generator_dialog.dart';
-
-/// Separator between the folder names of a multi-folder permission toast; zh
-/// uses the ideographic comma, English the regular one.
-String get scanDirNameSeparator {
-  final language = PlatformDispatcher.instance.locale.languageCode;
-  return language == 'zh' || language == 'ja' ? '、' : ', ';
-}
 
 /// Configuration dialog of the scheduled thumbnail scan (server >= 2.1.0):
 /// enable switch, cron schedule (hand-typed or built by the generator),
@@ -228,6 +220,13 @@ class _ThumbnailScanConfigDialogState
   }
 
   Future<void> _triggerScan(List<String> scanDirs) async {
+    // Server-clock baseline so the watcher recognizes the run this trigger queues.
+    final baselineRunMs = ref
+        .read(thumbnailScanConfigControllerProvider)
+        .config
+        .valueOrNull
+        ?.lastRunTime
+        ?.millisecondsSinceEpoch;
     setState(() => _scanning = true);
     final bool ok;
     try {
@@ -245,7 +244,8 @@ class _ThumbnailScanConfigDialogState
         // permission; the failing file names that folder.
         final path = ThumbnailScanConfigController.scanNotFoundPath(raw);
         toast.showToast(
-            _inaccessibleToastMessage([_folderOf(path)], ref.read(authorizedDirsProvider).valueOrNull),
+            ref.read(thumbnailScanRunWatcherProvider).inaccessibleToastMessage(
+                [_folderOf(path)]),
             style: ToastStyle.fluent,
             type: ToastType.failed,
             duration: const Duration(seconds: 10),
@@ -260,63 +260,11 @@ class _ThumbnailScanConfigDialogState
       );
       return;
     }
-    // Follow the queued/running scan to completion.
+    // Follow the queued/running scan to completion: the dialog's own poll
+    // feeds the live status card, the app-wide watcher outlives the dialog
+    // and toasts the outcome.
     _ensurePolling();
-    // The server reports a folder it cannot open only after the run; name it
-    // with its readable form once the run has settled.
-    unawaited(_warnInaccessibleDirs(scanDirs));
-  }
-
-  Future<void> _warnInaccessibleDirs(List<String> scanDirs) async {
-    final deadline = DateTime.now().add(_inaccessibleCheckWindow);
-    final authDirs = ref.read(authorizedDirsProvider).valueOrNull;
-    // The Worker thread never writes it while this process is alive, so the
-    // snapshot can only come from an earlier run: wait for the current one to
-    // report a non-empty list instead of blaming stale folders.
-    final inherited =
-        ref.read(thumbnailScanConfigControllerProvider).config.valueOrNull
-                ?.lastInaccessibleDirs ??
-            const <String>[];
-    final inaccessible = <String>[];
-    while (true) {
-      final config =
-          ref.read(thumbnailScanConfigControllerProvider).config.valueOrNull;
-      final reported = config?.lastInaccessibleDirs ?? const <String>[];
-      if (reported.isNotEmpty && !_samePaths(reported, inherited)) {
-        inaccessible.addAll(reported);
-        break;
-      }
-      final busy = config?.isBusy ?? true;
-      if (!busy || DateTime.now().isAfter(deadline)) break;
-      await Future<void>.delayed(_inaccessiblePollInterval);
-      if (!mounted) return;
-    }
-    if (inaccessible.isEmpty || !mounted) return;
-    ref.read(toastManagerProvider.notifier).showToast(
-          _inaccessibleToastMessage(inaccessible, authDirs),
-          style: ToastStyle.fluent,
-          type: ToastType.failed,
-          duration: const Duration(seconds: 10),
-          category: 'thumbnail-scan-inaccessible',
-        );
-  }
-
-  static bool _samePaths(List<String> a, List<String> b) {
-    if (a.length != b.length) return false;
-    final left = [...a]..sort();
-    final right = [...b]..sort();
-    for (var i = 0; i < left.length; i++) {
-      if (left[i] != right[i]) return false;
-    }
-    return true;
-  }
-
-  /// The permission toast naming [dirs] by the readable form the dialog lists them in.
-  String _inaccessibleToastMessage(List<String> dirs, List<AuthDir>? authDirs) {
-    final names = dirs
-        .map((dir) => FnDataConvertor.formatFileLocation(dir, authDirs: authDirs))
-        .join(scanDirNameSeparator);
-    return AppLocalizations.of(context).thumbnailScanDialogDirsInaccessible(names);
+    ref.read(thumbnailScanRunWatcherProvider).watchManualRun(baselineRunMs);
   }
 
   /// Folder of a file path: the part before its last segment.
@@ -324,9 +272,6 @@ class _ThumbnailScanConfigDialogState
     final cut = path.lastIndexOf('/');
     return path.startsWith('/') && cut > 0 ? path.substring(0, cut) : path;
   }
-
-  static const Duration _inaccessibleCheckWindow = Duration(seconds: 90);
-  static const Duration _inaccessiblePollInterval = Duration(seconds: 3);
 
   Future<void> _pickDirs() async {
     final result = await showDialog<List<String>>(
@@ -403,6 +348,7 @@ class _ThumbnailScanConfigDialogState
       title: l10n.thumbnailScanDialogTitle,
       // 确定 saves and closes; 立即扫描 stays open to follow the scan.
       autoDismiss: true,
+      tertiaryKeepsOpen: true,
       onClose: () {},
       primaryButtonText: l10n.commonConfirm,
       onPrimaryPressed: _save,
