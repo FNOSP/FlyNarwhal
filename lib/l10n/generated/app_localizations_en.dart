@@ -2975,7 +2975,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get movieDetailThumbnailFailedShort => 'Failed';
 
   @override
-  String get settingsThumbnailScanTitle => 'Scheduled thumbnails';
+  String get settingsThumbnailScanTitle => 'Video thumbnails';
 
   @override
   String get settingsThumbnailScanCaption =>
@@ -3001,7 +3001,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsThumbnailScanCaptionScanning => 'scanning';
 
   @override
-  String get thumbnailScanDialogTitle => 'Scheduled thumbnails';
+  String get thumbnailScanDialogTitle => 'Video thumbnails';
 
   @override
   String get thumbnailScanDialogEnable => 'Enable scheduled scan';

@@ -5328,7 +5328,7 @@ abstract class AppLocalizations {
   /// Settings card title of the scheduled thumbnail scan.
   ///
   /// In zh, this message translates to:
-  /// **'定时获取缩略图'**
+  /// **'视频缩略图生成'**
   String get settingsThumbnailScanTitle;
 
   /// Settings card caption shown before the config loads.
@@ -5370,7 +5370,7 @@ abstract class AppLocalizations {
   /// Title of the scan configuration dialog.
   ///
   /// In zh, this message translates to:
-  /// **'定时获取缩略图'**
+  /// **'视频缩略图生成'**
   String get thumbnailScanDialogTitle;
 
   /// Enable switch label.

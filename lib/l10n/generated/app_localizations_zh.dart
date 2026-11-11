@@ -2875,7 +2875,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get movieDetailThumbnailFailedShort => '生成失败';
 
   @override
-  String get settingsThumbnailScanTitle => '定时获取缩略图';
+  String get settingsThumbnailScanTitle => '视频缩略图生成';
 
   @override
   String get settingsThumbnailScanCaption => '按计划扫描 NAS 目录，自动为缺少缩略图的视频生成进度条预览图';
@@ -2900,7 +2900,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsThumbnailScanCaptionScanning => '扫描中';
 
   @override
-  String get thumbnailScanDialogTitle => '定时获取缩略图';
+  String get thumbnailScanDialogTitle => '视频缩略图生成';
 
   @override
   String get thumbnailScanDialogEnable => '启用定时扫描';
@@ -6045,7 +6045,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get movieDetailThumbnailFailedShort => '生成失敗';
 
   @override
-  String get settingsThumbnailScanTitle => '排程取得縮圖';
+  String get settingsThumbnailScanTitle => '影片縮圖生成';
 
   @override
   String get settingsThumbnailScanCaption => '依排程掃描 NAS 目錄，自動為缺少縮圖的影片產生進度列預覽圖';
@@ -6070,7 +6070,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get settingsThumbnailScanCaptionScanning => '掃描中';
 
   @override
-  String get thumbnailScanDialogTitle => '排程取得縮圖';
+  String get thumbnailScanDialogTitle => '影片縮圖生成';
 
   @override
   String get thumbnailScanDialogEnable => '啟用排程掃描';
