@@ -8,4 +8,5 @@ export 'smart_analysis_result.dart';
 export 'smart_skip_config.dart';
 export 'thumbnail_generate_request.dart';
 export 'thumbnail_metadata.dart';
+export 'thumbnail_scan_config.dart';
 export 'update_season_status_request.dart';

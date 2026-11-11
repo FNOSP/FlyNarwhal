@@ -29,6 +29,8 @@ import 'widgets/shortcut_settings_dialog.dart';
 import 'widgets/smart_skip_config_dialog.dart';
 import 'widgets/ssl_whitelist_dialog.dart';
 import 'widgets/support_author_item.dart';
+import 'widgets/cron/cron_description.dart';
+import 'widgets/thumbnail_scan_config_dialog.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 import 'package:fly_narwhal/ui/shared/semi_icons.dart';
 
@@ -49,6 +51,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final TextEditingController _updateProxyUrlController =
       TextEditingController();
   bool _danmuSourceConfigLoadRequested = false;
+  bool _thumbnailScanConfigLoadRequested = false;
   bool _capabilitiesProbeRequested = false;
   String? _lastProbedFlyNarwhalServerUrl;
   bool _isFlyNarwhalAuthCodeVisible = false;
@@ -191,6 +194,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return preferred && enabled
         ? '$title · $state（${l10n.danmuDandanStatusPreferred}）'
         : '$title · $state';
+  }
+
+  /// One-line state of the scheduled thumbnail scan for the settings card,
+  /// e.g. "每天 03:00 · 2 个目录" or "未配置".
+  String _thumbnailScanCaption(AppLocalizations l10n) {
+    final config =
+        ref.watch(thumbnailScanConfigControllerProvider).config.valueOrNull;
+    if (config == null) return l10n.settingsThumbnailScanCaption;
+    if (config.cron.isEmpty && config.dirs.isEmpty) {
+      return l10n.settingsThumbnailScanCaptionNone;
+    }
+    final schedule = describeCron(config.cron, l10n) ?? config.cron;
+    final base = config.enabled
+        ? l10n.settingsThumbnailScanCaptionEnabled(
+            schedule, config.dirs.length)
+        : l10n.settingsThumbnailScanCaptionDisabled(
+            schedule, config.dirs.length);
+    return config.isBusy
+        ? '$base · ${l10n.settingsThumbnailScanCaptionScanning}'
+        : base;
   }
 
   void _openFlyNarwhalAuthCodeDialog() {
@@ -452,6 +475,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ref.read(danmuSourceConfigControllerProvider.notifier).load();
+        }
+      });
+    }
+    // Same pattern for the scheduled thumbnail scan card (server >= 2.1.0):
+    // pull the stored config once so the card summary reflects it.
+    final supportsThumbnailScheduling = ref
+            .watch(flyNarwhalServerCapabilitiesProvider)
+            .valueOrNull
+            ?.supportsThumbnailScheduling ??
+        false;
+    if (supportsThumbnailScheduling && !_thumbnailScanConfigLoadRequested) {
+      _thumbnailScanConfigLoadRequested = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(thumbnailScanConfigControllerProvider.notifier).load();
         }
       });
     }
@@ -1088,6 +1126,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         ),
                                       ),
                                     ],
+                                    // The scheduled thumbnail scan endpoints
+                                    // only exist on servers 2.1.0 or newer.
+                                    if (supportsThumbnailScheduling)
+                                      CardExpanderItem(
+                                        key: const ValueKey(
+                                          'settings-fly-narwhal-thumbnail-scan',
+                                        ),
+                                        icon: const Icon(
+                                          FluentIcons.calendar_week,
+                                        ),
+                                        heading: Text(
+                                          l10n.settingsThumbnailScanTitle,
+                                        ),
+                                        caption: Text(
+                                          _thumbnailScanCaption(l10n),
+                                        ),
+                                        trailing: AppButton(
+                                          key: const ValueKey(
+                                            'settings-thumbnail-scan-open',
+                                          ),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  const ThumbnailScanConfigDialog(),
+                                            );
+                                          },
+                                          child: Text(
+                                            l10n.settingsThumbnailScanConfigure,
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),

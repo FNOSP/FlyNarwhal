@@ -299,7 +299,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final notifier = _thumbnailNotifierFor(guid);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      notifier.refresh();
+      notifier.refresh(filePath: _resolveCurrentFilePath());
     });
   }
 

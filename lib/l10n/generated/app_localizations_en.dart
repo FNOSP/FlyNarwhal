@@ -2973,4 +2973,305 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get movieDetailThumbnailFailedShort => 'Failed';
+
+  @override
+  String get settingsThumbnailScanTitle => 'Scheduled thumbnails';
+
+  @override
+  String get settingsThumbnailScanCaption =>
+      'Scan NAS folders on a schedule and generate progress-bar previews for videos that have none';
+
+  @override
+  String get settingsThumbnailScanConfigure => 'Configure';
+
+  @override
+  String get settingsThumbnailScanCaptionNone => 'Not configured';
+
+  @override
+  String settingsThumbnailScanCaptionEnabled(String schedule, int count) {
+    return '$schedule · $count folder(s)';
+  }
+
+  @override
+  String settingsThumbnailScanCaptionDisabled(String schedule, int count) {
+    return 'Disabled · $schedule · $count folder(s)';
+  }
+
+  @override
+  String get settingsThumbnailScanCaptionScanning => 'scanning';
+
+  @override
+  String get thumbnailScanDialogTitle => 'Scheduled thumbnails';
+
+  @override
+  String get thumbnailScanDialogEnable => 'Enable scheduled scan';
+
+  @override
+  String get thumbnailScanDialogEnableCaption =>
+      'When on, the server scans the selected folders on the schedule below and generates thumbnails for videos missing them';
+
+  @override
+  String get thumbnailScanDialogCronLabel => 'Schedule (cron expression)';
+
+  @override
+  String get thumbnailScanDialogCronGenerate => 'Generator';
+
+  @override
+  String get thumbnailScanDialogCronChecking => 'Checking…';
+
+  @override
+  String thumbnailScanDialogCronInvalid(String error) {
+    return 'Invalid expression: $error';
+  }
+
+  @override
+  String get thumbnailScanDialogCronInvalidShort => 'Invalid cron expression';
+
+  @override
+  String get thumbnailScanDialogCronRequired => 'A cron expression is required';
+
+  @override
+  String get thumbnailScanDialogCronCustom => 'Custom schedule';
+
+  @override
+  String thumbnailScanDialogCronNextRun(String time) {
+    return 'Next run: $time';
+  }
+
+  @override
+  String get thumbnailScanDialogDirsLabel => 'Scan folders';
+
+  @override
+  String get thumbnailScanDialogDirsPick => 'Select folders';
+
+  @override
+  String get thumbnailScanDialogDirsEmpty => 'No folder selected';
+
+  @override
+  String get thumbnailScanDialogDirsRequired =>
+      'Select at least one scan folder';
+
+  @override
+  String get thumbnailScanDialogTooManyDirs => 'Too many scan folders';
+
+  @override
+  String thumbnailScanDialogStatusRunning(String dir, int count) {
+    return 'Scanning: $dir ($count videos found)';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusQueued =>
+      'Queued, waiting for the previous scan to finish';
+
+  @override
+  String get thumbnailScanDialogStatusNever => 'No scan has run yet';
+
+  @override
+  String thumbnailScanDialogStatusLastOk(String time, int scanned, int queued) {
+    return 'Last scan: $time · $scanned videos found · $queued queued';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastFailed(String time) {
+    return 'Last scan: $time · failed';
+  }
+
+  @override
+  String get thumbnailScanDialogSave => 'Save';
+
+  @override
+  String get thumbnailScanDialogSaved => 'Configuration saved';
+
+  @override
+  String get thumbnailScanDialogSaveFailedGeneric => 'Save failed';
+
+  @override
+  String get thumbnailScanDialogScanNow => 'Scan now';
+
+  @override
+  String get thumbnailScanDialogScanNowTip => 'Run one scan immediately';
+
+  @override
+  String get thumbnailScanDialogSaveFirst => 'Save the configuration first';
+
+  @override
+  String get thumbnailScanDialogTriggerFailedGeneric =>
+      'Failed to trigger the scan';
+
+  @override
+  String get thumbnailScanDialogLoadFailed =>
+      'Failed to load the scan configuration';
+
+  @override
+  String get thumbnailScanDialogClose => 'Close';
+
+  @override
+  String get cronGeneratorTitle => 'Cron expression generator';
+
+  @override
+  String get cronGeneratorTabSecond => 'Second';
+
+  @override
+  String get cronGeneratorTabMinute => 'Minute';
+
+  @override
+  String get cronGeneratorTabHour => 'Hour';
+
+  @override
+  String get cronGeneratorTabDayOfMonth => 'Day';
+
+  @override
+  String get cronGeneratorTabMonth => 'Month';
+
+  @override
+  String get cronGeneratorTabDayOfWeek => 'Week';
+
+  @override
+  String get cronGeneratorTabYear => 'Year';
+
+  @override
+  String get cronGeneratorEvery => 'Every (*)';
+
+  @override
+  String get cronGeneratorRangePrefix => 'Range from';
+
+  @override
+  String get cronGeneratorRangeTo => 'to';
+
+  @override
+  String get cronGeneratorIncrementPrefix => 'From';
+
+  @override
+  String get cronGeneratorIncrementEvery => 'on, every';
+
+  @override
+  String get cronGeneratorSpecific => 'Specified';
+
+  @override
+  String get cronGeneratorUnspecified => 'Unspecified';
+
+  @override
+  String get cronGeneratorEveryDay => 'Every day';
+
+  @override
+  String get cronGeneratorEveryMonth => 'Every month';
+
+  @override
+  String get cronGeneratorEveryYear => 'Every year';
+
+  @override
+  String get cronGeneratorYearUnspecified => 'Unspecified (optional)';
+
+  @override
+  String get cronGeneratorYearHint =>
+      'Leave the year empty for a 6-field expression; specifying it produces 7 fields';
+
+  @override
+  String get cronGeneratorNearestWeekdayPrefix => 'Nearest weekday to day';
+
+  @override
+  String get cronGeneratorNearestWeekdaySuffix => 'of the month';
+
+  @override
+  String get cronGeneratorLastDay => 'Last day of the month';
+
+  @override
+  String get cronGeneratorNthPrefix => 'The';
+
+  @override
+  String get cronGeneratorNthMiddle => '№';
+
+  @override
+  String get cronGeneratorLastWeekdayPrefix => 'Last';
+
+  @override
+  String get cronGeneratorPreviewLabel => 'Expression preview';
+
+  @override
+  String get cronGeneratorValid => 'Valid';
+
+  @override
+  String get cronGeneratorInvalid => 'Invalid expression';
+
+  @override
+  String cronGeneratorNextRuns(int count) {
+    return 'Next $count run times';
+  }
+
+  @override
+  String get cronGeneratorUnparseable =>
+      'Cannot parse the original expression; it was reset to the default';
+
+  @override
+  String get cronGeneratorAm => 'AM';
+
+  @override
+  String get cronGeneratorPm => 'PM';
+
+  @override
+  String cronGeneratorMonthN(int n) {
+    return '$n';
+  }
+
+  @override
+  String get cronGeneratorClose => 'Close';
+
+  @override
+  String get cronWeekdaySun => 'Sun';
+
+  @override
+  String get cronWeekdayMon => 'Mon';
+
+  @override
+  String get cronWeekdayTue => 'Tue';
+
+  @override
+  String get cronWeekdayWed => 'Wed';
+
+  @override
+  String get cronWeekdayThu => 'Thu';
+
+  @override
+  String get cronWeekdayFri => 'Fri';
+
+  @override
+  String get cronWeekdaySat => 'Sat';
+
+  @override
+  String cronDescDaily(String time) {
+    return 'Daily at $time';
+  }
+
+  @override
+  String cronDescWeekly(String days, String time) {
+    return 'Weekly on $days at $time';
+  }
+
+  @override
+  String cronDescMonthly(String days, String time) {
+    return 'Monthly on day $days at $time';
+  }
+
+  @override
+  String cronDescEveryNSeconds(int n) {
+    return 'Every $n seconds';
+  }
+
+  @override
+  String cronDescEveryNMinutes(int n) {
+    return 'Every $n minutes';
+  }
+
+  @override
+  String cronDescEveryNHours(int n) {
+    return 'Every $n hours';
+  }
+
+  @override
+  String get nasDirPickerTitle => 'Select scan folders';
+
+  @override
+  String nasDirPickerLimitReached(String max) {
+    return 'At most $max folders can be selected';
+  }
 }

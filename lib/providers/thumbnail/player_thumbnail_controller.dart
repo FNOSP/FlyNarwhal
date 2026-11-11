@@ -54,13 +54,17 @@ class PlayerThumbnailController extends StateNotifier<ThumbnailMetadata?> {
     this._mediaGuid,
   ) : super(null);
 
-  /// Fetch metadata once; only a ready task enables previews.
-  Future<void> init() async {
+  /// Fetch metadata once; only a ready task enables previews. Pass [filePath]
+  /// (the local NAS path being played) when known: a server >= 2.1.0 then
+  /// adopts sprites its scheduled scan generated for the same file, so a video
+  /// the user never manually triggered still gets hover previews.
+  Future<void> init({String? filePath}) async {
     if (_initialized) return;
     _initialized = true;
     if (!_settings.enabled || _mediaGuid.isEmpty) return;
     try {
-      final result = await _remoteDataSource.getThumbnailStatus(_mediaGuid);
+      final result = await _remoteDataSource.getThumbnailStatus(_mediaGuid,
+          filePath: filePath);
       final metadata = result.getOrThrow().data;
       if (metadata != null && metadata.isReady) {
         state = metadata;

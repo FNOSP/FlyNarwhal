@@ -5324,6 +5324,528 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'生成失败'**
   String get movieDetailThumbnailFailedShort;
+
+  /// Settings card title of the scheduled thumbnail scan.
+  ///
+  /// In zh, this message translates to:
+  /// **'定时获取缩略图'**
+  String get settingsThumbnailScanTitle;
+
+  /// Settings card caption shown before the config loads.
+  ///
+  /// In zh, this message translates to:
+  /// **'按计划扫描 NAS 目录，自动为缺少缩略图的视频生成进度条预览图'**
+  String get settingsThumbnailScanCaption;
+
+  /// Button opening the scan configuration dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置'**
+  String get settingsThumbnailScanConfigure;
+
+  /// Caption when nothing is configured yet.
+  ///
+  /// In zh, this message translates to:
+  /// **'未配置'**
+  String get settingsThumbnailScanCaptionNone;
+
+  /// Caption with schedule summary and folder count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{schedule} · {count} 个目录'**
+  String settingsThumbnailScanCaptionEnabled(String schedule, int count);
+
+  /// Caption when the schedule is switched off.
+  ///
+  /// In zh, this message translates to:
+  /// **'已停用 · {schedule} · {count} 个目录'**
+  String settingsThumbnailScanCaptionDisabled(String schedule, int count);
+
+  /// Caption suffix while a scan runs.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫描中'**
+  String get settingsThumbnailScanCaptionScanning;
+
+  /// Title of the scan configuration dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'定时获取缩略图'**
+  String get thumbnailScanDialogTitle;
+
+  /// Enable switch label.
+  ///
+  /// In zh, this message translates to:
+  /// **'启用定时扫描'**
+  String get thumbnailScanDialogEnable;
+
+  /// Enable switch explanation.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后按下方周期自动扫描所选目录，为缺少缩略图的视频生成预览图'**
+  String get thumbnailScanDialogEnableCaption;
+
+  /// Label above the cron input.
+  ///
+  /// In zh, this message translates to:
+  /// **'执行周期（cron 表达式）'**
+  String get thumbnailScanDialogCronLabel;
+
+  /// Button opening the cron generator dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成器'**
+  String get thumbnailScanDialogCronGenerate;
+
+  /// Shown while the debounced server validation runs.
+  ///
+  /// In zh, this message translates to:
+  /// **'校验中…'**
+  String get thumbnailScanDialogCronChecking;
+
+  /// Inline validation failure with the server reason.
+  ///
+  /// In zh, this message translates to:
+  /// **'表达式无效：{error}'**
+  String thumbnailScanDialogCronInvalid(String error);
+
+  /// Short invalid-cron message used by the controller.
+  ///
+  /// In zh, this message translates to:
+  /// **'cron 表达式无效'**
+  String get thumbnailScanDialogCronInvalidShort;
+
+  /// Server rejection mapped: enabling without a cron.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写 cron 表达式'**
+  String get thumbnailScanDialogCronRequired;
+
+  /// Fallback summary for expressions the describer cannot render.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义计划'**
+  String get thumbnailScanDialogCronCustom;
+
+  /// Next scheduled fire time line.
+  ///
+  /// In zh, this message translates to:
+  /// **'下次运行：{time}'**
+  String thumbnailScanDialogCronNextRun(String time);
+
+  /// Label of the scan directory section.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫描目录'**
+  String get thumbnailScanDialogDirsLabel;
+
+  /// Button opening the NAS directory picker.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择目录'**
+  String get thumbnailScanDialogDirsPick;
+
+  /// Empty state of the directory list.
+  ///
+  /// In zh, this message translates to:
+  /// **'未选择目录'**
+  String get thumbnailScanDialogDirsEmpty;
+
+  /// Server rejection mapped: enabling without directories.
+  ///
+  /// In zh, this message translates to:
+  /// **'请至少选择一个扫描目录'**
+  String get thumbnailScanDialogDirsRequired;
+
+  /// Server rejection mapped: directory list too long.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫描目录过多'**
+  String get thumbnailScanDialogTooManyDirs;
+
+  /// Live scan progress line.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫描中：{dir}（已发现 {count} 个视频）'**
+  String thumbnailScanDialogStatusRunning(String dir, int count);
+
+  /// Shown while the scan waits behind a running one.
+  ///
+  /// In zh, this message translates to:
+  /// **'已排队，等待上一次扫描完成'**
+  String get thumbnailScanDialogStatusQueued;
+
+  /// Idle state before the first scan.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未执行过扫描'**
+  String get thumbnailScanDialogStatusNever;
+
+  /// Summary of the last successful scan.
+  ///
+  /// In zh, this message translates to:
+  /// **'上次扫描：{time} · 发现 {scanned} 个视频 · 入队 {queued} 个'**
+  String thumbnailScanDialogStatusLastOk(String time, int scanned, int queued);
+
+  /// Header of the last failed scan.
+  ///
+  /// In zh, this message translates to:
+  /// **'上次扫描：{time} · 失败'**
+  String thumbnailScanDialogStatusLastFailed(String time);
+
+  /// Primary dialog action.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get thumbnailScanDialogSave;
+
+  /// Success toast after saving.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置已保存'**
+  String get thumbnailScanDialogSaved;
+
+  /// Fallback when saving fails without a server reason.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存失败'**
+  String get thumbnailScanDialogSaveFailedGeneric;
+
+  /// Manual scan trigger button.
+  ///
+  /// In zh, this message translates to:
+  /// **'立即扫描'**
+  String get thumbnailScanDialogScanNow;
+
+  /// Tooltip of the manual scan trigger.
+  ///
+  /// In zh, this message translates to:
+  /// **'立即执行一次扫描'**
+  String get thumbnailScanDialogScanNowTip;
+
+  /// Tooltip while unsaved changes block the manual trigger.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先保存配置'**
+  String get thumbnailScanDialogSaveFirst;
+
+  /// Fallback when the manual trigger fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'触发扫描失败'**
+  String get thumbnailScanDialogTriggerFailedGeneric;
+
+  /// Fallback when the config load fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取扫描配置失败'**
+  String get thumbnailScanDialogLoadFailed;
+
+  /// Tooltip of the dialog close button.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get thumbnailScanDialogClose;
+
+  /// Title of the cron expression generator dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'cron 表达式生成器'**
+  String get cronGeneratorTitle;
+
+  /// Tab label of the seconds field.
+  ///
+  /// In zh, this message translates to:
+  /// **'秒'**
+  String get cronGeneratorTabSecond;
+
+  /// Tab label of the minutes field.
+  ///
+  /// In zh, this message translates to:
+  /// **'分'**
+  String get cronGeneratorTabMinute;
+
+  /// Tab label of the hours field.
+  ///
+  /// In zh, this message translates to:
+  /// **'时'**
+  String get cronGeneratorTabHour;
+
+  /// Tab label of the day-of-month field.
+  ///
+  /// In zh, this message translates to:
+  /// **'日'**
+  String get cronGeneratorTabDayOfMonth;
+
+  /// Tab label of the month field.
+  ///
+  /// In zh, this message translates to:
+  /// **'月'**
+  String get cronGeneratorTabMonth;
+
+  /// Tab label of the day-of-week field.
+  ///
+  /// In zh, this message translates to:
+  /// **'周'**
+  String get cronGeneratorTabDayOfWeek;
+
+  /// Tab label of the optional year field.
+  ///
+  /// In zh, this message translates to:
+  /// **'年'**
+  String get cronGeneratorTabYear;
+
+  /// Radio option: wildcard for every value.
+  ///
+  /// In zh, this message translates to:
+  /// **'每（*）'**
+  String get cronGeneratorEvery;
+
+  /// Radio option prefix of a from-to range.
+  ///
+  /// In zh, this message translates to:
+  /// **'周期 从'**
+  String get cronGeneratorRangePrefix;
+
+  /// Connector between range bounds.
+  ///
+  /// In zh, this message translates to:
+  /// **'到'**
+  String get cronGeneratorRangeTo;
+
+  /// Radio option prefix of a start/every-step.
+  ///
+  /// In zh, this message translates to:
+  /// **'从'**
+  String get cronGeneratorIncrementPrefix;
+
+  /// Connector before the step box.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始，每'**
+  String get cronGeneratorIncrementEvery;
+
+  /// Radio option: explicit multi-selection.
+  ///
+  /// In zh, this message translates to:
+  /// **'指定'**
+  String get cronGeneratorSpecific;
+
+  /// Radio option: '?' for day/week (or omitted year).
+  ///
+  /// In zh, this message translates to:
+  /// **'不指定'**
+  String get cronGeneratorUnspecified;
+
+  /// Day-of-month wildcard option.
+  ///
+  /// In zh, this message translates to:
+  /// **'每日'**
+  String get cronGeneratorEveryDay;
+
+  /// Month wildcard option.
+  ///
+  /// In zh, this message translates to:
+  /// **'每月'**
+  String get cronGeneratorEveryMonth;
+
+  /// Year wildcard option.
+  ///
+  /// In zh, this message translates to:
+  /// **'每年'**
+  String get cronGeneratorEveryYear;
+
+  /// Year option producing a 6-field expression.
+  ///
+  /// In zh, this message translates to:
+  /// **'不指定（可选）'**
+  String get cronGeneratorYearUnspecified;
+
+  /// Footnote of the year tab.
+  ///
+  /// In zh, this message translates to:
+  /// **'年份留空生成 6 段表达式，指定后为 7 段'**
+  String get cronGeneratorYearHint;
+
+  /// Prefix of the Quartz W option.
+  ///
+  /// In zh, this message translates to:
+  /// **'每月'**
+  String get cronGeneratorNearestWeekdayPrefix;
+
+  /// Suffix of the Quartz W option.
+  ///
+  /// In zh, this message translates to:
+  /// **'号最近的那个工作日'**
+  String get cronGeneratorNearestWeekdaySuffix;
+
+  /// Quartz L day-of-month option.
+  ///
+  /// In zh, this message translates to:
+  /// **'本月最后一日'**
+  String get cronGeneratorLastDay;
+
+  /// Prefix of the Quartz # option.
+  ///
+  /// In zh, this message translates to:
+  /// **'第'**
+  String get cronGeneratorNthPrefix;
+
+  /// Connector of the Quartz # option.
+  ///
+  /// In zh, this message translates to:
+  /// **'个'**
+  String get cronGeneratorNthMiddle;
+
+  /// Prefix of the Quartz week-L option.
+  ///
+  /// In zh, this message translates to:
+  /// **'本月最后一个'**
+  String get cronGeneratorLastWeekdayPrefix;
+
+  /// Label above the live expression preview.
+  ///
+  /// In zh, this message translates to:
+  /// **'表达式预览'**
+  String get cronGeneratorPreviewLabel;
+
+  /// Server verdict: valid.
+  ///
+  /// In zh, this message translates to:
+  /// **'合法'**
+  String get cronGeneratorValid;
+
+  /// Server verdict: invalid (no reason).
+  ///
+  /// In zh, this message translates to:
+  /// **'表达式无效'**
+  String get cronGeneratorInvalid;
+
+  /// Expander header listing upcoming fire times.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近 {count} 次运行时间'**
+  String cronGeneratorNextRuns(int count);
+
+  /// Notice when the initial expression cannot be reverse-filled.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法解析原表达式，已重置为默认'**
+  String get cronGeneratorUnparseable;
+
+  /// Group header of morning hours.
+  ///
+  /// In zh, this message translates to:
+  /// **'上午'**
+  String get cronGeneratorAm;
+
+  /// Group header of afternoon hours.
+  ///
+  /// In zh, this message translates to:
+  /// **'下午'**
+  String get cronGeneratorPm;
+
+  /// Label of month checkbox n.
+  ///
+  /// In zh, this message translates to:
+  /// **'{n}月'**
+  String cronGeneratorMonthN(int n);
+
+  /// Tooltip of the generator close button.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get cronGeneratorClose;
+
+  /// Quartz weekday 1.
+  ///
+  /// In zh, this message translates to:
+  /// **'周日'**
+  String get cronWeekdaySun;
+
+  /// Quartz weekday 2.
+  ///
+  /// In zh, this message translates to:
+  /// **'周一'**
+  String get cronWeekdayMon;
+
+  /// Quartz weekday 3.
+  ///
+  /// In zh, this message translates to:
+  /// **'周二'**
+  String get cronWeekdayTue;
+
+  /// Quartz weekday 4.
+  ///
+  /// In zh, this message translates to:
+  /// **'周三'**
+  String get cronWeekdayWed;
+
+  /// Quartz weekday 5.
+  ///
+  /// In zh, this message translates to:
+  /// **'周四'**
+  String get cronWeekdayThu;
+
+  /// Quartz weekday 6.
+  ///
+  /// In zh, this message translates to:
+  /// **'周五'**
+  String get cronWeekdayFri;
+
+  /// Quartz weekday 7.
+  ///
+  /// In zh, this message translates to:
+  /// **'周六'**
+  String get cronWeekdaySat;
+
+  /// Local summary of a daily HH:MM schedule.
+  ///
+  /// In zh, this message translates to:
+  /// **'每天 {time}'**
+  String cronDescDaily(String time);
+
+  /// Local summary of a weekly schedule.
+  ///
+  /// In zh, this message translates to:
+  /// **'每周{days} {time}'**
+  String cronDescWeekly(String days, String time);
+
+  /// Local summary of a monthly schedule.
+  ///
+  /// In zh, this message translates to:
+  /// **'每月 {days} 号 {time}'**
+  String cronDescMonthly(String days, String time);
+
+  /// Local summary of an every-N-seconds schedule.
+  ///
+  /// In zh, this message translates to:
+  /// **'每 {n} 秒'**
+  String cronDescEveryNSeconds(int n);
+
+  /// Local summary of an every-N-minutes schedule.
+  ///
+  /// In zh, this message translates to:
+  /// **'每 {n} 分钟'**
+  String cronDescEveryNMinutes(int n);
+
+  /// Local summary of an every-N-hours schedule.
+  ///
+  /// In zh, this message translates to:
+  /// **'每 {n} 小时'**
+  String cronDescEveryNHours(int n);
+
+  /// Title of the NAS scan-directory picker.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择扫描目录'**
+  String get nasDirPickerTitle;
+
+  /// Toast when more than the allowed directories are selected.
+  ///
+  /// In zh, this message translates to:
+  /// **'最多选择 {max} 个目录'**
+  String nasDirPickerLimitReached(String max);
 }
 
 class _AppLocalizationsDelegate

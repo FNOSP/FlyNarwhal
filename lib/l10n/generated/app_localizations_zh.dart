@@ -2873,6 +2873,300 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get movieDetailThumbnailFailedShort => '生成失败';
+
+  @override
+  String get settingsThumbnailScanTitle => '定时获取缩略图';
+
+  @override
+  String get settingsThumbnailScanCaption => '按计划扫描 NAS 目录，自动为缺少缩略图的视频生成进度条预览图';
+
+  @override
+  String get settingsThumbnailScanConfigure => '配置';
+
+  @override
+  String get settingsThumbnailScanCaptionNone => '未配置';
+
+  @override
+  String settingsThumbnailScanCaptionEnabled(String schedule, int count) {
+    return '$schedule · $count 个目录';
+  }
+
+  @override
+  String settingsThumbnailScanCaptionDisabled(String schedule, int count) {
+    return '已停用 · $schedule · $count 个目录';
+  }
+
+  @override
+  String get settingsThumbnailScanCaptionScanning => '扫描中';
+
+  @override
+  String get thumbnailScanDialogTitle => '定时获取缩略图';
+
+  @override
+  String get thumbnailScanDialogEnable => '启用定时扫描';
+
+  @override
+  String get thumbnailScanDialogEnableCaption =>
+      '开启后按下方周期自动扫描所选目录，为缺少缩略图的视频生成预览图';
+
+  @override
+  String get thumbnailScanDialogCronLabel => '执行周期（cron 表达式）';
+
+  @override
+  String get thumbnailScanDialogCronGenerate => '生成器';
+
+  @override
+  String get thumbnailScanDialogCronChecking => '校验中…';
+
+  @override
+  String thumbnailScanDialogCronInvalid(String error) {
+    return '表达式无效：$error';
+  }
+
+  @override
+  String get thumbnailScanDialogCronInvalidShort => 'cron 表达式无效';
+
+  @override
+  String get thumbnailScanDialogCronRequired => '请填写 cron 表达式';
+
+  @override
+  String get thumbnailScanDialogCronCustom => '自定义计划';
+
+  @override
+  String thumbnailScanDialogCronNextRun(String time) {
+    return '下次运行：$time';
+  }
+
+  @override
+  String get thumbnailScanDialogDirsLabel => '扫描目录';
+
+  @override
+  String get thumbnailScanDialogDirsPick => '选择目录';
+
+  @override
+  String get thumbnailScanDialogDirsEmpty => '未选择目录';
+
+  @override
+  String get thumbnailScanDialogDirsRequired => '请至少选择一个扫描目录';
+
+  @override
+  String get thumbnailScanDialogTooManyDirs => '扫描目录过多';
+
+  @override
+  String thumbnailScanDialogStatusRunning(String dir, int count) {
+    return '扫描中：$dir（已发现 $count 个视频）';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusQueued => '已排队，等待上一次扫描完成';
+
+  @override
+  String get thumbnailScanDialogStatusNever => '尚未执行过扫描';
+
+  @override
+  String thumbnailScanDialogStatusLastOk(String time, int scanned, int queued) {
+    return '上次扫描：$time · 发现 $scanned 个视频 · 入队 $queued 个';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastFailed(String time) {
+    return '上次扫描：$time · 失败';
+  }
+
+  @override
+  String get thumbnailScanDialogSave => '保存';
+
+  @override
+  String get thumbnailScanDialogSaved => '配置已保存';
+
+  @override
+  String get thumbnailScanDialogSaveFailedGeneric => '保存失败';
+
+  @override
+  String get thumbnailScanDialogScanNow => '立即扫描';
+
+  @override
+  String get thumbnailScanDialogScanNowTip => '立即执行一次扫描';
+
+  @override
+  String get thumbnailScanDialogSaveFirst => '请先保存配置';
+
+  @override
+  String get thumbnailScanDialogTriggerFailedGeneric => '触发扫描失败';
+
+  @override
+  String get thumbnailScanDialogLoadFailed => '读取扫描配置失败';
+
+  @override
+  String get thumbnailScanDialogClose => '关闭';
+
+  @override
+  String get cronGeneratorTitle => 'cron 表达式生成器';
+
+  @override
+  String get cronGeneratorTabSecond => '秒';
+
+  @override
+  String get cronGeneratorTabMinute => '分';
+
+  @override
+  String get cronGeneratorTabHour => '时';
+
+  @override
+  String get cronGeneratorTabDayOfMonth => '日';
+
+  @override
+  String get cronGeneratorTabMonth => '月';
+
+  @override
+  String get cronGeneratorTabDayOfWeek => '周';
+
+  @override
+  String get cronGeneratorTabYear => '年';
+
+  @override
+  String get cronGeneratorEvery => '每（*）';
+
+  @override
+  String get cronGeneratorRangePrefix => '周期 从';
+
+  @override
+  String get cronGeneratorRangeTo => '到';
+
+  @override
+  String get cronGeneratorIncrementPrefix => '从';
+
+  @override
+  String get cronGeneratorIncrementEvery => '开始，每';
+
+  @override
+  String get cronGeneratorSpecific => '指定';
+
+  @override
+  String get cronGeneratorUnspecified => '不指定';
+
+  @override
+  String get cronGeneratorEveryDay => '每日';
+
+  @override
+  String get cronGeneratorEveryMonth => '每月';
+
+  @override
+  String get cronGeneratorEveryYear => '每年';
+
+  @override
+  String get cronGeneratorYearUnspecified => '不指定（可选）';
+
+  @override
+  String get cronGeneratorYearHint => '年份留空生成 6 段表达式，指定后为 7 段';
+
+  @override
+  String get cronGeneratorNearestWeekdayPrefix => '每月';
+
+  @override
+  String get cronGeneratorNearestWeekdaySuffix => '号最近的那个工作日';
+
+  @override
+  String get cronGeneratorLastDay => '本月最后一日';
+
+  @override
+  String get cronGeneratorNthPrefix => '第';
+
+  @override
+  String get cronGeneratorNthMiddle => '个';
+
+  @override
+  String get cronGeneratorLastWeekdayPrefix => '本月最后一个';
+
+  @override
+  String get cronGeneratorPreviewLabel => '表达式预览';
+
+  @override
+  String get cronGeneratorValid => '合法';
+
+  @override
+  String get cronGeneratorInvalid => '表达式无效';
+
+  @override
+  String cronGeneratorNextRuns(int count) {
+    return '最近 $count 次运行时间';
+  }
+
+  @override
+  String get cronGeneratorUnparseable => '无法解析原表达式，已重置为默认';
+
+  @override
+  String get cronGeneratorAm => '上午';
+
+  @override
+  String get cronGeneratorPm => '下午';
+
+  @override
+  String cronGeneratorMonthN(int n) {
+    return '$n月';
+  }
+
+  @override
+  String get cronGeneratorClose => '关闭';
+
+  @override
+  String get cronWeekdaySun => '周日';
+
+  @override
+  String get cronWeekdayMon => '周一';
+
+  @override
+  String get cronWeekdayTue => '周二';
+
+  @override
+  String get cronWeekdayWed => '周三';
+
+  @override
+  String get cronWeekdayThu => '周四';
+
+  @override
+  String get cronWeekdayFri => '周五';
+
+  @override
+  String get cronWeekdaySat => '周六';
+
+  @override
+  String cronDescDaily(String time) {
+    return '每天 $time';
+  }
+
+  @override
+  String cronDescWeekly(String days, String time) {
+    return '每周$days $time';
+  }
+
+  @override
+  String cronDescMonthly(String days, String time) {
+    return '每月 $days 号 $time';
+  }
+
+  @override
+  String cronDescEveryNSeconds(int n) {
+    return '每 $n 秒';
+  }
+
+  @override
+  String cronDescEveryNMinutes(int n) {
+    return '每 $n 分钟';
+  }
+
+  @override
+  String cronDescEveryNHours(int n) {
+    return '每 $n 小时';
+  }
+
+  @override
+  String get nasDirPickerTitle => '选择扫描目录';
+
+  @override
+  String nasDirPickerLimitReached(String max) {
+    return '最多选择 $max 个目录';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5744,4 +6038,298 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get movieDetailThumbnailFailedShort => '生成失敗';
+
+  @override
+  String get settingsThumbnailScanTitle => '排程取得縮圖';
+
+  @override
+  String get settingsThumbnailScanCaption => '依排程掃描 NAS 目錄，自動為缺少縮圖的影片產生進度列預覽圖';
+
+  @override
+  String get settingsThumbnailScanConfigure => '設定';
+
+  @override
+  String get settingsThumbnailScanCaptionNone => '未設定';
+
+  @override
+  String settingsThumbnailScanCaptionEnabled(String schedule, int count) {
+    return '$schedule · $count 個目錄';
+  }
+
+  @override
+  String settingsThumbnailScanCaptionDisabled(String schedule, int count) {
+    return '已停用 · $schedule · $count 個目錄';
+  }
+
+  @override
+  String get settingsThumbnailScanCaptionScanning => '掃描中';
+
+  @override
+  String get thumbnailScanDialogTitle => '排程取得縮圖';
+
+  @override
+  String get thumbnailScanDialogEnable => '啟用排程掃描';
+
+  @override
+  String get thumbnailScanDialogEnableCaption =>
+      '開啟後依下方週期自動掃描所選目錄，為缺少縮圖的影片產生預覽圖';
+
+  @override
+  String get thumbnailScanDialogCronLabel => '執行週期（cron 運算式）';
+
+  @override
+  String get thumbnailScanDialogCronGenerate => '產生器';
+
+  @override
+  String get thumbnailScanDialogCronChecking => '驗證中…';
+
+  @override
+  String thumbnailScanDialogCronInvalid(String error) {
+    return '運算式無效：$error';
+  }
+
+  @override
+  String get thumbnailScanDialogCronInvalidShort => 'cron 運算式無效';
+
+  @override
+  String get thumbnailScanDialogCronRequired => '請填寫 cron 運算式';
+
+  @override
+  String get thumbnailScanDialogCronCustom => '自訂排程';
+
+  @override
+  String thumbnailScanDialogCronNextRun(String time) {
+    return '下次執行：$time';
+  }
+
+  @override
+  String get thumbnailScanDialogDirsLabel => '掃描目錄';
+
+  @override
+  String get thumbnailScanDialogDirsPick => '選擇目錄';
+
+  @override
+  String get thumbnailScanDialogDirsEmpty => '未選擇目錄';
+
+  @override
+  String get thumbnailScanDialogDirsRequired => '請至少選擇一個掃描目錄';
+
+  @override
+  String get thumbnailScanDialogTooManyDirs => '掃描目錄過多';
+
+  @override
+  String thumbnailScanDialogStatusRunning(String dir, int count) {
+    return '掃描中：$dir（已發現 $count 部影片）';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusQueued => '已排隊，等待上一次掃描完成';
+
+  @override
+  String get thumbnailScanDialogStatusNever => '尚未執行過掃描';
+
+  @override
+  String thumbnailScanDialogStatusLastOk(String time, int scanned, int queued) {
+    return '上次掃描：$time · 發現 $scanned 部影片 · 排入 $queued 部';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastFailed(String time) {
+    return '上次掃描：$time · 失敗';
+  }
+
+  @override
+  String get thumbnailScanDialogSave => '儲存';
+
+  @override
+  String get thumbnailScanDialogSaved => '設定已儲存';
+
+  @override
+  String get thumbnailScanDialogSaveFailedGeneric => '儲存失敗';
+
+  @override
+  String get thumbnailScanDialogScanNow => '立即掃描';
+
+  @override
+  String get thumbnailScanDialogScanNowTip => '立即執行一次掃描';
+
+  @override
+  String get thumbnailScanDialogSaveFirst => '請先儲存設定';
+
+  @override
+  String get thumbnailScanDialogTriggerFailedGeneric => '觸發掃描失敗';
+
+  @override
+  String get thumbnailScanDialogLoadFailed => '讀取掃描設定失敗';
+
+  @override
+  String get thumbnailScanDialogClose => '關閉';
+
+  @override
+  String get cronGeneratorTitle => 'cron 運算式產生器';
+
+  @override
+  String get cronGeneratorTabSecond => '秒';
+
+  @override
+  String get cronGeneratorTabMinute => '分';
+
+  @override
+  String get cronGeneratorTabHour => '時';
+
+  @override
+  String get cronGeneratorTabDayOfMonth => '日';
+
+  @override
+  String get cronGeneratorTabMonth => '月';
+
+  @override
+  String get cronGeneratorTabDayOfWeek => '週';
+
+  @override
+  String get cronGeneratorTabYear => '年';
+
+  @override
+  String get cronGeneratorEvery => '每（*）';
+
+  @override
+  String get cronGeneratorRangePrefix => '週期 從';
+
+  @override
+  String get cronGeneratorRangeTo => '到';
+
+  @override
+  String get cronGeneratorIncrementPrefix => '從';
+
+  @override
+  String get cronGeneratorIncrementEvery => '開始，每';
+
+  @override
+  String get cronGeneratorSpecific => '指定';
+
+  @override
+  String get cronGeneratorUnspecified => '不指定';
+
+  @override
+  String get cronGeneratorEveryDay => '每日';
+
+  @override
+  String get cronGeneratorEveryMonth => '每月';
+
+  @override
+  String get cronGeneratorEveryYear => '每年';
+
+  @override
+  String get cronGeneratorYearUnspecified => '不指定（可選）';
+
+  @override
+  String get cronGeneratorYearHint => '年份留空產生 6 欄運算式，指定後為 7 欄';
+
+  @override
+  String get cronGeneratorNearestWeekdayPrefix => '每月';
+
+  @override
+  String get cronGeneratorNearestWeekdaySuffix => '號最近的那個工作日';
+
+  @override
+  String get cronGeneratorLastDay => '本月最後一日';
+
+  @override
+  String get cronGeneratorNthPrefix => '第';
+
+  @override
+  String get cronGeneratorNthMiddle => '個';
+
+  @override
+  String get cronGeneratorLastWeekdayPrefix => '本月最後一個';
+
+  @override
+  String get cronGeneratorPreviewLabel => '運算式預覽';
+
+  @override
+  String get cronGeneratorValid => '合法';
+
+  @override
+  String get cronGeneratorInvalid => '運算式無效';
+
+  @override
+  String cronGeneratorNextRuns(int count) {
+    return '最近 $count 次執行時間';
+  }
+
+  @override
+  String get cronGeneratorUnparseable => '無法解析原運算式，已重設為預設';
+
+  @override
+  String get cronGeneratorAm => '上午';
+
+  @override
+  String get cronGeneratorPm => '下午';
+
+  @override
+  String cronGeneratorMonthN(int n) {
+    return '$n月';
+  }
+
+  @override
+  String get cronGeneratorClose => '關閉';
+
+  @override
+  String get cronWeekdaySun => '週日';
+
+  @override
+  String get cronWeekdayMon => '週一';
+
+  @override
+  String get cronWeekdayTue => '週二';
+
+  @override
+  String get cronWeekdayWed => '週三';
+
+  @override
+  String get cronWeekdayThu => '週四';
+
+  @override
+  String get cronWeekdayFri => '週五';
+
+  @override
+  String get cronWeekdaySat => '週六';
+
+  @override
+  String cronDescDaily(String time) {
+    return '每天 $time';
+  }
+
+  @override
+  String cronDescWeekly(String days, String time) {
+    return '每週$days $time';
+  }
+
+  @override
+  String cronDescMonthly(String days, String time) {
+    return '每月 $days 號 $time';
+  }
+
+  @override
+  String cronDescEveryNSeconds(int n) {
+    return '每 $n 秒';
+  }
+
+  @override
+  String cronDescEveryNMinutes(int n) {
+    return '每 $n 分鐘';
+  }
+
+  @override
+  String cronDescEveryNHours(int n) {
+    return '每 $n 小時';
+  }
+
+  @override
+  String get nasDirPickerTitle => '選擇掃描目錄';
+
+  @override
+  String nasDirPickerLimitReached(String max) {
+    return '最多選擇 $max 個目錄';
+  }
 }

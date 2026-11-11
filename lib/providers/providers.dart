@@ -48,6 +48,7 @@ import 'season_analysis_status_controller.dart';
 import 'episode_analysis_controller.dart';
 import 'thumbnail/thumbnail_menu_controller.dart';
 import 'thumbnail/player_thumbnail_controller.dart';
+import 'thumbnail/thumbnail_scan_config_controller.dart';
 import 'update_providers.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -433,6 +434,16 @@ final playerThumbnailControllerProvider = StateNotifierProvider.family<
     ref.watch(thumbnailSpriteCacheProvider),
     ref.watch(thumbnailDecodedSheetCacheProvider),
     mediaGuid,
+  );
+});
+
+final thumbnailScanConfigControllerProvider = StateNotifierProvider<
+    ThumbnailScanConfigController, ThumbnailScanConfigState>((ref) {
+  return ThumbnailScanConfigController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+    getL10n: () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
   );
 });
 

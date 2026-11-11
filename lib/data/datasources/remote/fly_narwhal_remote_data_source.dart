@@ -159,11 +159,65 @@ class FlyNarwhalRemoteDataSource {
             Map<String, dynamic>.from(json as Map)));
   }
 
+  /// Task state for [guid]. Pass [filePath] (the local NAS path of the media)
+  /// when known: on server >= 2.1.0 it lets a status query adopt sprites the
+  /// scheduled scan generated for the same file under a synthetic guid, so
+  /// playback shows previews the client never explicitly requested.
   Future<ApiResult<SmartAnalysisResult<ThumbnailMetadata>>>
-      getThumbnailStatus(String guid) {
+      getThumbnailStatus(String guid, {String? filePath}) {
     return _get(ApiEndpoints.flyNarwhalThumbnailStatus,
-        parameters: <String, dynamic>{'guid': guid},
+        parameters: <String, dynamic>{
+          'guid': guid,
+          if (filePath != null && filePath.isNotEmpty) 'file_path': filePath,
+        },
         fromJsonT: (json) => ThumbnailMetadata.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Scheduled thumbnail scan configuration plus live scan state.
+  /// Requires server >= 2.1.0.
+  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>>
+      getThumbnailScanConfig() {
+    return _get(ApiEndpoints.flyNarwhalThumbnailScanConfig,
+        fromJsonT: (json) => ThumbnailScanConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Saves the scan configuration; the server is the authoritative cron
+  /// validator and rejects an unparsable expression or an enabled schedule
+  /// without directories.
+  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>>
+      saveThumbnailScanConfig({
+    required bool enabled,
+    required String cron,
+    required List<String> dirs,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalThumbnailScanConfig,
+        data: <String, dynamic>{
+          'enabled': enabled,
+          'cron': cron,
+          'dirs': dirs,
+        },
+        fromJsonT: (json) => ThumbnailScanConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Queues a scan now. Idempotent server-side: a scan already queued or
+  /// running answers with its current state instead of starting a second one.
+  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>>
+      triggerThumbnailScan() {
+    return _post(ApiEndpoints.flyNarwhalThumbnailScanTrigger,
+        data: const <String, dynamic>{},
+        fromJsonT: (json) => ThumbnailScanConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Stateless cron validation + the next [count] fire times (server clock).
+  Future<ApiResult<SmartAnalysisResult<CronPreviewResult>>>
+      previewThumbnailCron({required String cron, int count = 8}) {
+    return _post(ApiEndpoints.flyNarwhalThumbnailScanCronPreview,
+        data: <String, dynamic>{'cron': cron, 'count': count},
+        fromJsonT: (json) => CronPreviewResult.fromJson(
             Map<String, dynamic>.from(json as Map)));
   }
 

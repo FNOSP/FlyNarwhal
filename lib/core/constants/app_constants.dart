@@ -93,6 +93,12 @@ class ApiEndpoints {
       '/api/analysis/thumbnails/status';
   static const String flyNarwhalThumbnailSprite =
       '/api/analysis/thumbnails/sprite';
+  static const String flyNarwhalThumbnailScanConfig =
+      '/api/analysis/thumbnails/scan/config';
+  static const String flyNarwhalThumbnailScanTrigger =
+      '/api/analysis/thumbnails/scan/trigger';
+  static const String flyNarwhalThumbnailScanCronPreview =
+      '/api/analysis/thumbnails/scan/cron/preview';
   static const String flyNarwhalFnBaseUrl = '/api/config/fn-base-url';
   static const String flyNarwhalDanmaku = '/api/danmu/get';
   static const String flyNarwhalDanmuSourceConfig = '/api/danmu/source-config';

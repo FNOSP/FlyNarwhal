@@ -63,6 +63,11 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
   final String _guid;
   Timer? _pollingTimer;
 
+  /// Last known local path of the media file. Sent with status queries so a
+  /// server >= 2.1.0 can adopt sprites its scheduled scan generated for the
+  /// same file under a synthetic guid.
+  String? _filePath;
+
   /// Bumped whenever a chain is started or stopped, including on dispose. An
   /// in-flight poll captures it and drops its (late) reply if the value moved
   /// on — the provider is not autoDispose, so a response can land after the
@@ -77,12 +82,15 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
   /// Initial load so the menu can show "已生成/重新生成" before the user triggers.
   /// Also the entry point for re-entering the detail page, so it resumes a
   /// chain that outlived the page instead of leaving a running task unwatched.
-  Future<void> refresh() async {
+  /// Pass [filePath] when known so scan-generated sprites can be adopted.
+  Future<void> refresh({String? filePath}) async {
     stopPolling();
+    if (filePath != null && filePath.isNotEmpty) _filePath = filePath;
     if (!_settings.enabled || _guid.isEmpty) return;
     final generation = _generation;
     try {
-      final result = await _remoteDataSource.getThumbnailStatus(_guid);
+      final result =
+          await _remoteDataSource.getThumbnailStatus(_guid, filePath: _filePath);
       if (_generation != generation) return;
       final metadata = result.getOrThrow().data;
       if (metadata == null) return;
@@ -106,6 +114,7 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
   Future<void> trigger({required String filePath, bool force = false}) async {
     if (state.submitting || !_settings.enabled || _guid.isEmpty) return;
     final generation = _generation;
+    if (filePath.isNotEmpty) _filePath = filePath;
     state = state.copyWith(submitting: true, clearErrors: true);
     try {
       final result = await _remoteDataSource.generateThumbnails(
@@ -173,7 +182,8 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
     }
     final generation = _generation;
     try {
-      final result = await _remoteDataSource.getThumbnailStatus(_guid);
+      final result =
+          await _remoteDataSource.getThumbnailStatus(_guid, filePath: _filePath);
       if (_generation != generation) {
         return;
       }

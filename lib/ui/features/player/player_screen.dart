@@ -1594,7 +1594,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     unawaited(
-      ref.read(playerThumbnailControllerProvider(mediaGuid).notifier).init(),
+      ref.read(playerThumbnailControllerProvider(mediaGuid).notifier).init(
+            filePath: cache?.currentFileStream?.path,
+          ),
     );
   }
 
