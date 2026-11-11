@@ -3005,6 +3005,19 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get thumbnailScanDialogUnsavedDirsTitle => '发现尚未保存的扫描目录修改';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsMessage =>
+      '是否保存修改？保存后将按新目录扫描；也可以抛弃修改，按已保存的目录扫描。';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsSave => '保存';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsDiscard => '抛弃修改';
+
+  @override
   String get cronGeneratorTitle => 'cron 表达式生成器';
 
   @override
@@ -6173,6 +6186,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String thumbnailScanDialogDirsInaccessible(String dirs) {
     return '飛鯨影視無法存取「$dirs」，請給飛鯨影視服務端新增目錄存取權限';
   }
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsTitle => '發現尚未儲存的掃描目錄修改';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsMessage =>
+      '是否儲存修改？儲存後將依新目錄掃描；也可以拋棄修改，依已儲存的目錄掃描。';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsSave => '儲存';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsDiscard => '拋棄修改';
 
   @override
   String get cronGeneratorTitle => 'cron 運算式產生器';

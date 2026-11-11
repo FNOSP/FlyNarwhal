@@ -3111,6 +3111,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get thumbnailScanDialogUnsavedDirsTitle =>
+      'Unsaved scan folder changes';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsMessage =>
+      'Save the changes and scan the new folders? Choosing discard scans the saved folders and restores them in this dialog.';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsSave => 'Save';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsDiscard => 'Discard changes';
+
+  @override
   String get cronGeneratorTitle => 'Cron expression generator';
 
   @override

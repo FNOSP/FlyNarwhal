@@ -5547,6 +5547,30 @@ abstract class AppLocalizations {
   /// **'飞鲸影视无法访问「{dirs}」，请给飞鲸影视服务端添加目录访问权限'**
   String thumbnailScanDialogDirsInaccessible(String dirs);
 
+  /// No description provided for @thumbnailScanDialogUnsavedDirsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'发现尚未保存的扫描目录修改'**
+  String get thumbnailScanDialogUnsavedDirsTitle;
+
+  /// No description provided for @thumbnailScanDialogUnsavedDirsMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'是否保存修改？保存后将按新目录扫描；也可以抛弃修改，按已保存的目录扫描。'**
+  String get thumbnailScanDialogUnsavedDirsMessage;
+
+  /// No description provided for @thumbnailScanDialogUnsavedDirsSave.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get thumbnailScanDialogUnsavedDirsSave;
+
+  /// No description provided for @thumbnailScanDialogUnsavedDirsDiscard.
+  ///
+  /// In zh, this message translates to:
+  /// **'抛弃修改'**
+  String get thumbnailScanDialogUnsavedDirsDiscard;
+
   /// Title of the cron expression generator dialog.
   ///
   /// In zh, this message translates to:

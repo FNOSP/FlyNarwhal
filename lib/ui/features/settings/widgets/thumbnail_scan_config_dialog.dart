@@ -118,14 +118,14 @@ class _ThumbnailScanConfigDialogState
     _draftInitialized = true;
   }
 
-  Future<void> _save() async {
-    if (ref.read(thumbnailScanConfigControllerProvider).isSaving) return;
+  Future<bool> _save() async {
+    if (ref.read(thumbnailScanConfigControllerProvider).isSaving) return false;
     final ok = await _controller.save(
       enabled: _enabled,
       cron: _cronController.text.trim(),
       dirs: _dirs,
     );
-    if (!mounted) return;
+    if (!mounted) return false;
     final l10n = AppLocalizations.of(context);
     if (ok) {
       setState(() => _dirty = false);
@@ -143,13 +143,14 @@ class _ThumbnailScanConfigDialogState
             category: 'thumbnail-scan-save',
           );
     }
+    return ok;
   }
 
   /// Guard in front of the manual trigger: AppDialog buttons cannot render a
   /// disabled state, so the preconditions (an idle worker, at least one
-  /// directory) are checked here and explained with a toast. Unsaved cron and
-  /// schedule edits do not block it: the scan only walks folders, and sends
-  /// the saved subset of what the dialog shows so drafts are never scanned.
+  /// directory) are checked here and explained with a toast. Folder edits the
+  /// user has not saved yet are put to them first, because the scan would
+  /// otherwise silently use the saved list instead of the one on screen.
   Future<void> _triggerScanGuarded() async {
     final l10n = AppLocalizations.of(context);
     final state = ref.read(thumbnailScanConfigControllerProvider);
@@ -163,9 +164,12 @@ class _ThumbnailScanConfigDialogState
           );
       return;
     }
-    final serverDirs =
-        state.config.valueOrNull?.dirs.toSet() ?? const <String>{};
-    final scanDirs = _dirs.where(serverDirs.contains).toList();
+    final savedDirs = state.config.valueOrNull?.dirs;
+    final scanDirs = savedDirs != null && !_sameDirs(_dirs, savedDirs)
+        ? await _resolveUnsavedDirs(savedDirs)
+        : (_dirs.isEmpty ? null : _dirs);
+    if (!mounted) return;
+    if (scanDirs == null) return;
     if (scanDirs.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
             l10n.thumbnailScanDialogDirsRequired,
@@ -176,6 +180,51 @@ class _ThumbnailScanConfigDialogState
       return;
     }
     await _triggerScan(scanDirs);
+  }
+
+  /// Asks how to resolve unsaved folder edits before scanning: save them and
+  /// scan them, scan the saved list instead (the dialog goes back to it), or
+  /// stop. Null when the user walked away; an empty list when the saved config
+  /// has no folders to scan.
+  Future<List<String>?> _resolveUnsavedDirs(List<String> savedDirs) async {
+    final l10n = AppLocalizations.of(context);
+    final save = await showAppDialog<bool>(
+      context: context,
+      title: l10n.thumbnailScanDialogUnsavedDirsTitle,
+      content: Text(l10n.thumbnailScanDialogUnsavedDirsMessage),
+      primaryButtonText: l10n.thumbnailScanDialogUnsavedDirsSave,
+      secondaryButtonText: l10n.thumbnailScanDialogUnsavedDirsDiscard,
+      secondaryButtonType: AppDialogButtonType.danger,
+      tertiaryButtonText: l10n.commonCancel,
+      primaryResult: true,
+      secondaryResult: false,
+      constraints: const BoxConstraints(minWidth: 420, maxWidth: 460),
+    );
+    if (save == null || !mounted) return null;
+    if (save) {
+      if (!await _save() || !mounted) return null;
+      return List<String>.of(_dirs);
+    }
+    // Discard: accept the server as the truth and show it again, then scan it.
+    final latest =
+        ref.read(thumbnailScanConfigControllerProvider).config.valueOrNull;
+    if (latest != null) {
+      setState(() {
+        _dirty = false;
+        _syncDraft(latest);
+      });
+    }
+    return List<String>.of(latest?.dirs ?? savedDirs);
+  }
+
+  static bool _sameDirs(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    final left = [...a]..sort();
+    final right = [...b]..sort();
+    for (var i = 0; i < left.length; i++) {
+      if (left[i] != right[i]) return false;
+    }
+    return true;
   }
 
   Future<void> _triggerScan(List<String> scanDirs) async {
