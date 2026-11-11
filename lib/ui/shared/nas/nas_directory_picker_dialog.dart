@@ -1,12 +1,12 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 import '../../../data/models/file_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/file_providers.dart';
 import '../common/app_loading_progress_ring.dart';
+import '../dialogs/app_dialog.dart';
 import '../toast.dart';
 import 'add_nas_subtitle_dialog.dart' show SidebarItem;
 import 'nas_breadcrumb_bar.dart';
@@ -45,32 +45,44 @@ class _NasDirectoryPickerDialogState
   late Set<String> _selectedDirs = Set<String>.of(widget.initialSelection);
   List<String> _breadcrumbSegments = [];
 
+  void _confirm() {
+    final l10n = AppLocalizations.of(context);
+    if (_selectedDirs.length > _maxScanDirs) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.nasDirPickerLimitReached('$_maxScanDirs'),
+            style: ToastStyle.fluent,
+            type: ToastType.warning,
+            category: 'nas-dir-picker-limit',
+          );
+      return;
+    }
+    Navigator.of(context).pop(_selectedDirs.toList(growable: false));
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final authDirsAsync = ref.watch(authorizedDirsProvider);
 
-    return ContentDialog(
-      constraints: const BoxConstraints(maxWidth: 672),
-      title: Row(
-        children: [
-          Text(l10n.nasDirPickerTitle),
-          const Spacer(),
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).pop(),
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(FluentIcons.chrome_close, size: 14),
-              ),
-            ),
-          ),
-        ],
+    return AppDialog<List<String>>(
+      constraints: const BoxConstraints(
+        minWidth: 672,
+        maxWidth: 672,
+        maxHeight: 720,
       ),
+      title: l10n.nasDirPickerTitle,
+      autoDismiss: false,
+      onClose: () {
+        if (mounted) Navigator.of(context).pop();
+      },
+      primaryButtonText: l10n.commonConfirm,
+      onPrimaryPressed: _confirm,
+      secondaryButtonText: l10n.commonCancel,
+      onSecondaryPressed: () {
+        if (mounted) Navigator.of(context).pop();
+      },
       content: SizedBox(
-        width: 630,
+        width: 624,
         child: authDirsAsync.when(
           data: (authDirs) {
             final sidebarItems = _buildSidebarItems(authDirs);
@@ -89,10 +101,6 @@ class _NasDirectoryPickerDialogState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildBrowserContainer(sidebarItems),
-                const SizedBox(height: 10),
-                _buildSelectedChips(l10n),
-                const SizedBox(height: 12),
-                _buildFooterActions(l10n),
               ],
             );
           },
@@ -106,100 +114,6 @@ class _NasDirectoryPickerDialogState
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSelectedChips(AppLocalizations l10n) {
-    if (_selectedDirs.isEmpty) {
-      return Text(
-        l10n.thumbnailScanDialogDirsEmpty,
-        style: FluentTheme.of(context)
-            .typography
-            .caption
-            ?.copyWith(color: FluentTheme.of(context).inactiveColor),
-      );
-    }
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 84),
-      child: SingleChildScrollView(
-        child: Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            for (final dir in _selectedDirs)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0x14FFFFFF),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: _nasBorderColor),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 380),
-                      child: Text(
-                        dir,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () =>
-                            setState(() => _selectedDirs.remove(dir)),
-                        child: const Icon(FluentIcons.chrome_close, size: 10),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFooterActions(AppLocalizations l10n) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        SizedBox(
-          width: 80,
-          child: AppButton(
-            key: const ValueKey('nas-dir-picker-cancel'),
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.commonCancel),
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 80,
-          child: AppFilledButton(
-            key: const ValueKey('nas-dir-picker-confirm'),
-            onPressed: () {
-              if (_selectedDirs.length > _maxScanDirs) {
-                ref.read(toastManagerProvider.notifier).showToast(
-                      l10n.nasDirPickerLimitReached('$_maxScanDirs'),
-                      style: ToastStyle.fluent,
-                      type: ToastType.warning,
-                      category: 'nas-dir-picker-limit',
-                    );
-                return;
-              }
-              Navigator.of(context)
-                  .pop(_selectedDirs.toList(growable: false));
-            },
-            child: Text(l10n.commonConfirm),
-          ),
-        ),
-      ],
     );
   }
 

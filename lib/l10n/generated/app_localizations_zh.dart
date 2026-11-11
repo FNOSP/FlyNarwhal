@@ -2974,9 +2974,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get thumbnailScanDialogSave => '保存';
-
-  @override
   String get thumbnailScanDialogSaved => '配置已保存';
 
   @override
@@ -2989,16 +2986,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get thumbnailScanDialogScanNowTip => '立即执行一次扫描';
 
   @override
-  String get thumbnailScanDialogSaveFirst => '请先保存配置';
-
-  @override
   String get thumbnailScanDialogTriggerFailedGeneric => '触发扫描失败';
 
   @override
   String get thumbnailScanDialogLoadFailed => '读取扫描配置失败';
 
   @override
-  String get thumbnailScanDialogClose => '关闭';
+  String get thumbnailScanDialogAlreadyRunning => '已有扫描任务正在进行，请等待完成';
+
+  @override
+  String thumbnailScanDialogDirsNotSaved(int count) {
+    return '有 $count 个扫描目录尚未保存，请先保存配置';
+  }
+
+  @override
+  String thumbnailScanDialogDirsInaccessible(String dirs) {
+    return '飞鲸影视无法访问「$dirs」，请给飞鲸影视服务端添加目录访问权限';
+  }
 
   @override
   String get cronGeneratorTitle => 'cron 表达式生成器';
@@ -3107,9 +3111,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get cronGeneratorClose => '关闭';
-
-  @override
   String get cronWeekdaySun => '周日';
 
   @override
@@ -3167,6 +3168,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String nasDirPickerLimitReached(String max) {
     return '最多选择 $max 个目录';
   }
+
+  @override
+  String get settingsThumbnailScanPermHint =>
+      '需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -6139,9 +6144,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get thumbnailScanDialogSave => '儲存';
-
-  @override
   String get thumbnailScanDialogSaved => '設定已儲存';
 
   @override
@@ -6154,16 +6156,23 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get thumbnailScanDialogScanNowTip => '立即執行一次掃描';
 
   @override
-  String get thumbnailScanDialogSaveFirst => '請先儲存設定';
-
-  @override
   String get thumbnailScanDialogTriggerFailedGeneric => '觸發掃描失敗';
 
   @override
   String get thumbnailScanDialogLoadFailed => '讀取掃描設定失敗';
 
   @override
-  String get thumbnailScanDialogClose => '關閉';
+  String get thumbnailScanDialogAlreadyRunning => '已有掃描任務正在進行，請等待完成';
+
+  @override
+  String thumbnailScanDialogDirsNotSaved(int count) {
+    return '有 $count 個掃描目錄尚未儲存，請先儲存設定';
+  }
+
+  @override
+  String thumbnailScanDialogDirsInaccessible(String dirs) {
+    return '飛鯨影視無法存取「$dirs」，請給飛鯨影視服務端新增目錄存取權限';
+  }
 
   @override
   String get cronGeneratorTitle => 'cron 運算式產生器';
@@ -6272,9 +6281,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get cronGeneratorClose => '關閉';
-
-  @override
   String get cronWeekdaySun => '週日';
 
   @override
@@ -6332,4 +6338,8 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String nasDirPickerLimitReached(String max) {
     return '最多選擇 $max 個目錄';
   }
+
+  @override
+  String get settingsThumbnailScanPermHint =>
+      '需要在飛牛 -> 系統設置 -> 應用 -> 飛鯨影視中添加所要掃描的目錄的訪問權限，否則無法獲取視頻縮略圖';
 }

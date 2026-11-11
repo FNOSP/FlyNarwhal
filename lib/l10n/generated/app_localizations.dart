@@ -5493,12 +5493,6 @@ abstract class AppLocalizations {
   /// **'上次扫描：{time} · 失败'**
   String thumbnailScanDialogStatusLastFailed(String time);
 
-  /// Primary dialog action.
-  ///
-  /// In zh, this message translates to:
-  /// **'保存'**
-  String get thumbnailScanDialogSave;
-
   /// Success toast after saving.
   ///
   /// In zh, this message translates to:
@@ -5523,12 +5517,6 @@ abstract class AppLocalizations {
   /// **'立即执行一次扫描'**
   String get thumbnailScanDialogScanNowTip;
 
-  /// Tooltip while unsaved changes block the manual trigger.
-  ///
-  /// In zh, this message translates to:
-  /// **'请先保存配置'**
-  String get thumbnailScanDialogSaveFirst;
-
   /// Fallback when the manual trigger fails.
   ///
   /// In zh, this message translates to:
@@ -5541,11 +5529,23 @@ abstract class AppLocalizations {
   /// **'读取扫描配置失败'**
   String get thumbnailScanDialogLoadFailed;
 
-  /// Tooltip of the dialog close button.
+  /// Server rejection mapped: a manual trigger while a scan runs.
   ///
   /// In zh, this message translates to:
-  /// **'关闭'**
-  String get thumbnailScanDialogClose;
+  /// **'已有扫描任务正在进行，请等待完成'**
+  String get thumbnailScanDialogAlreadyRunning;
+
+  /// Server rejection mapped: trigger sent folders that are not in the saved config.
+  ///
+  /// In zh, this message translates to:
+  /// **'有 {count} 个扫描目录尚未保存，请先保存配置'**
+  String thumbnailScanDialogDirsNotSaved(int count);
+
+  /// Toast naming the scan folders the server could not open because it has no access permission.
+  ///
+  /// In zh, this message translates to:
+  /// **'飞鲸影视无法访问「{dirs}」，请给飞鲸影视服务端添加目录访问权限'**
+  String thumbnailScanDialogDirsInaccessible(String dirs);
 
   /// Title of the cron expression generator dialog.
   ///
@@ -5751,12 +5751,6 @@ abstract class AppLocalizations {
   /// **'{n}月'**
   String cronGeneratorMonthN(int n);
 
-  /// Tooltip of the generator close button.
-  ///
-  /// In zh, this message translates to:
-  /// **'关闭'**
-  String get cronGeneratorClose;
-
   /// Quartz weekday 1.
   ///
   /// In zh, this message translates to:
@@ -5846,6 +5840,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'最多选择 {max} 个目录'**
   String nasDirPickerLimitReached(String max);
+
+  /// Hover tip next to the scan-directories label: folder access must be granted in fnOS app settings or thumbnails cannot be generated.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图'**
+  String get settingsThumbnailScanPermHint;
 }
 
 class _AppLocalizationsDelegate

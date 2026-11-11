@@ -204,10 +204,12 @@ class FlyNarwhalRemoteDataSource {
 
   /// Queues a scan now. Idempotent server-side: a scan already queued or
   /// running answers with its current state instead of starting a second one.
+  /// [dirs] are the folders the dialog is showing: only the saved subset is
+  /// accepted, so unsaved edits are never scanned.
   Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>>
-      triggerThumbnailScan() {
+      triggerThumbnailScan({List<String> dirs = const []}) {
     return _post(ApiEndpoints.flyNarwhalThumbnailScanTrigger,
-        data: const <String, dynamic>{},
+        data: <String, dynamic>{'dirs': dirs},
         fromJsonT: (json) => ThumbnailScanConfig.fromJson(
             Map<String, dynamic>.from(json as Map)));
   }

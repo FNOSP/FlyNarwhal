@@ -14,6 +14,9 @@ class ThumbnailScanConfigState {
   final bool isSaving;
   final bool isTriggering;
   final String? loadError;
+  /// The mutation failure as [ApiResult] reported it, before server reasons are
+  /// localized — callers match on it when the original wording matters.
+  final String? actionErrorRaw;
   final String? actionError;
 
   const ThumbnailScanConfigState({
@@ -21,6 +24,7 @@ class ThumbnailScanConfigState {
     this.isSaving = false,
     this.isTriggering = false,
     this.loadError,
+    this.actionErrorRaw,
     this.actionError,
   });
 
@@ -30,6 +34,7 @@ class ThumbnailScanConfigState {
     bool? isTriggering,
     String? loadError,
     bool clearLoadError = false,
+    String? actionErrorRaw,
     String? actionError,
     bool clearActionError = false,
   }) {
@@ -38,6 +43,8 @@ class ThumbnailScanConfigState {
       isSaving: isSaving ?? this.isSaving,
       isTriggering: isTriggering ?? this.isTriggering,
       loadError: clearLoadError ? null : loadError ?? this.loadError,
+      actionErrorRaw:
+          clearActionError ? null : actionErrorRaw ?? this.actionErrorRaw,
       actionError: clearActionError ? null : actionError ?? this.actionError,
     );
   }
@@ -56,6 +63,19 @@ class ThumbnailScanConfigController
       {required AppLocalizations Function() getL10n})
       : _getL10n = getL10n,
         super(const ThumbnailScanConfigState());
+
+  /// Server rejection prefix of a manual trigger naming folders that are not saved.
+  static const String scanDirsNotSavedPrefix = 'scan directories are not saved: ';
+
+  /// Task failure of a file the server cannot read: its path follows the colon.
+  static const String scanNotFoundPrefix =
+      'media file not found or unreadable: ';
+
+  /// The file path of a [scanNotFoundPrefix] message, or the message unchanged.
+  static String scanNotFoundPath(String error) =>
+      error.startsWith(scanNotFoundPrefix)
+          ? error.substring(scanNotFoundPrefix.length).trim()
+          : error.trim();
 
   Future<void> load() async {
     // Keep the previous values as the loading state's data so a poll or a
@@ -112,11 +132,12 @@ class ThumbnailScanConfigController
 
   /// Queues a scan now. The server dedupes: an already queued/running scan
   /// answers with its current state, which is a success from the UI's side.
-  Future<bool> triggerScan() {
+  Future<bool> triggerScan({List<String> dirs = const []}) {
     return _mutate(
-      () => _dataSource.triggerThumbnailScan(),
+      () => _dataSource.triggerThumbnailScan(dirs: dirs),
       _getL10n().thumbnailScanDialogTriggerFailedGeneric,
       isSavingFlag: false,
+      rawOnGenericFailure: true,
     );
   }
 
@@ -145,11 +166,16 @@ class ThumbnailScanConfigController
   /// The mutation error to show the user, or null when the last one succeeded.
   String? get actionError => state.actionError;
 
+  /// The same failure before localization, so callers can match the server's
+  /// own wording; null when the request failed without a server answer.
+  String? get actionErrorRaw => state.actionErrorRaw;
+
   Future<bool> _mutate(
     Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>> Function()
         request,
     String fallbackError, {
     required bool isSavingFlag,
+    bool rawOnGenericFailure = false,
   }) async {
     state = state.copyWith(
       isSaving: isSavingFlag ? true : null,
@@ -158,6 +184,7 @@ class ThumbnailScanConfigController
     );
     var ok = false;
     String? error;
+    String? rawError;
     ThumbnailScanConfig? saved;
     try {
       final result = await request();
@@ -168,15 +195,18 @@ class ThumbnailScanConfigController
             ok = true;
             saved = data;
           } else {
+            rawError = smart.msg;
             error = _localizeServerError(smart.msg);
           }
         },
         failure: (failure) {
+          rawError = failure.displayMessage;
           error = failure.displayMessage;
         },
       );
     } catch (_) {
       error = fallbackError;
+      rawError = rawOnGenericFailure ? fallbackError : null;
     }
     if (ok) {
       // The mutation response already carries the fresh snapshot; adopt it
@@ -192,6 +222,7 @@ class ThumbnailScanConfigController
     state = state.copyWith(
       isSaving: false,
       isTriggering: false,
+      actionErrorRaw: rawError,
       actionError: error ?? fallbackError,
     );
     return false;
@@ -209,9 +240,15 @@ class ThumbnailScanConfigController
         return l10n.thumbnailScanDialogDirsRequired;
       case 'too many scan directories':
         return l10n.thumbnailScanDialogTooManyDirs;
+      case 'scan is already running':
+        return l10n.thumbnailScanDialogAlreadyRunning;
       default:
         if (message.startsWith('invalid cron expression')) {
           return l10n.thumbnailScanDialogCronInvalidShort;
+        }
+        if (message.startsWith(scanDirsNotSavedPrefix)) {
+          return l10n.thumbnailScanDialogDirsNotSaved(
+              message.substring(scanDirsNotSavedPrefix.length).split(',').length);
         }
         return message;
     }

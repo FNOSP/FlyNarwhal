@@ -39,6 +39,7 @@ final class ThumbnailScanConfig {
     this.lastScannedCount = 0,
     this.lastQueuedCount = 0,
     this.lastError,
+    this.lastInaccessibleDirs = const [],
   });
 
   static const String lastStatusNever = 'NEVER';
@@ -72,6 +73,10 @@ final class ThumbnailScanConfig {
   final int lastQueuedCount;
   final String? lastError;
 
+  /// Configured folders the last run could not open — missing, or created
+  /// without granting this server access (server >= 2.1.0).
+  final List<String> lastInaccessibleDirs;
+
   bool get isBusy => scanState != ThumbnailScanState.idle;
 
   static ThumbnailScanConfig fromJson(Map<String, dynamic> json) {
@@ -93,6 +98,10 @@ final class ThumbnailScanConfig {
       lastScannedCount: (json['lastScannedCount'] as num?)?.toInt() ?? 0,
       lastQueuedCount: (json['lastQueuedCount'] as num?)?.toInt() ?? 0,
       lastError: json['lastError'] as String?,
+      lastInaccessibleDirs: (json['lastInaccessibleDirs'] as List<dynamic>? ??
+              const [])
+          .whereType<String>()
+          .toList(growable: false),
     );
   }
 
@@ -124,6 +133,7 @@ final class ThumbnailScanConfig {
       lastScannedCount: lastScannedCount,
       lastQueuedCount: lastQueuedCount,
       lastError: lastError,
+      lastInaccessibleDirs: lastInaccessibleDirs,
     );
   }
 

@@ -3077,9 +3077,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get thumbnailScanDialogSave => 'Save';
-
-  @override
   String get thumbnailScanDialogSaved => 'Configuration saved';
 
   @override
@@ -3092,9 +3089,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get thumbnailScanDialogScanNowTip => 'Run one scan immediately';
 
   @override
-  String get thumbnailScanDialogSaveFirst => 'Save the configuration first';
-
-  @override
   String get thumbnailScanDialogTriggerFailedGeneric =>
       'Failed to trigger the scan';
 
@@ -3103,7 +3097,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to load the scan configuration';
 
   @override
-  String get thumbnailScanDialogClose => 'Close';
+  String get thumbnailScanDialogAlreadyRunning =>
+      'A scan is already running, please wait for it to finish';
+
+  @override
+  String thumbnailScanDialogDirsNotSaved(int count) {
+    return '$count scan folder(s) are not saved yet, save the configuration first';
+  }
+
+  @override
+  String thumbnailScanDialogDirsInaccessible(String dirs) {
+    return 'FlyNarwhal cannot access \"$dirs\". Grant the FlyNarwhal server access to this folder';
+  }
 
   @override
   String get cronGeneratorTitle => 'Cron expression generator';
@@ -3214,9 +3219,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get cronGeneratorClose => 'Close';
-
-  @override
   String get cronWeekdaySun => 'Sun';
 
   @override
@@ -3274,4 +3276,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String nasDirPickerLimitReached(String max) {
     return 'At most $max folders can be selected';
   }
+
+  @override
+  String get settingsThumbnailScanPermHint =>
+      'Access permission for the directories to be scanned must be added in fnOS -> System Settings -> Apps -> FlyNarwhal; otherwise video thumbnails cannot be generated';
 }

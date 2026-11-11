@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../data/models/fly_narwhal/index.dart';
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../../../../providers/providers.dart';
+import '../../../../shared/dialogs/app_dialog.dart';
 import 'cron_generator_state.dart';
 
 /// Quartz cron expression builder dialog, replicating the field/option layout
@@ -95,22 +96,21 @@ class _CronGeneratorDialogState extends ConsumerState<CronGeneratorDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return ContentDialog(
-      constraints: const BoxConstraints(maxWidth: 720, maxHeight: 760),
-      title: Row(
-        children: [
-          Expanded(child: Text(l10n.cronGeneratorTitle)),
-          Tooltip(
-            message: l10n.cronGeneratorClose,
-            child: IconButton(
-              icon: const Icon(FluentIcons.chrome_close, size: 14),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-        ],
+    return AppDialog<String>(
+      constraints: const BoxConstraints(
+        minWidth: 720,
+        maxWidth: 720,
+        maxHeight: 760,
       ),
+      title: l10n.cronGeneratorTitle,
+      // 确定 pops the assembled expression, 取消/关闭 pop null.
+      autoDismiss: true,
+      onClose: () {},
+      primaryButtonText: l10n.commonConfirm,
+      primaryResult: _expression,
+      secondaryButtonText: l10n.commonCancel,
       content: SizedBox(
-        width: 680,
+        width: 672,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,26 +136,6 @@ class _CronGeneratorDialogState extends ConsumerState<CronGeneratorDialog> {
           ],
         ),
       ),
-      actions: [
-        Align(
-          alignment: Alignment.centerRight,
-          widthFactor: 1.0,
-          child: FilledButton(
-            key: const ValueKey('cron-generator-confirm'),
-            onPressed: () => Navigator.of(context).pop(_expression),
-            child: Text(l10n.commonConfirm),
-          ),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          widthFactor: 1.0,
-          child: Button(
-            key: const ValueKey('cron-generator-cancel'),
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.commonCancel),
-          ),
-        ),
-      ],
     );
   }
 
