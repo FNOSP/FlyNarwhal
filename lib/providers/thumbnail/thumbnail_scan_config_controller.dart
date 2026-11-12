@@ -163,6 +163,22 @@ class ThumbnailScanConfigController
     state = state.copyWith(clearActionError: true);
   }
 
+  /// Fetches one run's status by id and adopts it as the snapshot's last-run
+  /// block, so callers keep reading one type. Returns false when the request
+  /// itself failed; the widget-side state (live progress) is left untouched.
+  Future<bool> refreshRun(int runId) async {
+    try {
+      final result = await _dataSource.getThumbnailScanRun(runId);
+      final run = result.getOrThrow().data;
+      final current = state.config.valueOrNull;
+      if (run == null || current == null) return false;
+      state = state.copyWith(config: AsyncData(current.mergeRun(run)));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// The mutation error to show the user, or null when the last one succeeded.
   String? get actionError => state.actionError;
 

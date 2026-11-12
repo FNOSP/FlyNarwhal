@@ -95,6 +95,10 @@ class ApiEndpoints {
       '/api/analysis/thumbnails/sprite';
   static const String flyNarwhalThumbnailScanConfig =
       '/api/analysis/thumbnails/scan/config';
+  /// Status of one scan run, polled by id after a trigger.
+  static String flyNarwhalThumbnailScanRun(int id) =>
+      '/api/analysis/thumbnails/scan/runs/$id';
+
   static const String flyNarwhalThumbnailScanTrigger =
       '/api/analysis/thumbnails/scan/trigger';
   static const String flyNarwhalThumbnailScanCronPreview =

@@ -5469,6 +5469,30 @@ abstract class AppLocalizations {
   /// **'扫描中：{dir}（已发现 {count} 个视频）'**
   String thumbnailScanDialogStatusRunning(String dir, int count);
 
+  /// Scan phase of a run, polled from the run record (survives reopening the dialog).
+  ///
+  /// In zh, this message translates to:
+  /// **'扫描中（已发现 {count} 个视频）'**
+  String thumbnailScanDialogStatusScanning(int count);
+
+  /// Scan phase while the folder being walked is known.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫描中：{dir}（已发现 {count} 个视频）'**
+  String thumbnailScanDialogStatusScanningDir(String dir, int count);
+
+  /// Generation phase of a run: this run's finished sprites out of those it queued.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成缩略图中：已完成 {done}/{total}'**
+  String thumbnailScanDialogStatusGenerating(int done, int total);
+
+  /// Generation phase before the first sprite of this run finished.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成缩略图中：正在等待生成队列'**
+  String get thumbnailScanDialogStatusGeneratingIdle;
+
   /// Shown while the scan waits behind a running one.
   ///
   /// In zh, this message translates to:

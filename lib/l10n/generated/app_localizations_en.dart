@@ -3060,6 +3060,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String thumbnailScanDialogStatusScanning(int count) {
+    return 'Scanning ($count videos found)';
+  }
+
+  @override
+  String thumbnailScanDialogStatusScanningDir(String dir, int count) {
+    return 'Scanning: $dir ($count videos found)';
+  }
+
+  @override
+  String thumbnailScanDialogStatusGenerating(int done, int total) {
+    return 'Generating thumbnails: $done/$total done';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusGeneratingIdle =>
+      'Generating thumbnails: waiting for the generation queue';
+
+  @override
   String get thumbnailScanDialogStatusQueued =>
       'Queued, waiting for the previous scan to finish';
 

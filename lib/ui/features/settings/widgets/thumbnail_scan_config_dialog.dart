@@ -59,9 +59,22 @@ class _ThumbnailScanConfigDialogState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _controller.clearActionError();
-      unawaited(_controller.load());
+      unawaited(_loadAndFollowRunning());
     });
     _cronController.addListener(_onCronTextChanged);
+  }
+
+  /// Loads the snapshot and, when its newest run is still working, keeps
+  /// polling that run: a dialog reopened mid-scan shows live progress again
+  /// instead of a frozen snapshot.
+  Future<void> _loadAndFollowRunning() async {
+    await _controller.load();
+    if (!mounted) return;
+    final config =
+        ref.read(thumbnailScanConfigControllerProvider).config.valueOrNull;
+    if (config != null && config.lastRunWorking) {
+      _ensurePolling();
+    }
   }
 
   @override
@@ -220,13 +233,6 @@ class _ThumbnailScanConfigDialogState
   }
 
   Future<void> _triggerScan(List<String> scanDirs) async {
-    // Server-clock baseline so the watcher recognizes the run this trigger queues.
-    final baselineRunMs = ref
-        .read(thumbnailScanConfigControllerProvider)
-        .config
-        .valueOrNull
-        ?.lastRunTime
-        ?.millisecondsSinceEpoch;
     setState(() => _scanning = true);
     final bool ok;
     try {
@@ -260,11 +266,18 @@ class _ThumbnailScanConfigDialogState
       );
       return;
     }
-    // Follow the queued/running scan to completion: the dialog's own poll
-    // feeds the live status card, the app-wide watcher outlives the dialog
-    // and toasts the outcome.
+    // Follow the run this trigger opened, by the id the server answered with:
+    // the dialog's own poll feeds the live status card, the app-wide watcher
+    // outlives the dialog and toasts the outcome.
+    final runId = ref
+        .read(thumbnailScanConfigControllerProvider)
+        .config
+        .valueOrNull
+        ?.lastRunId;
     _ensurePolling();
-    ref.read(thumbnailScanRunWatcherProvider).watchManualRun(baselineRunMs);
+    if (runId != null) {
+      ref.read(thumbnailScanRunWatcherProvider).watchManualRun(runId);
+    }
   }
 
   /// Folder of a file path: the part before its last segment.
@@ -300,13 +313,31 @@ class _ThumbnailScanConfigDialogState
   void _ensurePolling() {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      // The config snapshot only carries schedule + live worker state; the
+      // last-run block follows the run this dialog triggered, by its id.
+      final runId = ref
+          .read(thumbnailScanConfigControllerProvider)
+          .config
+          .valueOrNull
+          ?.lastRunId;
+      if (runId != null) {
+        await _controller.refreshRun(runId);
+      }
       await _controller.load();
       final config = ref.read(thumbnailScanConfigControllerProvider).config.valueOrNull;
-      if (config != null && !config.isBusy) {
+      // Keep following while either the worker is busy or the run this dialog
+      // follows still has sprites left to generate.
+      if (config != null && !config.isBusy && !config.lastRunWorking) {
         _pollTimer?.cancel();
         _pollTimer = null;
       }
     });
+  }
+
+  /// Debug-only bridge for the E2E hook; exposes the guarded "Scan now" flow.
+  Future<void> debugTriggerScanNow() {
+    if (_dirs.isEmpty) return Future<void>.value();
+    return _triggerScan(List<String>.of(_dirs));
   }
 
   @override
@@ -614,10 +645,62 @@ class _ThumbnailScanConfigDialogState
   Widget _buildStatusCard(AppLocalizations l10n, FluentThemeData theme,
       ThumbnailScanConfig? config) {
     if (config == null) return const SizedBox.shrink();
-    Widget content;
+    final content = _buildRunProgress(l10n, theme, config) ??
+        _buildLiveState(l10n, theme, config);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0x0DFFFFFF),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0x1AFDFDFD)),
+      ),
+      child: content,
+    );
+  }
+
+  /// Progress of the run the user triggered, read from its persisted record.
+  ///
+  /// Unlike the worker's in-memory state (which only exists while this process
+  /// is scanning), this survives closing and reopening the dialog, and it
+  /// describes generation too — the phase where a scan spends most of its time.
+  Widget? _buildRunProgress(AppLocalizations l10n, FluentThemeData theme,
+      ThumbnailScanConfig config) {
+    if (config.lastRunId == null || !config.lastRunWorking) return null;
+    final String text;
+    switch (config.lastPhase) {
+      case ThumbnailScanConfig.phaseGenerating:
+        final done = config.lastRunDoneCount;
+        final total = config.lastQueuedGenerationCount;
+        text = total <= 0 || done <= 0
+            ? l10n.thumbnailScanDialogStatusGeneratingIdle
+            : l10n.thumbnailScanDialogStatusGenerating(done, total);
+      case ThumbnailScanConfig.phaseScanning:
+        final count = config.lastScannedCount;
+        text = count <= 0
+            ? l10n.thumbnailScanDialogStatusScanning(count)
+            : l10n.thumbnailScanDialogStatusScanningDir(
+                config.currentDir ?? '', count);
+      default:
+        text = l10n.thumbnailScanDialogStatusQueued;
+    }
+    return Row(
+      children: [
+        const SizedBox(
+            width: 16, height: 16, child: ProgressRing(strokeWidth: 2.5)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(text, style: theme.typography.caption),
+        ),
+      ],
+    );
+  }
+
+  /// Fallback for a scan this process is driving right now (or none at all).
+  Widget _buildLiveState(AppLocalizations l10n, FluentThemeData theme,
+      ThumbnailScanConfig config) {
     switch (config.scanState) {
       case ThumbnailScanState.running:
-        content = Row(
+        return Row(
           children: [
             const SizedBox(
                 width: 16, height: 16, child: ProgressRing(strokeWidth: 2.5)),
@@ -634,20 +717,11 @@ class _ThumbnailScanConfigDialogState
           ],
         );
       case ThumbnailScanState.queued:
-        content = Text(l10n.thumbnailScanDialogStatusQueued,
+        return Text(l10n.thumbnailScanDialogStatusQueued,
             style: theme.typography.caption);
       case ThumbnailScanState.idle:
-        content = _buildLastRunInfo(l10n, theme, config);
+        return _buildLastRunInfo(l10n, theme, config);
     }
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0x0DFFFFFF),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0x1AFDFDFD)),
-      ),
-      child: content,
-    );
   }
 
   Widget _buildLastRunInfo(AppLocalizations l10n, FluentThemeData theme,
@@ -673,6 +747,9 @@ class _ThumbnailScanConfigDialogState
         ],
       );
     }
+    // This run finished cleanly: stale per-folder errors from an earlier run
+    // (or a failed write) must not be shown next to a success. A failed run is
+    // already reported above, so a non-empty error here is always leftover.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -684,12 +761,6 @@ class _ThumbnailScanConfigDialogState
           ),
           style: theme.typography.caption,
         ),
-        if (config.lastError != null && config.lastError!.isNotEmpty)
-          Text(config.lastError!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.typography.caption
-                  ?.copyWith(color: theme.inactiveColor)),
       ],
     );
   }

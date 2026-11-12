@@ -214,6 +214,15 @@ class FlyNarwhalRemoteDataSource {
             Map<String, dynamic>.from(json as Map)));
   }
 
+  /// Status of one scan run, polled by the id the trigger answered with.
+  /// Requires server >= 2.1.0.
+  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>> getThumbnailScanRun(
+      int runId) {
+    return _get(ApiEndpoints.flyNarwhalThumbnailScanRun(runId),
+        fromJsonT: (json) => ThumbnailScanConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
   /// Stateless cron validation + the next [count] fire times (server clock).
   Future<ApiResult<SmartAnalysisResult<CronPreviewResult>>>
       previewThumbnailCron({required String cron, int count = 8}) {

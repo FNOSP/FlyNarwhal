@@ -55,6 +55,81 @@ void main() {
       expect(ThumbnailScanState.fromString('queued'),
           ThumbnailScanState.queued);
     });
+
+    test('run status maps the run id and its in-flight states', () {
+      final queued = ThumbnailScanConfig.fromJson(const {
+        'lastRunId': 12,
+        'lastRunSource': 'MANUAL',
+        'lastStatus': 'QUEUED',
+      });
+      expect(queued.lastRunId, 12);
+      expect(queued.lastRunSource, 'MANUAL');
+      expect(queued.lastRunInFlight, isTrue);
+
+      final done = ThumbnailScanConfig.fromJson(const {
+        'lastRunId': 12,
+        'lastStatus': 'SUCCESS',
+      });
+      expect(done.lastRunInFlight, isFalse);
+    });
+  });
+
+  test('run phase and generation counts drive a persisted progress line', () {
+    final generating = ThumbnailScanConfig.fromJson(const {
+      'lastRunId': 5,
+      'lastStatus': 'RUNNING',
+      'lastPhase': 'GENERATING',
+      'lastScannedCount': 12,
+      'lastSourcedCount': 12,
+      'lastQueuedCount': 7,
+      'lastGeneratedCount': 3,
+      'lastFailedCount': 1,
+    });
+    expect(generating.lastRunWorking, isTrue);
+    expect(generating.lastRunDoneCount, 4);
+    expect(generating.lastQueuedGenerationCount, 7,
+        reason: 'progress is out of the videos this run queued');
+
+    final done = ThumbnailScanConfig.fromJson(const {
+      'lastRunId': 5,
+      'lastStatus': 'SUCCESS',
+      'lastPhase': 'SUCCESS',
+    });
+    expect(done.lastRunWorking, isFalse);
+  });
+
+  test('mergeRun replaces only the last-run block', () {
+    final config = ThumbnailScanConfig.fromJson(const {
+      'enabled': true,
+      'cron': '0 0 3 * * ?',
+      'dirs': ['/vol1/media'],
+      'scanState': 'RUNNING',
+      'currentDir': '/vol1/media',
+      'scannedFiles': 7,
+      'lastRunId': 3,
+      'lastStatus': 'SUCCESS',
+      'lastScannedCount': 1,
+    });
+    final run = ThumbnailScanConfig.fromJson(const {
+      'lastRunId': 4,
+      'lastRunSource': 'MANUAL',
+      'lastStatus': 'SUCCESS',
+      'lastScannedCount': 30,
+      'lastQueuedCount': 2,
+      'lastInaccessibleDirs': ['/vol1/locked'],
+    });
+
+    final merged = config.mergeRun(run);
+
+    expect(merged.cron, '0 0 3 * * ?');
+    expect(merged.dirs, ['/vol1/media']);
+    expect(merged.scanState, ThumbnailScanState.running);
+    expect(merged.scannedFiles, 7);
+    expect(merged.lastRunId, 4);
+    expect(merged.lastStatus, 'SUCCESS');
+    expect(merged.lastScannedCount, 30);
+    expect(merged.lastQueuedCount, 2);
+    expect(merged.lastInaccessibleDirs, ['/vol1/locked']);
   });
 
   test('toSaveJson carries exactly the three editable fields', () {

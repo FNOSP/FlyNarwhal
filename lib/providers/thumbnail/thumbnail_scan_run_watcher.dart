@@ -42,18 +42,18 @@ class ThumbnailScanRunWatcher {
         AppLanguage.localeFromValue(_ref.read(settingsProvider).language),
       );
 
-  /// Starts watching for the run a manual trigger just queued.
+  /// Starts watching the run a manual trigger just queued, by its id.
   ///
-  /// [baselineRunMs] is the snapshot's `lastRunTimeMs` captured *before* the
-  /// trigger: the run counts as finished only once a strictly newer run has a
-  /// finish time at or after its start, so the previous run's stored result is
-  /// never mistaken for this one's. Server-side timestamps throughout — the
-  /// client clock is not compared against them.
-  void watchManualRun(int? baselineRunMs) {
+  /// Every trigger opens its own run row on the server and answers with that
+  /// id, so polling that id can only ever report this run — never another
+  /// run's leftover status, and never a run the client merely guessed is the
+  /// newest. The dialog's snapshot is updated with each poll so the status card
+  /// and this watcher always agree.
+  void watchManualRun(int runId) {
     _timer?.cancel();
     final deadline = DateTime.now().add(_maxWindow);
     _timer = Timer.periodic(_pollInterval, (timer) {
-      unawaited(_tick(timer, baselineRunMs, deadline));
+      unawaited(_tick(timer, runId, deadline));
     });
   }
 
@@ -62,27 +62,18 @@ class ThumbnailScanRunWatcher {
     _timer = null;
   }
 
-  Future<void> _tick(Timer timer, int? baselineRunMs, DateTime deadline) async {
-    await _controller.load();
+  Future<void> _tick(Timer timer, int runId, DateTime deadline) async {
+    await _controller.refreshRun(runId);
     final config =
         _ref.read(thumbnailScanConfigControllerProvider).config.valueOrNull;
-    if (config == null) {
-      if (DateTime.now().isAfter(deadline)) timer.cancel();
-      return;
-    }
-    final runMs = config.lastRunTime?.millisecondsSinceEpoch;
-    final finishMs = config.lastFinishTime?.millisecondsSinceEpoch;
-    final isNewRun =
-        runMs != null && (baselineRunMs == null || runMs > baselineRunMs);
-    final finished = !config.isBusy &&
-        runMs != null &&
-        isNewRun &&
-        finishMs != null &&
-        finishMs >= runMs;
-    if (finished) {
+    // A failed poll (server unreachable) keeps the chain alive until the
+    // deadline; only a finished run ends it.
+    if (config != null && !config.lastRunInFlight) {
       timer.cancel();
       _toastResult(config);
-    } else if (DateTime.now().isAfter(deadline)) {
+      return;
+    }
+    if (DateTime.now().isAfter(deadline)) {
       timer.cancel();
     }
   }
@@ -101,8 +92,11 @@ class ThumbnailScanRunWatcher {
       return;
     }
     final error = config.lastError?.trim() ?? '';
+    // lastInaccessibleDirs is authoritative: the server reports unreadable
+    // folders there AND repeats them in lastError, so a run that only hit
+    // permission problems must not also toast the raw error text.
     if (config.lastStatus == ThumbnailScanConfig.lastStatusFailed ||
-        error.isNotEmpty) {
+        (error.isNotEmpty && config.lastInaccessibleDirs.isEmpty)) {
       toast.showToast(
         error.isEmpty
             ? l10n.thumbnailScanRunFailedGeneric

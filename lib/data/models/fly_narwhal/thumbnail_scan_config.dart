@@ -40,10 +40,22 @@ final class ThumbnailScanConfig {
     this.lastQueuedCount = 0,
     this.lastError,
     this.lastInaccessibleDirs = const [],
+    this.lastRunId,
+    this.lastRunSource,
+    this.lastPhase,
+    this.lastSourcedCount = 0,
+    this.lastQueuedGenerationCount = 0,
+    this.lastGeneratedCount = 0,
+    this.lastFailedCount = 0,
   });
 
   static const String lastStatusNever = 'NEVER';
+  static const String lastStatusQueued = 'QUEUED';
   static const String lastStatusRunning = 'RUNNING';
+  /// Phases inside a run; the status stays RUNNING while either one is set.
+  static const String phaseQueued = 'QUEUED';
+  static const String phaseScanning = 'SCANNING';
+  static const String phaseGenerating = 'GENERATING';
   static const String lastStatusSuccess = 'SUCCESS';
   static const String lastStatusFailed = 'FAILED';
 
@@ -77,6 +89,38 @@ final class ThumbnailScanConfig {
   /// without granting this server access (server >= 2.1.0).
   final List<String> lastInaccessibleDirs;
 
+  /// Id of the run the last-* fields describe; the trigger response and the
+  /// run-status endpoint both carry it, so a poll can follow one exact run.
+  final int? lastRunId;
+
+  /// MANUAL / SCHEDULED.
+  final String? lastRunSource;
+
+  /// QUEUED / SCANNING / GENERATING, then SUCCESS or FAILED once closed.
+  final String? lastPhase;
+
+  /// Videos that run matched, how many it queued for generation, and how many
+  /// of those it finished / failed.
+  final int lastSourcedCount;
+  final int lastQueuedGenerationCount;
+  final int lastGeneratedCount;
+  final int lastFailedCount;
+
+  /// The run is still working (queued on the worker, walking folders, or
+  /// waiting for the sprites it queued).
+  bool get lastRunWorking =>
+      lastPhase == phaseQueued ||
+      lastPhase == phaseScanning ||
+      lastPhase == phaseGenerating;
+
+  /// Generation progress: how many of the videos this run queued have been
+  /// produced or have failed, out of how many it queued.
+  int get lastRunDoneCount => lastGeneratedCount + lastFailedCount;
+
+  /// QUEUED / RUNNING mean this run is still in flight.
+  bool get lastRunInFlight =>
+      lastStatus == lastStatusQueued || lastStatus == lastStatusRunning;
+
   bool get isBusy => scanState != ThumbnailScanState.idle;
 
   static ThumbnailScanConfig fromJson(Map<String, dynamic> json) {
@@ -102,6 +146,13 @@ final class ThumbnailScanConfig {
               const [])
           .whereType<String>()
           .toList(growable: false),
+      lastRunId: (json['lastRunId'] as num?)?.toInt(),
+      lastRunSource: json['lastRunSource'] as String?,
+      lastPhase: json['lastPhase'] as String?,
+      lastSourcedCount: (json['lastSourcedCount'] as num?)?.toInt() ?? 0,
+      lastQueuedGenerationCount: (json['lastQueuedCount'] as num?)?.toInt() ?? 0,
+      lastGeneratedCount: (json['lastGeneratedCount'] as num?)?.toInt() ?? 0,
+      lastFailedCount: (json['lastFailedCount'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -134,6 +185,46 @@ final class ThumbnailScanConfig {
       lastQueuedCount: lastQueuedCount,
       lastError: lastError,
       lastInaccessibleDirs: lastInaccessibleDirs,
+      lastRunId: lastRunId,
+      lastRunSource: lastRunSource,
+      lastPhase: lastPhase,
+      lastSourcedCount: lastSourcedCount,
+      lastQueuedGenerationCount: lastQueuedGenerationCount,
+      lastGeneratedCount: lastGeneratedCount,
+      lastFailedCount: lastFailedCount,
+    );
+  }
+
+  /// This config snapshot with the last-run block replaced by [run]'s.
+  ///
+  /// The run-status endpoint answers only the run's own fields; everything
+  /// describing the schedule (cron, folders, next fire time, live worker
+  /// state) stays exactly as the config snapshot had it.
+  ThumbnailScanConfig mergeRun(ThumbnailScanConfig run) {
+    return ThumbnailScanConfig(
+      enabled: enabled,
+      cron: cron,
+      dirs: dirs,
+      cronValid: cronValid,
+      cronError: cronError,
+      nextRunTime: nextRunTime,
+      scanState: scanState,
+      currentDir: currentDir,
+      scannedFiles: scannedFiles,
+      lastRunTime: run.lastRunTime,
+      lastFinishTime: run.lastFinishTime,
+      lastStatus: run.lastStatus,
+      lastScannedCount: run.lastScannedCount,
+      lastQueuedCount: run.lastQueuedCount,
+      lastError: run.lastError,
+      lastInaccessibleDirs: run.lastInaccessibleDirs,
+      lastRunId: run.lastRunId,
+      lastRunSource: run.lastRunSource,
+      lastPhase: run.lastPhase,
+      lastSourcedCount: run.lastSourcedCount,
+      lastQueuedGenerationCount: run.lastQueuedGenerationCount,
+      lastGeneratedCount: run.lastGeneratedCount,
+      lastFailedCount: run.lastFailedCount,
     );
   }
 

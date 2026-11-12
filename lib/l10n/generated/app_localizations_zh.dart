@@ -2958,6 +2958,24 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String thumbnailScanDialogStatusScanning(int count) {
+    return '扫描中（已发现 $count 个视频）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusScanningDir(String dir, int count) {
+    return '扫描中：$dir（已发现 $count 个视频）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusGenerating(int done, int total) {
+    return '生成缩略图中：已完成 $done/$total';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusGeneratingIdle => '生成缩略图中：正在等待生成队列';
+
+  @override
   String get thumbnailScanDialogStatusQueued => '已排队，等待上一次扫描完成';
 
   @override
@@ -6152,6 +6170,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String thumbnailScanDialogStatusRunning(String dir, int count) {
     return '掃描中：$dir（已發現 $count 部影片）';
   }
+
+  @override
+  String thumbnailScanDialogStatusScanning(int count) {
+    return '掃描中（已發現 $count 部影片）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusScanningDir(String dir, int count) {
+    return '掃描中：$dir（已發現 $count 部影片）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusGenerating(int done, int total) {
+    return '產生縮圖中：已完成 $done/$total';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusGeneratingIdle => '產生縮圖中：正在等待產生佇列';
 
   @override
   String get thumbnailScanDialogStatusQueued => '已排隊，等待上一次掃描完成';
