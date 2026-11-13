@@ -36,7 +36,6 @@ final class ThumbnailScanConfig {
     this.lastRunTime,
     this.lastFinishTime,
     this.lastStatus = lastStatusNever,
-    this.lastScannedCount = 0,
     this.lastQueuedCount = 0,
     this.lastError,
     this.lastInaccessibleDirs = const [],
@@ -44,7 +43,6 @@ final class ThumbnailScanConfig {
     this.lastRunSource,
     this.lastPhase,
     this.lastSourcedCount = 0,
-    this.lastQueuedGenerationCount = 0,
     this.lastGeneratedCount = 0,
     this.lastFailedCount = 0,
   });
@@ -81,7 +79,8 @@ final class ThumbnailScanConfig {
 
   /// NEVER / RUNNING / SUCCESS / FAILED.
   final String lastStatus;
-  final int lastScannedCount;
+  /// Videos this run needed sprites for (the ones it queued); see
+  /// [lastSourcedCount] for everything it matched.
   final int lastQueuedCount;
   final String? lastError;
 
@@ -99,10 +98,9 @@ final class ThumbnailScanConfig {
   /// QUEUED / SCANNING / GENERATING, then SUCCESS or FAILED once closed.
   final String? lastPhase;
 
-  /// Videos that run matched, how many it queued for generation, and how many
-  /// of those it finished / failed.
+  /// Videos that run matched (sprites or not); how many of them needed
+  /// generation; and how many of those it finished / failed.
   final int lastSourcedCount;
-  final int lastQueuedGenerationCount;
   final int lastGeneratedCount;
   final int lastFailedCount;
 
@@ -139,7 +137,6 @@ final class ThumbnailScanConfig {
       lastRunTime: _dateTimeFromMillis(json['lastRunTimeMs']),
       lastFinishTime: _dateTimeFromMillis(json['lastFinishTimeMs']),
       lastStatus: (json['lastStatus'] as String?) ?? lastStatusNever,
-      lastScannedCount: (json['lastScannedCount'] as num?)?.toInt() ?? 0,
       lastQueuedCount: (json['lastQueuedCount'] as num?)?.toInt() ?? 0,
       lastError: json['lastError'] as String?,
       lastInaccessibleDirs: (json['lastInaccessibleDirs'] as List<dynamic>? ??
@@ -150,7 +147,6 @@ final class ThumbnailScanConfig {
       lastRunSource: json['lastRunSource'] as String?,
       lastPhase: json['lastPhase'] as String?,
       lastSourcedCount: (json['lastSourcedCount'] as num?)?.toInt() ?? 0,
-      lastQueuedGenerationCount: (json['lastQueuedCount'] as num?)?.toInt() ?? 0,
       lastGeneratedCount: (json['lastGeneratedCount'] as num?)?.toInt() ?? 0,
       lastFailedCount: (json['lastFailedCount'] as num?)?.toInt() ?? 0,
     );
@@ -181,7 +177,6 @@ final class ThumbnailScanConfig {
       lastRunTime: lastRunTime,
       lastFinishTime: lastFinishTime,
       lastStatus: lastStatus,
-      lastScannedCount: lastScannedCount,
       lastQueuedCount: lastQueuedCount,
       lastError: lastError,
       lastInaccessibleDirs: lastInaccessibleDirs,
@@ -189,7 +184,6 @@ final class ThumbnailScanConfig {
       lastRunSource: lastRunSource,
       lastPhase: lastPhase,
       lastSourcedCount: lastSourcedCount,
-      lastQueuedGenerationCount: lastQueuedGenerationCount,
       lastGeneratedCount: lastGeneratedCount,
       lastFailedCount: lastFailedCount,
     );
@@ -214,7 +208,6 @@ final class ThumbnailScanConfig {
       lastRunTime: run.lastRunTime,
       lastFinishTime: run.lastFinishTime,
       lastStatus: run.lastStatus,
-      lastScannedCount: run.lastScannedCount,
       lastQueuedCount: run.lastQueuedCount,
       lastError: run.lastError,
       lastInaccessibleDirs: run.lastInaccessibleDirs,
@@ -222,7 +215,6 @@ final class ThumbnailScanConfig {
       lastRunSource: run.lastRunSource,
       lastPhase: run.lastPhase,
       lastSourcedCount: run.lastSourcedCount,
-      lastQueuedGenerationCount: run.lastQueuedGenerationCount,
       lastGeneratedCount: run.lastGeneratedCount,
       lastFailedCount: run.lastFailedCount,
     );

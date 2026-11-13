@@ -16,7 +16,7 @@ void main() {
         'lastRunTimeMs': 1762740000000,
         'lastFinishTimeMs': 1762740600000,
         'lastStatus': 'SUCCESS',
-        'lastScannedCount': 120,
+        'lastSourcedCount': 120,
         'lastQueuedCount': 8,
         'lastError': null,
       });
@@ -32,7 +32,7 @@ void main() {
       expect(config.currentDir, '/vol1/media');
       expect(config.scannedFiles, 42);
       expect(config.lastStatus, 'SUCCESS');
-      expect(config.lastScannedCount, 120);
+      expect(config.lastSourcedCount, 120);
       expect(config.lastQueuedCount, 8);
       expect(config.lastError, isNull);
     });
@@ -79,7 +79,6 @@ void main() {
       'lastRunId': 5,
       'lastStatus': 'RUNNING',
       'lastPhase': 'GENERATING',
-      'lastScannedCount': 12,
       'lastSourcedCount': 12,
       'lastQueuedCount': 7,
       'lastGeneratedCount': 3,
@@ -87,7 +86,7 @@ void main() {
     });
     expect(generating.lastRunWorking, isTrue);
     expect(generating.lastRunDoneCount, 4);
-    expect(generating.lastQueuedGenerationCount, 7,
+    expect(generating.lastQueuedCount, 7,
         reason: 'progress is out of the videos this run queued');
 
     final done = ThumbnailScanConfig.fromJson(const {
@@ -108,13 +107,13 @@ void main() {
       'scannedFiles': 7,
       'lastRunId': 3,
       'lastStatus': 'SUCCESS',
-      'lastScannedCount': 1,
+      'lastSourcedCount': 1,
     });
     final run = ThumbnailScanConfig.fromJson(const {
       'lastRunId': 4,
       'lastRunSource': 'MANUAL',
       'lastStatus': 'SUCCESS',
-      'lastScannedCount': 30,
+      'lastSourcedCount': 30,
       'lastQueuedCount': 2,
       'lastInaccessibleDirs': ['/vol1/locked'],
     });
@@ -127,7 +126,7 @@ void main() {
     expect(merged.scannedFiles, 7);
     expect(merged.lastRunId, 4);
     expect(merged.lastStatus, 'SUCCESS');
-    expect(merged.lastScannedCount, 30);
+    expect(merged.lastSourcedCount, 30);
     expect(merged.lastQueuedCount, 2);
     expect(merged.lastInaccessibleDirs, ['/vol1/locked']);
   });

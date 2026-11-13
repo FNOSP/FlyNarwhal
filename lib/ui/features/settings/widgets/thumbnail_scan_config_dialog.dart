@@ -670,12 +670,12 @@ class _ThumbnailScanConfigDialogState
     switch (config.lastPhase) {
       case ThumbnailScanConfig.phaseGenerating:
         final done = config.lastRunDoneCount;
-        final total = config.lastQueuedGenerationCount;
+        final total = config.lastQueuedCount;
         text = total <= 0 || done <= 0
             ? l10n.thumbnailScanDialogStatusGeneratingIdle
             : l10n.thumbnailScanDialogStatusGenerating(done, total);
       case ThumbnailScanConfig.phaseScanning:
-        final count = config.lastScannedCount;
+        final count = config.lastSourcedCount;
         text = count <= 0
             ? l10n.thumbnailScanDialogStatusScanning(count)
             : l10n.thumbnailScanDialogStatusScanningDir(
@@ -756,7 +756,7 @@ class _ThumbnailScanConfigDialogState
         Text(
           l10n.thumbnailScanDialogStatusLastOk(
             time,
-            config.lastScannedCount,
+            config.lastSourcedCount,
             config.lastQueuedCount,
           ),
           style: theme.typography.caption,
