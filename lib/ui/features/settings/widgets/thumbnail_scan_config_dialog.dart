@@ -989,12 +989,19 @@ class _ThumbnailScanFailuresContent extends ConsumerStatefulWidget {
 
 class _ThumbnailScanFailuresContentState
     extends ConsumerState<_ThumbnailScanFailuresContent> {
+  final ScrollController _scrollController = ScrollController();
   List<ThumbnailScanFailure>? _failures;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -1025,30 +1032,42 @@ class _ThumbnailScanFailuresContentState
     }
     return ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 480),
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: failures.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final failure = failures[index];
-          final segments = failure.filePath.split('/').where((s) => s.isNotEmpty);
-          final name = segments.isEmpty ? failure.filePath : segments.last;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(name, style: theme.typography.bodyStrong),
-              const SizedBox(height: 2),
-              Text(humanizeThumbnailScanFailure(failure, l10n),
-                  style: theme.typography.body),
-              const SizedBox(height: 2),
-              SelectableText(
-                l10n.thumbnailScanFailuresRawErrorLabel(failure.rawError),
-                style: theme.typography.caption
-                    ?.copyWith(color: theme.inactiveColor),
-              ),
-            ],
-          );
-        },
+      // macOS' default ScrollBehavior wraps a Cupertino scrollbar that ignores
+      // ScrollbarThemeData; disable it and draw fluent_ui's own instead, same
+      // as the subtitle selection panel, so a long failure list stays themed.
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: Scrollbar(
+          controller: _scrollController,
+          thumbVisibility: true,
+          child: ListView.separated(
+            controller: _scrollController,
+            shrinkWrap: true,
+            padding: const EdgeInsets.only(right: 12),
+            itemCount: failures.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final failure = failures[index];
+              final segments = failure.filePath.split('/').where((s) => s.isNotEmpty);
+              final name = segments.isEmpty ? failure.filePath : segments.last;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: theme.typography.bodyStrong),
+                  const SizedBox(height: 2),
+                  Text(humanizeThumbnailScanFailure(failure, l10n),
+                      style: theme.typography.body),
+                  const SizedBox(height: 2),
+                  SelectableText(
+                    l10n.thumbnailScanFailuresRawErrorLabel(failure.rawError),
+                    style: theme.typography.caption
+                        ?.copyWith(color: theme.inactiveColor),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
