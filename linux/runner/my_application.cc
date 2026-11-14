@@ -3,7 +3,12 @@
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
+#include <X11/extensions/shape.h>
 #endif
+
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -22,6 +27,91 @@ constexpr char kWindowDisplayFrameChannelName[] =
     "fly_narwhal/window_display_frame";
 constexpr char kGetCurrentDisplayFrameMethod[] = "getCurrentDisplayFrame";
 constexpr char kGetAllDisplaysMethod[] = "getAllDisplays";
+
+// Keep in sync with _LinuxWindowCornerClip's BorderRadius in lib/app.dart.
+constexpr int kWindowCornerRadiusPx = 8;
+
+// GTK's frameless window (TitleBarStyle.hidden) has square corners. On X11
+// the compositor honors an explicit bounding shape, so clip the native
+// window itself to a rounded rectangle; on Wayland there is no client-side
+// shape protocol for a regular toplevel, so fall back to rounding whatever
+// GTK/compositor theme draws behind the Flutter-drawn rounded clip.
+#ifdef GDK_WINDOWING_X11
+void apply_x11_rounded_shape(GdkWindow* gdk_window) {
+  int width = gdk_window_get_width(gdk_window);
+  int height = gdk_window_get_height(gdk_window);
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  Display* display =
+      gdk_x11_display_get_xdisplay(gdk_window_get_display(gdk_window));
+  Window xwindow = gdk_x11_window_get_xid(gdk_window);
+
+  // Draw the rounded silhouette into a 1-bit cairo mask, then blit it into
+  // an X pixmap: bitmap_pad 32 matches cairo's 4-byte-aligned A1 stride, and
+  // both use MSB-first bit order within each byte on little-endian hosts.
+  cairo_surface_t* surface =
+      cairo_image_surface_create(CAIRO_FORMAT_A1, width, height);
+  cairo_t* cr = cairo_create(surface);
+  const double r = kWindowCornerRadiusPx;
+  cairo_new_sub_path(cr);
+  cairo_arc(cr, width - r, r, r, -M_PI / 2, 0);
+  cairo_arc(cr, width - r, height - r, r, 0, M_PI / 2);
+  cairo_arc(cr, r, height - r, r, M_PI / 2, M_PI);
+  cairo_arc(cr, r, r, r, M_PI, 3 * M_PI / 2);
+  cairo_close_path(cr);
+  cairo_set_source_rgba(cr, 1, 1, 1, 1);
+  cairo_fill(cr);
+  cairo_destroy(cr);
+  cairo_surface_flush(surface);
+
+  const int stride = cairo_image_surface_get_stride(surface);
+  char* data = static_cast<char*>(
+      malloc(static_cast<size_t>(stride) * static_cast<size_t>(height)));
+  memcpy(data, cairo_image_surface_get_data(surface),
+         static_cast<size_t>(stride) * static_cast<size_t>(height));
+  cairo_surface_destroy(surface);
+
+  Pixmap mask = XCreatePixmap(display, xwindow, width, height, 1);
+  GC gc = XCreateGC(display, mask, 0, nullptr);
+  XImage* image =
+      XCreateImage(display, DefaultVisual(display, DefaultScreen(display)), 1,
+                   XYBitmap, 0, data, width, height, 32, stride);
+  XPutImage(display, mask, gc, image, 0, 0, 0, 0, width, height);
+  XShapeCombineMask(display, xwindow, ShapeBounding, 0, 0, mask, ShapeSet);
+  XFreePixmap(display, mask);
+  XFreeGC(display, gc);
+  XDestroyImage(image);  // frees `data` too
+}
+#endif
+
+void apply_rounded_window_shape(GtkWindow* window) {
+#ifdef GDK_WINDOWING_X11
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  if (gdk_window != nullptr && GDK_IS_X11_WINDOW(gdk_window)) {
+    apply_x11_rounded_shape(gdk_window);
+    return;
+  }
+#endif
+
+  GtkCssProvider* provider = gtk_css_provider_new();
+  gtk_css_provider_load_from_data(
+      provider,
+      "window { border-radius: 8px; }",
+      -1, nullptr);
+  gtk_style_context_add_provider(
+      gtk_widget_get_style_context(GTK_WIDGET(window)),
+      GTK_STYLE_PROVIDER(provider),
+      GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+  g_object_unref(provider);
+}
+
+gboolean on_window_configure_event(GtkWidget* widget,
+                                   GdkEventConfigure* event,
+                                   gpointer user_data) {
+  apply_rounded_window_shape(GTK_WINDOW(widget));
+  return FALSE;
+}
 
 GtkWindow* get_window(MyApplication* self) {
   if (self->view == nullptr) {
@@ -205,9 +295,9 @@ static void my_application_activate(GApplication* application) {
   FlView* view = fl_view_new(project);
   self->view = view;
   GdkRGBA background_color;
-  // Background defaults to black, override it here if necessary, e.g. #00000000
-  // for transparent.
-  gdk_rgba_parse(&background_color, "#000000");
+  // Fully transparent so the Flutter-drawn rounded clip's corners show the
+  // desktop behind the window instead of a solid square backing color.
+  gdk_rgba_parse(&background_color, "#00000000");
   fl_view_set_background_color(view, &background_color);
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
@@ -217,6 +307,10 @@ static void my_application_activate(GApplication* application) {
   g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
                            self);
   gtk_widget_realize(GTK_WIDGET(view));
+
+  apply_rounded_window_shape(window);
+  g_signal_connect(window, "configure-event",
+                   G_CALLBACK(on_window_configure_event), nullptr);
 
   // Expose the full monitor frame so Dart can build non-exclusive fullscreen.
   FlBinaryMessenger* messenger =
