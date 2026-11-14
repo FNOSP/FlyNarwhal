@@ -2852,7 +2852,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get movieDetailThumbnailQueuedToast => '缩略图已加入生成队列';
+  String get movieDetailThumbnailQueuedToast => '缩略图生成任务已加入队列';
 
   @override
   String get movieDetailThumbnailCompletedToast => '缩略图生成完成，播放时悬浮进度条即可预览';
@@ -6153,7 +6153,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get movieDetailThumbnailQueuedToast => '縮圖已加入生成佇列';
+  String get movieDetailThumbnailQueuedToast => '縮圖生成任務已加入佇列';
 
   @override
   String get movieDetailThumbnailCompletedToast => '縮圖生成完成，播放時懸浮進度條即可預覽';

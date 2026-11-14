@@ -5286,7 +5286,7 @@ abstract class AppLocalizations {
   /// Immediate feedback toast after triggering sprite generation.
   ///
   /// In zh, this message translates to:
-  /// **'缩略图已加入生成队列'**
+  /// **'缩略图生成任务已加入队列'**
   String get movieDetailThumbnailQueuedToast;
 
   /// Success toast when sprite generation finishes.

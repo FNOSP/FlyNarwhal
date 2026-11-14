@@ -3942,7 +3942,7 @@
   "@movieDetailThumbnailNoFile": { "description": "Toast shown when the movie has no resolvable file path for sprite generation." },
   "movieDetailThumbnailStatus": "缩略图预览：{status}",
   "@movieDetailThumbnailStatus": { "description": "Persistent sprite-task status line on the movie detail page.", "placeholders": { "status": { "type": "String" } } },
-  "movieDetailThumbnailQueuedToast": "缩略图已加入生成队列",
+  "movieDetailThumbnailQueuedToast": "缩略图生成任务已加入队列",
   "@movieDetailThumbnailQueuedToast": { "description": "Immediate feedback toast after triggering sprite generation." },
   "movieDetailThumbnailCompletedToast": "缩略图生成完成，播放时悬浮进度条即可预览",
   "@movieDetailThumbnailCompletedToast": { "description": "Success toast when sprite generation finishes." },

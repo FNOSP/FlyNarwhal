@@ -3771,7 +3771,7 @@
   "@movieDetailThumbnailNoFile": { "description": "Toast shown when the movie has no resolvable file path for sprite generation." },
   "movieDetailThumbnailStatus": "Thumbnail preview: {status}",
   "@movieDetailThumbnailStatus": { "description": "Persistent sprite-task status line on the movie detail page.", "placeholders": { "status": { "type": "String" } } },
-  "movieDetailThumbnailQueuedToast": "Thumbnail generation queued",
+  "movieDetailThumbnailQueuedToast": "Thumbnail generation task added to queue",
   "@movieDetailThumbnailQueuedToast": { "description": "Immediate feedback toast after triggering sprite generation." },
   "movieDetailThumbnailCompletedToast": "Thumbnails generated — hover the progress bar during playback to preview",
   "@movieDetailThumbnailCompletedToast": { "description": "Success toast when sprite generation finishes." },

@@ -2950,7 +2950,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get movieDetailThumbnailQueuedToast => 'Thumbnail generation queued';
+  String get movieDetailThumbnailQueuedToast =>
+      'Thumbnail generation task added to queue';
 
   @override
   String get movieDetailThumbnailCompletedToast =>
