@@ -5929,11 +5929,29 @@ abstract class AppLocalizations {
   /// **'最多选择 {max} 个目录'**
   String nasDirPickerLimitReached(String max);
 
-  /// Hover tip next to the scan-directories label: folder access must be granted in fnOS app settings or thumbnails cannot be generated.
+  /// Hover tip next to the scan-directories label. {script} is rendered as a clickable link that saves the repair script.
   ///
   /// In zh, this message translates to:
-  /// **'需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图'**
-  String get settingsThumbnailScanPermHint;
+  /// **'需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，执行此{script}进行修复'**
+  String settingsThumbnailScanPermHint(String script);
+
+  /// Clickable word inside settingsThumbnailScanPermHint; tapping saves the bundled repair script.
+  ///
+  /// In zh, this message translates to:
+  /// **'脚本'**
+  String get thumbnailScanScriptLinkLabel;
+
+  /// Toast after the repair script was saved via the file picker.
+  ///
+  /// In zh, this message translates to:
+  /// **'修复脚本已保存：{path}'**
+  String thumbnailScanScriptSavedToast(String path);
+
+  /// Toast when saving the repair script failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存修复脚本失败：{error}'**
+  String thumbnailScanScriptSaveFailedToast(String error);
 }
 
 class _AppLocalizationsDelegate

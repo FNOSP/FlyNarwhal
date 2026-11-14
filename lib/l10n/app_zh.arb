@@ -4152,6 +4152,12 @@
   "@nasDirPickerTitle": { "description": "Title of the NAS scan-directory picker." },
   "nasDirPickerLimitReached": "最多选择 {max} 个目录",
   "@nasDirPickerLimitReached": { "description": "Toast when more than the allowed directories are selected.", "placeholders": { "max": { "type": "String" } } },
-  "settingsThumbnailScanPermHint": "需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图",
-  "@settingsThumbnailScanPermHint": { "description": "Hover tip next to the scan-directories label: folder access must be granted in fnOS app settings or thumbnails cannot be generated." }
+  "settingsThumbnailScanPermHint": "需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，执行此{script}进行修复",
+  "@settingsThumbnailScanPermHint": { "description": "Hover tip next to the scan-directories label. {script} is rendered as a clickable link that saves the repair script.", "placeholders": { "script": { "type": "String" } } },
+  "thumbnailScanScriptLinkLabel": "脚本",
+  "@thumbnailScanScriptLinkLabel": { "description": "Clickable word inside settingsThumbnailScanPermHint; tapping saves the bundled repair script." },
+  "thumbnailScanScriptSavedToast": "修复脚本已保存：{path}",
+  "@thumbnailScanScriptSavedToast": { "description": "Toast after the repair script was saved via the file picker.", "placeholders": { "path": { "type": "String" } } },
+  "thumbnailScanScriptSaveFailedToast": "保存修复脚本失败：{error}",
+  "@thumbnailScanScriptSaveFailedToast": { "description": "Toast when saving the repair script failed.", "placeholders": { "error": { "type": "String" } } }
 }

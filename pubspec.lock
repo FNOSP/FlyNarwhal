@@ -413,8 +413,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "fix/minimal-pane-reserved-top"
-      resolved-ref: ac4f676570b9cee281d66fc42be471c57240a619
+      ref: "fix/tooltip-interactive"
+      resolved-ref: dd067a408d149e5e0eb77e3a73b08b85d896159c
       url: "https://github.com/Jankin-Wu/fluent_ui.git"
     source: git
     version: "4.16.1"

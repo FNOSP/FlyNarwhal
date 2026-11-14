@@ -3233,8 +3233,22 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsThumbnailScanPermHint =>
-      '需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图';
+  String settingsThumbnailScanPermHint(String script) {
+    return '需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，执行此$script进行修复';
+  }
+
+  @override
+  String get thumbnailScanScriptLinkLabel => '脚本';
+
+  @override
+  String thumbnailScanScriptSavedToast(String path) {
+    return '修复脚本已保存：$path';
+  }
+
+  @override
+  String thumbnailScanScriptSaveFailedToast(String error) {
+    return '保存修复脚本失败：$error';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -6466,6 +6480,20 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get settingsThumbnailScanPermHint =>
-      '需要在飛牛 -> 系統設置 -> 應用 -> 飛鯨影視中添加所要掃描的目錄的訪問權限，否則無法獲取視頻縮略圖';
+  String settingsThumbnailScanPermHint(String script) {
+    return '需要在飛牛 -> 系統設置 -> 應用 -> 飛鯨影視中添加所要掃描的目錄的訪問權限，否則無法獲取視頻縮略圖。如已配置目錄訪問權限仍然出現無法訪問的情況，請連接 NAS SSH，執行此$script進行修復';
+  }
+
+  @override
+  String get thumbnailScanScriptLinkLabel => '腳本';
+
+  @override
+  String thumbnailScanScriptSavedToast(String path) {
+    return '修復腳本已保存：$path';
+  }
+
+  @override
+  String thumbnailScanScriptSaveFailedToast(String error) {
+    return '保存修復腳本失敗：$error';
+  }
 }

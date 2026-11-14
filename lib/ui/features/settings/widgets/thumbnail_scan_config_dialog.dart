@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/models/fly_narwhal/index.dart';
@@ -579,6 +583,73 @@ class _ThumbnailScanConfigDialogState
     );
   }
 
+  /// The permission hint with "脚本" rendered as a link that saves the
+  /// bundled repair script through the platform save dialog. The span is
+  /// cached so its TapGestureRecognizer isn't rebuilt on every build;
+  /// TipBox disposes the recognizer it collects from the span.
+  InlineSpan? _permHintSpan;
+
+  InlineSpan _buildPermHintSpan(AppLocalizations l10n, FluentThemeData theme) {
+    final cached = _permHintSpan;
+    if (cached != null) return cached;
+    final label = l10n.thumbnailScanScriptLinkLabel;
+    final text = l10n.settingsThumbnailScanPermHint(label);
+    final index = text.indexOf(label);
+    const baseStyle = TextStyle(fontSize: 12);
+    if (index < 0) {
+      return _permHintSpan = TextSpan(text: text, style: baseStyle);
+    }
+    return _permHintSpan = TextSpan(
+      style: baseStyle,
+      children: [
+        TextSpan(text: text.substring(0, index)),
+        TextSpan(
+          text: label,
+          style: TextStyle(
+            color: theme.accentColor.defaultBrushFor(theme.brightness),
+            decoration: TextDecoration.underline,
+          ),
+          mouseCursor: SystemMouseCursors.click,
+          recognizer: TapGestureRecognizer()..onTap = _saveAclFixScript,
+        ),
+        TextSpan(text: text.substring(index + label.length)),
+      ],
+    );
+  }
+
+  Future<void> _saveAclFixScript() async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      final location = await getSaveLocation(
+        suggestedName: 'fnos-media-acl-fix.sh',
+      );
+      if (location == null) return;
+      final content =
+          await rootBundle.loadString('assets/scripts/fnos-media-acl-fix.sh');
+      final file = File(location.path);
+      await file.writeAsString(content, flush: true);
+      // The saved copy must stay runnable over SSH.
+      if (!Platform.isWindows) {
+        await Process.run('chmod', ['+x', file.path]);
+      }
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.thumbnailScanScriptSavedToast(location.path),
+            style: ToastStyle.fluent,
+            type: ToastType.success,
+            category: 'thumbnail-scan-script',
+          );
+    } catch (e) {
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.thumbnailScanScriptSaveFailedToast('$e'),
+            style: ToastStyle.fluent,
+            type: ToastType.failed,
+            category: 'thumbnail-scan-script',
+          );
+    }
+  }
+
   Widget _buildDirsSection(AppLocalizations l10n, FluentThemeData theme) {
     // The stored value stays the raw absolute path; only the display is
     // converted to the readable form the movie detail "文件信息" panel uses.
@@ -591,7 +662,9 @@ class _ThumbnailScanConfigDialogState
             Text(l10n.thumbnailScanDialogDirsLabel,
                 style: theme.typography.bodyStrong),
             const SizedBox(width: 6),
-            HoverTip(tipText: l10n.settingsThumbnailScanPermHint),
+            HoverTip(
+              richMessage: _buildPermHintSpan(l10n, theme),
+            ),
             const Spacer(),
             AppButton(
               key: const ValueKey('thumbnail-scan-dirs-pick'),

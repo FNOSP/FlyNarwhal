@@ -3342,6 +3342,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get settingsThumbnailScanPermHint =>
-      'Access permission for the directories to be scanned must be added in fnOS -> System Settings -> Apps -> FlyNarwhal; otherwise video thumbnails cannot be generated';
+  String settingsThumbnailScanPermHint(String script) {
+    return 'Access permission for the directories to be scanned must be added in fnOS -> System Settings -> Apps -> FlyNarwhal; otherwise video thumbnails cannot be generated. If access still fails after granting directory permissions, connect to the NAS over SSH and run this $script to fix it';
+  }
+
+  @override
+  String get thumbnailScanScriptLinkLabel => 'script';
+
+  @override
+  String thumbnailScanScriptSavedToast(String path) {
+    return 'Repair script saved: $path';
+  }
+
+  @override
+  String thumbnailScanScriptSaveFailedToast(String error) {
+    return 'Failed to save the repair script: $error';
+  }
 }
