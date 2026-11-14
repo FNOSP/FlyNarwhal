@@ -7249,8 +7249,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Size the strip for the taller windowed layout so the animated top
     // offset below never clips the back button while the layouts swap.
     final topBarDragHeight = (_isMacOS ? 12.0 : 6.0) + topBarContentHeight;
-    final isWindows =
-        !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+    final isWindowsStyle = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux);
 
     return SafeArea(
       child: SizedBox(
@@ -7311,9 +7312,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           ),
                           brightness: Brightness.dark,
                           // Match the square window controls' 34x34 hover area.
-                          compact: isWindows,
+                          compact: isWindowsStyle,
                           buttonSize: _isMacOS ? 30 : 34,
-                          iconSize: isWindows || _isMacOS ? 16 : 18,
+                          iconSize: isWindowsStyle || _isMacOS ? 16 : 18,
                           borderRadius: playerTopBarActionBorderRadius,
                         ),
                         const SizedBox(width: 4),
@@ -7330,7 +7331,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             onPressed: _togglePlaybackDetails,
                             tooltip: _l10n.playerPlaybackDetailsTooltip,
                             size: _isMacOS ? 30 : 34,
-                            iconSize: isWindows || _isMacOS ? 16 : 18,
+                            iconSize: isWindowsStyle || _isMacOS ? 16 : 18,
                             borderRadius: playerTopBarActionBorderRadius,
                           ),
                         ),

@@ -835,7 +835,7 @@ class _WindowCaptionButtonState extends State<WindowCaptionButton> {
   }
 }
 
-/// Compact native window actions for frameless Windows player overlays.
+/// Compact native window actions for frameless Windows/Linux player overlays.
 class PlayerWindowCaptionControls extends StatefulWidget {
   final String keyPrefix;
   final double buttonSize;
@@ -867,7 +867,9 @@ class _PlayerWindowCaptionControlsState
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.windows &&
+            defaultTargetPlatform != TargetPlatform.linux)) {
       return const SizedBox.shrink();
     }
 

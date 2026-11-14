@@ -207,6 +207,10 @@ Future<void> bootstrapApp() async {
         size: restoredBounds?.size ?? startupSize,
         center: restoredBounds == null,
         titleBarStyle: TitleBarStyle.hidden,
+        // Let the Flutter-side rounded clip (_LinuxWindowCornerClip) show
+        // through instead of a solid native corner behind it.
+        backgroundColor:
+            Platform.isLinux ? Colors.transparent : null,
       );
 
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -529,21 +533,43 @@ class MyApp extends ConsumerWidget {
               UiFontScale.factorFromValue(settings.uiFontScale),
             ),
           ),
-          child: _MouseBackNavigationListener(
-            router: router,
-            navigationStackNotifier: ref.read(navigationStackProvider.notifier),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (child != null) child,
-                const ToastHost(),
-                const SslTrustDialogHost(),
-                const CelebrationOverlayHost(),
-              ],
+          child: _LinuxWindowCornerClip(
+            child: _MouseBackNavigationListener(
+              router: router,
+              navigationStackNotifier:
+                  ref.read(navigationStackProvider.notifier),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (child != null) child,
+                  const ToastHost(),
+                  const SslTrustDialogHost(),
+                  const CelebrationOverlayHost(),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// GTK's frameless window (TitleBarStyle.hidden) has square corners on Linux;
+/// clip the whole app to a rounded rect so the window edges look rounded too.
+class _LinuxWindowCornerClip extends StatelessWidget {
+  const _LinuxWindowCornerClip({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (kIsWeb || !Platform.isLinux) {
+      return child;
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: child,
     );
   }
 }
