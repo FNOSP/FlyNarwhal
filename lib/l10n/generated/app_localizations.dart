@@ -5493,10 +5493,17 @@ abstract class AppLocalizations {
   /// **'生成缩略图中：正在等待生成队列'**
   String get thumbnailScanDialogStatusGeneratingIdle;
 
-  /// Shown while the scan waits behind a running one.
+  /// Generation phase when some videos failed.
   ///
   /// In zh, this message translates to:
-  /// **'已排队，等待上一次扫描完成'**
+  /// **'生成缩略图中：已完成 {done}/{total}（失败 {failed}）'**
+  String thumbnailScanDialogStatusGeneratingFailed(
+      int done, int total, int failed);
+
+  /// Shown while a scan the user just triggered is waiting for the worker to pick it up.
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入扫描队列'**
   String get thumbnailScanDialogStatusQueued;
 
   /// Idle state before the first scan.
@@ -5508,8 +5515,16 @@ abstract class AppLocalizations {
   /// Summary of the last successful scan.
   ///
   /// In zh, this message translates to:
-  /// **'上次扫描：{time} · 发现 {scanned} 个视频 · 入队 {queued} 个'**
-  String thumbnailScanDialogStatusLastOk(String time, int scanned, int queued);
+  /// **'上次扫描：{time} · 发现 {scanned} 个视频 · 入队 {queued} 个 · 成功 {generated} 个'**
+  String thumbnailScanDialogStatusLastOk(
+      String time, int scanned, int queued, int generated);
+
+  /// Summary of the last scan when some generations failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'上次扫描：{time} · 发现 {scanned} 个视频 · 入队 {queued} 个 · 成功 {generated} 个 · 失败 {failed} 个'**
+  String thumbnailScanDialogStatusLastOkFailed(
+      String time, int scanned, int queued, int generated, int failed);
 
   /// Header of the last failed scan.
   ///
@@ -5574,8 +5589,15 @@ abstract class AppLocalizations {
   /// Toast after a manually triggered scan finished successfully.
   ///
   /// In zh, this message translates to:
-  /// **'缩略图扫描完成：发现 {scanned} 个视频，{queued} 个已加入生成队列'**
-  String thumbnailScanRunFinished(int scanned, int queued);
+  /// **'缩略图扫描完成：发现 {scanned} 个视频，{queued} 个已加入生成队列 · 成功 {generated} 个'**
+  String thumbnailScanRunFinished(int scanned, int queued, int generated);
+
+  /// Toast after a scan finished with some generations failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图扫描完成：发现 {scanned} 个视频，{queued} 个已加入生成队列 · 成功 {generated} 个 · 失败 {failed} 个'**
+  String thumbnailScanRunFinishedFailed(
+      int scanned, int queued, int generated, int failed);
 
   /// Toast after a manually triggered scan failed, with the server's reason.
   ///
@@ -5598,7 +5620,7 @@ abstract class AppLocalizations {
   /// No description provided for @thumbnailScanDialogUnsavedDirsMessage.
   ///
   /// In zh, this message translates to:
-  /// **'是否保存修改？保存后将按新目录扫描；也可以抛弃修改，按已保存的目录扫描。'**
+  /// **'是否保存修改？点击「保存」后将按修改后目录扫描。'**
   String get thumbnailScanDialogUnsavedDirsMessage;
 
   /// No description provided for @thumbnailScanDialogUnsavedDirsSave.

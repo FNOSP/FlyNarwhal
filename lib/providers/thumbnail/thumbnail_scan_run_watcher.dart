@@ -109,8 +109,18 @@ class ThumbnailScanRunWatcher {
       return;
     }
     toast.showToast(
-      l10n.thumbnailScanRunFinished(
-          config.lastSourcedCount, config.lastQueuedCount),
+      config.lastFailedCount > 0
+          ? l10n.thumbnailScanRunFinishedFailed(
+              config.lastSourcedCount,
+              config.lastQueuedCount,
+              config.lastGeneratedCount,
+              config.lastFailedCount,
+            )
+          : l10n.thumbnailScanRunFinished(
+              config.lastSourcedCount,
+              config.lastQueuedCount,
+              config.lastGeneratedCount,
+            ),
       style: ToastStyle.fluent,
       type: ToastType.success,
       duration: const Duration(seconds: 10),

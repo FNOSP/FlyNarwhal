@@ -2976,14 +2976,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get thumbnailScanDialogStatusGeneratingIdle => '生成缩略图中：正在等待生成队列';
 
   @override
-  String get thumbnailScanDialogStatusQueued => '已排队，等待上一次扫描完成';
+  String thumbnailScanDialogStatusGeneratingFailed(
+      int done, int total, int failed) {
+    return '生成缩略图中：已完成 $done/$total（失败 $failed）';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusQueued => '已加入扫描队列';
 
   @override
   String get thumbnailScanDialogStatusNever => '尚未执行过扫描';
 
   @override
-  String thumbnailScanDialogStatusLastOk(String time, int scanned, int queued) {
-    return '上次扫描：$time · 发现 $scanned 个视频 · 入队 $queued 个';
+  String thumbnailScanDialogStatusLastOk(
+      String time, int scanned, int queued, int generated) {
+    return '上次扫描：$time · 发现 $scanned 个视频 · 入队 $queued 个 · 成功 $generated 个';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastOkFailed(
+      String time, int scanned, int queued, int generated, int failed) {
+    return '上次扫描：$time · 发现 $scanned 个视频 · 入队 $queued 个 · 成功 $generated 个 · 失败 $failed 个';
   }
 
   @override
@@ -3023,8 +3036,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String thumbnailScanRunFinished(int scanned, int queued) {
-    return '缩略图扫描完成：发现 $scanned 个视频，$queued 个已加入生成队列';
+  String thumbnailScanRunFinished(int scanned, int queued, int generated) {
+    return '缩略图扫描完成：发现 $scanned 个视频，$queued 个已加入生成队列 · 成功 $generated 个';
+  }
+
+  @override
+  String thumbnailScanRunFinishedFailed(
+      int scanned, int queued, int generated, int failed) {
+    return '缩略图扫描完成：发现 $scanned 个视频，$queued 个已加入生成队列 · 成功 $generated 个 · 失败 $failed 个';
   }
 
   @override
@@ -3040,7 +3059,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get thumbnailScanDialogUnsavedDirsMessage =>
-      '是否保存修改？保存后将按新目录扫描；也可以抛弃修改，按已保存的目录扫描。';
+      '是否保存修改？点击「保存」后将按修改后目录扫描。';
 
   @override
   String get thumbnailScanDialogUnsavedDirsSave => '保存';
@@ -6190,14 +6209,27 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get thumbnailScanDialogStatusGeneratingIdle => '產生縮圖中：正在等待產生佇列';
 
   @override
-  String get thumbnailScanDialogStatusQueued => '已排隊，等待上一次掃描完成';
+  String thumbnailScanDialogStatusGeneratingFailed(
+      int done, int total, int failed) {
+    return '產生縮圖中：已完成 $done/$total（失敗 $failed）';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusQueued => '已加入掃描佇列';
 
   @override
   String get thumbnailScanDialogStatusNever => '尚未執行過掃描';
 
   @override
-  String thumbnailScanDialogStatusLastOk(String time, int scanned, int queued) {
-    return '上次掃描：$time · 發現 $scanned 部影片 · 排入 $queued 部';
+  String thumbnailScanDialogStatusLastOk(
+      String time, int scanned, int queued, int generated) {
+    return '上次掃描：$time · 發現 $scanned 部影片 · 排入 $queued 部 · 成功 $generated 部';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastOkFailed(
+      String time, int scanned, int queued, int generated, int failed) {
+    return '上次掃描：$time · 發現 $scanned 部影片 · 排入 $queued 部 · 成功 $generated 部 · 失敗 $failed 部';
   }
 
   @override
@@ -6237,8 +6269,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String thumbnailScanRunFinished(int scanned, int queued) {
-    return '縮圖掃描完成：發現 $scanned 部影片，$queued 部已加入產生佇列';
+  String thumbnailScanRunFinished(int scanned, int queued, int generated) {
+    return '縮圖掃描完成：發現 $scanned 部影片，$queued 部已加入產生佇列 · 成功 $generated 部';
+  }
+
+  @override
+  String thumbnailScanRunFinishedFailed(
+      int scanned, int queued, int generated, int failed) {
+    return '縮圖掃描完成：發現 $scanned 部影片，$queued 部已加入產生佇列 · 成功 $generated 部 · 失敗 $failed 部';
   }
 
   @override
@@ -6254,7 +6292,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get thumbnailScanDialogUnsavedDirsMessage =>
-      '是否儲存修改？儲存後將依新目錄掃描；也可以拋棄修改，依已儲存的目錄掃描。';
+      '是否儲存修改？點擊「儲存」後將依修改後目錄掃描。';
 
   @override
   String get thumbnailScanDialogUnsavedDirsSave => '儲存';

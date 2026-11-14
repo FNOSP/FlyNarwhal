@@ -19,6 +19,12 @@ import '../../../shared/toast.dart';
 import 'cron/cron_description.dart';
 import 'cron/cron_generator_dialog.dart';
 
+/// Signals AppDialog that the primary action failed: its button handler lets
+/// the error through, which keeps the dialog open.
+class _SaveRejected implements Exception {
+  const _SaveRejected();
+}
+
 /// Configuration dialog of the scheduled thumbnail scan (server >= 2.1.0):
 /// enable switch, cron schedule (hand-typed or built by the generator),
 /// multi-select NAS scan directories, live scan state and a manual trigger.
@@ -123,8 +129,15 @@ class _ThumbnailScanConfigDialogState
     _draftInitialized = true;
   }
 
+  /// Saves the draft. Rejects a config the server would refuse anyway (an
+  /// enabled schedule with no scan folder) with a toast instead of a request,
+  /// so an empty list never reaches the server.
   Future<bool> _save() async {
     if (ref.read(thumbnailScanConfigControllerProvider).isSaving) return false;
+    if (!_draftSaveable) {
+      _toastDirsRequired();
+      return false;
+    }
     final ok = await _controller.save(
       enabled: _enabled,
       cron: _cronController.text.trim(),
@@ -176,21 +189,29 @@ class _ThumbnailScanConfigDialogState
     if (!mounted) return;
     if (scanDirs == null) return;
     if (scanDirs.isEmpty) {
-      ref.read(toastManagerProvider.notifier).showToast(
-            l10n.thumbnailScanDialogDirsRequired,
-            style: ToastStyle.fluent,
-            type: ToastType.warning,
-            category: 'thumbnail-scan-trigger',
-          );
+      _toastDirsRequired();
       return;
     }
     await _triggerScan(scanDirs);
   }
 
-  /// Asks how to resolve unsaved folder edits before scanning: save them and
-  /// scan them, scan the saved list instead (the dialog goes back to it), or
-  /// stop. Null when the user walked away; an empty list when the saved config
-  /// has no folders to scan.
+  /// An enabled schedule needs at least one folder; the server rejects it too,
+  /// so the check happens on this side first.
+  bool get _draftSaveable => !_enabled || _dirs.isNotEmpty;
+
+  void _toastDirsRequired() {
+    ref.read(toastManagerProvider.notifier).showToast(
+          AppLocalizations.of(context).thumbnailScanDialogDirsRequired,
+          style: ToastStyle.fluent,
+          type: ToastType.warning,
+          category: 'thumbnail-scan-dirs',
+        );
+  }
+
+  /// Asks how to resolve unsaved folder edits before scanning: save them, scan
+  /// the saved list instead (the dialog goes back to it), or cancel the scan.
+  /// Null when the user cancelled; an empty list when the saved config has no
+  /// folders to scan.
   Future<List<String>?> _resolveUnsavedDirs(List<String> savedDirs) async {
     final l10n = AppLocalizations.of(context);
     final save = await showAppDialog<bool>(
@@ -198,15 +219,17 @@ class _ThumbnailScanConfigDialogState
       title: l10n.thumbnailScanDialogUnsavedDirsTitle,
       content: Text(l10n.thumbnailScanDialogUnsavedDirsMessage),
       primaryButtonText: l10n.thumbnailScanDialogUnsavedDirsSave,
-      secondaryButtonText: l10n.thumbnailScanDialogUnsavedDirsDiscard,
-      secondaryButtonType: AppDialogButtonType.danger,
-      tertiaryButtonText: l10n.commonCancel,
+      secondaryButtonText: l10n.commonCancel,
+      tertiaryButtonText: l10n.thumbnailScanDialogUnsavedDirsDiscard,
+      tertiaryButtonType: AppDialogButtonType.danger,
       primaryResult: true,
-      secondaryResult: false,
+      tertiaryResult: false,
       constraints: const BoxConstraints(minWidth: 420, maxWidth: 460),
     );
     if (save == null || !mounted) return null;
     if (save) {
+      // _save already explained why it refused; cancel rather than hand an
+      // empty list to the trigger, which would try to scan nothing.
       if (!await _save() || !mounted) return null;
       return List<String>.of(_dirs);
     }
@@ -312,7 +335,7 @@ class _ThumbnailScanConfigDialogState
 
   void _ensurePolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       // The config snapshot only carries schedule + live worker state; the
       // last-run block follows the run this dialog triggered, by its id.
       final runId = ref
@@ -377,12 +400,16 @@ class _ThumbnailScanConfigDialogState
         maxHeight: 720,
       ),
       title: l10n.thumbnailScanDialogTitle,
-      // 确定 saves and closes; 立即扫描 stays open to follow the scan.
+      // 确定 saves and closes — only when the save succeeded: a throw from the
+      // callback makes AppDialog skip its pop, so a rejected config stays open
+      // next to its toast. 立即扫描 stays open.
       autoDismiss: true,
       tertiaryKeepsOpen: true,
       onClose: () {},
       primaryButtonText: l10n.commonConfirm,
-      onPrimaryPressed: _save,
+      onPrimaryPressed: () async {
+        if (!await _save()) throw const _SaveRejected();
+      },
       secondaryButtonText: l10n.commonCancel,
       onSecondaryPressed: () {},
       tertiaryButtonText: l10n.thumbnailScanDialogScanNow,
@@ -671,9 +698,14 @@ class _ThumbnailScanConfigDialogState
       case ThumbnailScanConfig.phaseGenerating:
         final done = config.lastRunDoneCount;
         final total = config.lastQueuedCount;
-        text = total <= 0 || done <= 0
-            ? l10n.thumbnailScanDialogStatusGeneratingIdle
-            : l10n.thumbnailScanDialogStatusGenerating(done, total);
+        final failed = config.lastFailedCount;
+        if (total <= 0) {
+          text = l10n.thumbnailScanDialogStatusGeneratingIdle;
+        } else if (failed > 0) {
+          text = l10n.thumbnailScanDialogStatusGeneratingFailed(done, total, failed);
+        } else {
+          text = l10n.thumbnailScanDialogStatusGenerating(done, total);
+        }
       case ThumbnailScanConfig.phaseScanning:
         final count = config.lastSourcedCount;
         text = count <= 0
@@ -754,11 +786,20 @@ class _ThumbnailScanConfigDialogState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          l10n.thumbnailScanDialogStatusLastOk(
-            time,
-            config.lastSourcedCount,
-            config.lastQueuedCount,
-          ),
+          config.lastFailedCount > 0
+              ? l10n.thumbnailScanDialogStatusLastOkFailed(
+                  time,
+                  config.lastSourcedCount,
+                  config.lastQueuedCount,
+                  config.lastGeneratedCount,
+                  config.lastFailedCount,
+                )
+              : l10n.thumbnailScanDialogStatusLastOk(
+                  time,
+                  config.lastSourcedCount,
+                  config.lastQueuedCount,
+                  config.lastGeneratedCount,
+                ),
           style: theme.typography.caption,
         ),
       ],

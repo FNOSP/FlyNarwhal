@@ -3079,15 +3079,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'Generating thumbnails: waiting for the generation queue';
 
   @override
-  String get thumbnailScanDialogStatusQueued =>
-      'Queued, waiting for the previous scan to finish';
+  String thumbnailScanDialogStatusGeneratingFailed(
+      int done, int total, int failed) {
+    return 'Generating thumbnails: $done/$total done ($failed failed)';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusQueued => 'Added to the scan queue';
 
   @override
   String get thumbnailScanDialogStatusNever => 'No scan has run yet';
 
   @override
-  String thumbnailScanDialogStatusLastOk(String time, int scanned, int queued) {
-    return 'Last scan: $time · $scanned videos found · $queued queued';
+  String thumbnailScanDialogStatusLastOk(
+      String time, int scanned, int queued, int generated) {
+    return 'Last scan: $time · $scanned videos found · $queued queued · $generated succeeded';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastOkFailed(
+      String time, int scanned, int queued, int generated, int failed) {
+    return 'Last scan: $time · $scanned videos found · $queued queued · $generated succeeded · $failed failed';
   }
 
   @override
@@ -3130,8 +3142,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String thumbnailScanRunFinished(int scanned, int queued) {
-    return 'Scan finished: $scanned video(s) found, $queued queued for generation';
+  String thumbnailScanRunFinished(int scanned, int queued, int generated) {
+    return 'Scan finished: $scanned video(s) found, $queued queued for generation · $generated succeeded';
+  }
+
+  @override
+  String thumbnailScanRunFinishedFailed(
+      int scanned, int queued, int generated, int failed) {
+    return 'Scan finished: $scanned video(s) found, $queued queued for generation · $generated succeeded · $failed failed';
   }
 
   @override
@@ -3148,7 +3166,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get thumbnailScanDialogUnsavedDirsMessage =>
-      'Save the changes and scan the new folders? Choosing discard scans the saved folders and restores them in this dialog.';
+      'Save the changes and scan the modified folders?';
 
   @override
   String get thumbnailScanDialogUnsavedDirsSave => 'Save';
