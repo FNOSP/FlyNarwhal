@@ -3890,7 +3890,7 @@
   "cronDescEveryNHours": "每 {n} 小時",
   "nasDirPickerTitle": "選擇掃描目錄",
   "nasDirPickerLimitReached": "最多選擇 {max} 個目錄",
-  "settingsThumbnailScanPermHint": "需要在飛牛 -> 系統設置 -> 應用 -> 飛鯨影視中添加所要掃描的目錄的訪問權限，否則無法獲取視頻縮略圖。如已配置目錄訪問權限仍然出現無法訪問的情況，請連接 NAS SSH，執行此{script}進行修復",
+  "settingsThumbnailScanPermHint": "需要在飛牛 -> 系統設置 -> 應用 -> 飛鯨影視中添加所要掃描的目錄的訪問權限，否則無法獲取視頻縮略圖。如已配置目錄訪問權限仍然出現無法訪問的情況，請連接 NAS SSH，切換到 root 用戶，執行此{script}進行修復",
   "@settingsThumbnailScanPermHint": { "placeholders": { "script": { "type": "String" } } },
   "thumbnailScanScriptLinkLabel": "腳本",
   "thumbnailScanScriptSavedToast": "修復腳本已保存：{path}",

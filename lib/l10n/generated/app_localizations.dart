@@ -5932,7 +5932,7 @@ abstract class AppLocalizations {
   /// Hover tip next to the scan-directories label. {script} is rendered as a clickable link that saves the repair script.
   ///
   /// In zh, this message translates to:
-  /// **'需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，执行此{script}进行修复'**
+  /// **'需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，切换到 root 用户，执行此{script}进行修复'**
   String settingsThumbnailScanPermHint(String script);
 
   /// Clickable word inside settingsThumbnailScanPermHint; tapping saves the bundled repair script.

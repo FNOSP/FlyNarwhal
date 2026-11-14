@@ -59,6 +59,10 @@ usage() {
     exit "${1:-0}"
 }
 
+# 在 getopts 消费选项前留存原始参数，供非 root 提示拼出完整的 sudo 重跑命令。
+orig_args=''
+for arg in "$@"; do orig_args="$orig_args \"$arg\""; done
+
 while getopts 'u:lid:f:nm:vh' opt; do
     case "$opt" in
         u) APP_USER=$OPTARG; APP_USER_EXPLICIT=1; HAS_ARGS=1 ;;
@@ -83,7 +87,15 @@ case "$MODE" in
 esac
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "错误：请以 root 运行（需切换为服务端账户做访问校验，并修改其他账户的文件）" >&2
+    echo "当前以普通用户 $(id -un) 运行，本脚本需要 root 权限：" >&2
+    echo "  1. 需切换为服务端账户实测目录/文件的可访问性；" >&2
+    echo "  2. 需修改其他账户文件的 fnOS 授权属性与 ACL。" >&2
+    echo "" >&2
+    if command -v sudo >/dev/null 2>&1; then
+        printf '请改用以下命令重新运行（会提示输入当前用户密码）：\n  sudo sh "%s"%s\n' "$0" "$orig_args" >&2
+    else
+        echo "系统未安装 sudo，请先执行 su - 切换到 root 后再运行本脚本。" >&2
+    fi
     exit 1
 fi
 

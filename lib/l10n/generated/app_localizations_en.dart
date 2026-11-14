@@ -3343,7 +3343,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String settingsThumbnailScanPermHint(String script) {
-    return 'Access permission for the directories to be scanned must be added in fnOS -> System Settings -> Apps -> FlyNarwhal; otherwise video thumbnails cannot be generated. If access still fails after granting directory permissions, connect to the NAS over SSH and run this $script to fix it';
+    return 'Access permission for the directories to be scanned must be added in fnOS -> System Settings -> Apps -> FlyNarwhal; otherwise video thumbnails cannot be generated. If access still fails after granting directory permissions, connect to the NAS over SSH, switch to the root user, and run this $script to fix it';
   }
 
   @override
