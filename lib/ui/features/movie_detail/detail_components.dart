@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
@@ -103,6 +104,9 @@ class DetailTags extends StatelessWidget {
   /// (movies only; null hides it).
   final String? thumbnailStatusText;
 
+  /// When set, the sprite status renders as a link opening its failure detail.
+  final VoidCallback? onThumbnailStatusTap;
+
   /// 剧集详情页（Web /v/tv/episode/:guid）的标签栏仅展示「年份 / 时长」，
   /// 不含评分、分级、类型、地区与媒体库名——与 Web 一致。
   final bool isEpisode;
@@ -115,6 +119,7 @@ class DetailTags extends StatelessWidget {
     this.genresMap = const {},
     this.smartAnalysisStatusText,
     this.thumbnailStatusText,
+    this.onThumbnailStatusTap,
     this.isEpisode = false,
   });
 
@@ -271,17 +276,22 @@ class DetailTags extends StatelessWidget {
     if (!isEpisode &&
         thumbnailStatusText != null &&
         thumbnailStatusText!.isNotEmpty) {
-      items.add(Text(
-        l10n.movieDetailThumbnailStatus(thumbnailStatusText!),
-        style: TextStyle(
-          color: FluentTheme.of(context)
-              .typography
-              .body
-              ?.color
-              ?.withValues(alpha: 0.8),
-          fontSize: 14,
-        ),
-      ));
+      final statusStyle = TextStyle(
+        color: FluentTheme.of(context)
+            .typography
+            .body
+            ?.color
+            ?.withValues(alpha: 0.8),
+        fontSize: 14,
+      );
+      final label = l10n.movieDetailThumbnailStatus(thumbnailStatusText!);
+      items.add(onThumbnailStatusTap == null
+          ? Text(label, style: statusStyle)
+          : _TagLink(
+              label: label,
+              style: statusStyle,
+              onTap: onThumbnailStatusTap!,
+            ));
     }
 
     final List<Widget> displayItems = [];
@@ -297,6 +307,50 @@ class DetailTags extends StatelessWidget {
       runSpacing: 8,
       alignment: WrapAlignment.end,
       children: displayItems,
+    );
+  }
+}
+
+/// A metadata tag that opens something on tap. Stateful only to own its
+/// recognizer: building one per build would leak it.
+class _TagLink extends StatefulWidget {
+  const _TagLink({
+    required this.label,
+    required this.style,
+    required this.onTap,
+  });
+
+  final String label;
+  final TextStyle style;
+  final VoidCallback onTap;
+
+  @override
+  State<_TagLink> createState() => _TagLinkState();
+}
+
+class _TagLinkState extends State<_TagLink> {
+  late final TapGestureRecognizer _recognizer =
+      TapGestureRecognizer()..onTap = () => widget.onTap();
+
+  @override
+  void dispose() {
+    _recognizer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    return Text.rich(
+      TextSpan(
+        text: widget.label,
+        style: widget.style.copyWith(
+          color: theme.accentColor.defaultBrushFor(theme.brightness),
+          decoration: TextDecoration.underline,
+        ),
+        mouseCursor: SystemMouseCursors.click,
+        recognizer: _recognizer,
+      ),
     );
   }
 }

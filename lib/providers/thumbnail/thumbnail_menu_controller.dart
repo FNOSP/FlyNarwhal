@@ -13,6 +13,7 @@ class ThumbnailMenuState {
   final bool stale;
   final bool submitting;
   final String? serverError;
+  final String? serverErrorCode;
   final String? actionError;
 
   /// True while a poll chain is armed. Mirrors the smart-analysis controller:
@@ -25,6 +26,7 @@ class ThumbnailMenuState {
     this.stale = false,
     this.submitting = false,
     this.serverError,
+    this.serverErrorCode,
     this.actionError,
     this.isPolling = false,
   });
@@ -38,6 +40,7 @@ class ThumbnailMenuState {
     bool? stale,
     bool? submitting,
     String? serverError,
+    String? serverErrorCode,
     String? actionError,
     bool? isPolling,
     bool clearErrors = false,
@@ -47,6 +50,8 @@ class ThumbnailMenuState {
       stale: stale ?? this.stale,
       submitting: submitting ?? this.submitting,
       serverError: clearErrors ? null : (serverError ?? this.serverError),
+      serverErrorCode:
+          clearErrors ? null : (serverErrorCode ?? this.serverErrorCode),
       actionError: clearErrors ? null : (actionError ?? this.actionError),
       isPolling: isPolling ?? this.isPolling,
     );
@@ -100,6 +105,7 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
         status: metadata.status,
         stale: metadata.stale,
         serverError: metadata.error,
+        serverErrorCode: metadata.errorCode,
         isPolling: running,
       );
       if (running) _armTimer();
@@ -135,6 +141,7 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
         status: metadata.status,
         stale: metadata.stale,
         serverError: metadata.error,
+        serverErrorCode: metadata.errorCode,
         isPolling: shouldPoll,
       );
       // A trigger that reached the server always owes the client a poll: the
@@ -199,6 +206,7 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
         status: metadata.status,
         stale: metadata.stale,
         serverError: metadata.error,
+        serverErrorCode: metadata.errorCode,
         isPolling: metadata.status == ThumbnailTaskStatus.pending ||
             metadata.status == ThumbnailTaskStatus.inProgress,
       );

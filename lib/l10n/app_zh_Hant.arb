@@ -3785,6 +3785,8 @@
   "@movieDetailThumbnailStale": { "description": "Short status value when sprites exist but the source file changed." },
   "movieDetailThumbnailFailedShort": "生成失敗",
   "@movieDetailThumbnailFailedShort": { "description": "Short status value for the sprite status line when generation failed." },
+  "movieDetailThumbnailFailureDialogTitle": "縮圖產生失敗",
+  "@movieDetailThumbnailFailureDialogTitle": { "description": "詳情頁點擊縮圖狀態列後彈出的失敗詳情標題。" },
   "settingsThumbnailScanTitle": "影片縮圖生成",
   "settingsThumbnailScanCaption": "依排程掃描 NAS 目錄，自動為缺少縮圖的影片產生進度列預覽圖",
   "settingsThumbnailScanConfigure": "設定",

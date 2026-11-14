@@ -2875,6 +2875,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get movieDetailThumbnailFailedShort => '生成失败';
 
   @override
+  String get movieDetailThumbnailFailureDialogTitle => '缩略图生成失败';
+
+  @override
   String get settingsThumbnailScanTitle => '视频缩略图生成';
 
   @override
@@ -6174,6 +6177,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get movieDetailThumbnailFailedShort => '生成失敗';
+
+  @override
+  String get movieDetailThumbnailFailureDialogTitle => '縮圖產生失敗';
 
   @override
   String get settingsThumbnailScanTitle => '影片縮圖生成';

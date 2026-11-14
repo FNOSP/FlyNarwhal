@@ -24,6 +24,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/file_providers.dart';
+import '../../../providers/thumbnail/thumbnail_error_humanizer.dart';
 import '../../../providers/thumbnail/thumbnail_menu_controller.dart';
 import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
@@ -519,9 +520,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             );
       case ThumbnailTaskStatus.failed:
         ref.read(toastManagerProvider.notifier).showToast(
-              next.serverError?.isNotEmpty == true
-                  ? l10n.movieDetailThumbnailFailed(next.serverError!)
-                  : l10n.movieDetailThumbnailFailedGeneric,
+              l10n.movieDetailThumbnailFailed(humanizeThumbnailError(
+                  next.serverErrorCode, next.serverError, l10n)),
               type: ToastType.failed,
               category: '$category:failed',
             );
@@ -547,6 +547,44 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
       case ThumbnailTaskStatus.none:
         return '';
     }
+  }
+
+  /// Failure detail: the localized reason plus the server's raw wording, which
+  /// is selectable so it can be copied into a bug report. Same shape as the
+  /// scan-run failure popup in settings.
+  Future<void> _showThumbnailFailureDetail(
+      AppLocalizations l10n, ThumbnailMenuState thumbState) async {
+    final theme = FluentTheme.of(context);
+    final raw = thumbState.serverError?.trim() ?? '';
+    await showAppDialog<void>(
+      context: context,
+      title: l10n.movieDetailThumbnailFailureDialogTitle,
+      constraints: const BoxConstraints(minWidth: 480, maxWidth: 560),
+      primaryButtonText: l10n.commonGotIt,
+      autoDismiss: true,
+      content: SizedBox(
+        width: 460,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              humanizeThumbnailError(
+                  thumbState.serverErrorCode, thumbState.serverError, l10n),
+              style: theme.typography.body,
+            ),
+            if (raw.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                l10n.thumbnailScanFailuresRawErrorLabel(raw),
+                style: theme.typography.caption
+                    ?.copyWith(color: theme.inactiveColor),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Future<bool> _isCloudOrStrmMedia(String mediaGuid) async {
@@ -994,6 +1032,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     // as its last "/"-separated item; hidden for episodes, missing config, or
     // when no task exists yet.
     String? thumbnailStatusText;
+    ThumbnailMenuState? thumbnailFailureState;
     if (!isEpisode &&
         _currentMediaGuid.isNotEmpty &&
         ref.watch(settingsProvider).isFlyNarwhalServerAvailable) {
@@ -1001,6 +1040,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           ref.watch(thumbnailMenuControllerProvider(_currentMediaGuid));
       if (thumbState.status != ThumbnailTaskStatus.none) {
         thumbnailStatusText = _thumbnailStatusText(l10n, thumbState);
+      }
+      // Only a failure has a reason worth opening; the raw text is what the
+      // dialog adds over the localized wording already in the toast.
+      if (thumbState.status == ThumbnailTaskStatus.failed &&
+          (thumbState.serverError?.trim().isNotEmpty ?? false)) {
+        thumbnailFailureState = thumbState;
       }
     }
 
@@ -1316,6 +1361,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                 genresMap: widget.state.genres,
                                 isEpisode: isEpisode,
                                 thumbnailStatusText: thumbnailStatusText,
+                                onThumbnailStatusTap: thumbnailFailureState ==
+                                        null
+                                    ? null
+                                    : () => _showThumbnailFailureDetail(
+                                        l10n, thumbnailFailureState!),
                               ),
                               if (qualityAndSelectorRow != null) ...[
                                 const SizedBox(height: 8),

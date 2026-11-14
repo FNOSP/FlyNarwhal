@@ -5325,6 +5325,12 @@ abstract class AppLocalizations {
   /// **'生成失败'**
   String get movieDetailThumbnailFailedShort;
 
+  /// 详情页点击缩略图状态行后弹出的失败详情标题。
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图生成失败'**
+  String get movieDetailThumbnailFailureDialogTitle;
+
   /// Settings card title of the scheduled thumbnail scan.
   ///
   /// In zh, this message translates to:

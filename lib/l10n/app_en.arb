@@ -3785,6 +3785,8 @@
   "@movieDetailThumbnailStale": { "description": "Short status value when sprites exist but the source file changed." },
   "movieDetailThumbnailFailedShort": "Failed",
   "@movieDetailThumbnailFailedShort": { "description": "Short status value for the sprite status line when generation failed." },
+  "movieDetailThumbnailFailureDialogTitle": "Thumbnail generation failed",
+  "@movieDetailThumbnailFailureDialogTitle": { "description": "Title of the failure detail dialog opened from the movie detail sprite status line." },
   "settingsThumbnailScanTitle": "Video thumbnails",
   "settingsThumbnailScanCaption": "Scan NAS folders on a schedule and generate progress-bar previews for videos that have none",
   "settingsThumbnailScanConfigure": "Configure",

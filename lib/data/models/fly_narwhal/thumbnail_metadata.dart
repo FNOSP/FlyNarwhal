@@ -53,6 +53,10 @@ class ThumbnailMetadata {
   final int generation;
   final String? error;
 
+  /// Stable reason code (server >= 2.1.4). Null on older servers, which only
+  /// send [error]; callers must fall back to matching that text.
+  final String? errorCode;
+
   const ThumbnailMetadata({
     required this.guid,
     this.status = ThumbnailTaskStatus.none,
@@ -66,6 +70,7 @@ class ThumbnailMetadata {
     this.durationMs = 0,
     this.generation = 0,
     this.error,
+    this.errorCode,
   });
 
   factory ThumbnailMetadata.fromJson(Map<String, dynamic> json) {
@@ -82,6 +87,7 @@ class ThumbnailMetadata {
       durationMs: _readInt(json['durationMs']),
       generation: _readInt(json['generation']),
       error: json['error']?.toString(),
+      errorCode: json['errorCode']?.toString(),
     );
   }
 

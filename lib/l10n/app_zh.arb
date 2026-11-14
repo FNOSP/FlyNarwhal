@@ -3956,6 +3956,8 @@
   "@movieDetailThumbnailStale": { "description": "Short status value when sprites exist but the source file changed." },
   "movieDetailThumbnailFailedShort": "生成失败",
   "@movieDetailThumbnailFailedShort": { "description": "Short status value for the sprite status line when generation failed." },
+  "movieDetailThumbnailFailureDialogTitle": "缩略图生成失败",
+  "@movieDetailThumbnailFailureDialogTitle": { "description": "详情页点击缩略图状态行后弹出的失败详情标题。" },
   "settingsThumbnailScanTitle": "视频缩略图生成",
   "@settingsThumbnailScanTitle": { "description": "Settings card title of the scheduled thumbnail scan." },
   "settingsThumbnailScanCaption": "按计划扫描 NAS 目录，自动为缺少缩略图的视频生成进度条预览图",

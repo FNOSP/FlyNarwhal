@@ -2976,6 +2976,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get movieDetailThumbnailFailedShort => 'Failed';
 
   @override
+  String get movieDetailThumbnailFailureDialogTitle =>
+      'Thumbnail generation failed';
+
+  @override
   String get settingsThumbnailScanTitle => 'Video thumbnails';
 
   @override

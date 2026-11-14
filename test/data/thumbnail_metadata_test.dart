@@ -121,4 +121,37 @@ void main() {
       expect(mid.srcRect.left, 320, reason: 'floor(14.5s/10s) = 1');
     });
   });
+
+  group('failure reason fields', () {
+    test('reads the raw text and the stable code', () {
+      final m = ThumbnailMetadata.fromJson({
+        'guid': 'guid-1',
+        'status': 'FAILED',
+        'error': 'sprite generation timed out after 1800s',
+        'errorCode': 'timeout',
+      });
+
+      expect(m.status, ThumbnailTaskStatus.failed);
+      expect(m.error, 'sprite generation timed out after 1800s');
+      expect(m.errorCode, 'timeout');
+    });
+
+    test('an older server sends no code and must still parse', () {
+      final m = ThumbnailMetadata.fromJson({
+        'guid': 'guid-1',
+        'status': 'FAILED',
+        'error': 'cannot read media duration',
+      });
+
+      expect(m.error, 'cannot read media duration');
+      expect(m.errorCode, isNull);
+    });
+
+    test('a successful task carries neither', () {
+      final m = ThumbnailMetadata.fromJson({'guid': 'guid-1', 'status': 'COMPLETED'});
+
+      expect(m.error, isNull);
+      expect(m.errorCode, isNull);
+    });
+  });
 }
