@@ -29,11 +29,50 @@ class DesktopPseudoFullscreenController {
       (defaultTargetPlatform == TargetPlatform.windows ||
           defaultTargetPlatform == TargetPlatform.linux);
 
+  bool get _isLinux => !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
+
+  /// Linux uses the window system's own fullscreen instead of the borderless
+  /// + setBounds pseudo fullscreen: Wayland lets the *compositor* place and
+  /// size top-level windows, so the only way to cover the whole monitor is
+  /// gtk_window_fullscreen(). The pseudo path (setBounds -> gtk_window_move +
+  /// gtk_window_resize) leaves the window where it was and merely grows it
+  /// to the monitor size, which spills off the screen. Linux therefore
+  /// behaves like macOS: native fullscreen, no client-side window shaping.
+  bool get _usesSystemFullscreen => _isMacOS || _isLinux;
+
+  /// Clears the window's aspect-ratio constraint before Linux goes fullscreen.
+  ///
+  /// The player locks the window to the video's ratio while it is a floating
+  /// window. GTK turns that into a GDK aspect hint, and on Wayland the
+  /// compositor applies the hint to the fullscreen size as well, so the
+  /// window ends up as wide as the monitor but only `width / ratio` tall
+  /// (a 2.39:1 film on a 1800x1125 screen filled just 1800x724, centred).
+  /// Dropping the hint first lets the compositor use the whole monitor; the
+  /// ratio controller re-applies the lock once fullscreen is left.
+  Future<void> _releaseWindowAspectRatioBeforeFullscreen() async {
+    try {
+      await windowManager.setAspectRatio(0);
+      await Future<void>.delayed(_windowStateTransitionDelay);
+    } catch (error, stackTrace) {
+      // Non-fatal: the worst case is the ratio-clamped fullscreen frame.
+      AppTalker.error(
+        'Fullscreen',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'release aspect ratio before fullscreen failed',
+      );
+    }
+  }
+
   Future<bool> toggle() async {
-    if (_isMacOS) {
+    if (_usesSystemFullscreen) {
       final nextFullscreenState = !await windowManager.isFullScreen();
 
-      // Keep macOS on the system fullscreen path as requested.
+      // Keep macOS on the system fullscreen path as requested; Linux needs
+      // it as well, see [_usesSystemFullscreen].
+      if (nextFullscreenState) {
+        await _releaseWindowAspectRatioBeforeFullscreen();
+      }
       await windowManager.setFullScreen(nextFullscreenState);
       return nextFullscreenState;
     }
@@ -131,7 +170,7 @@ class DesktopPseudoFullscreenController {
   }
 
   Future<bool> exitForRouteLeave({bool keepFullscreen = false}) async {
-    if (_isMacOS) {
+    if (_usesSystemFullscreen) {
       final isFullscreen = await windowManager.isFullScreen();
       if (isFullscreen && !keepFullscreen) {
         await windowManager.setFullScreen(false);
@@ -147,7 +186,7 @@ class DesktopPseudoFullscreenController {
   }
 
   Future<bool> syncState() async {
-    if (_isMacOS) {
+    if (_usesSystemFullscreen) {
       return windowManager.isFullScreen();
     }
 
