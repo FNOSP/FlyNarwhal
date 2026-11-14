@@ -78,6 +78,18 @@ class MainFlutterWindow: NSWindow {
       NotificationCenter.default.addObserver(
         forName: name, object: self, queue: .main) { [weak self] _ in
         self?.installTopEdgeDimmer()
+        self?.relayoutWindowButtons()
+      }
+    }
+
+    // AppKit re-lays-out the traffic lights when entering/leaving fullscreen
+    // (and while the fullscreen menu-bar accessory reveals on hover),
+    // discarding the custom constraints; re-assert ours after each transition.
+    for name in [NSWindow.didEnterFullScreenNotification,
+                 NSWindow.didExitFullScreenNotification] {
+      NotificationCenter.default.addObserver(
+        forName: name, object: self, queue: .main) { [weak self] _ in
+        self?.relayoutWindowButtons()
       }
     }
 
@@ -253,14 +265,46 @@ class MainFlutterWindow: NSWindow {
       return
     }
 
-    // Top padding to vertically center the buttons
-    let topPadding: CGFloat = 18.0
+    // Windowed: the strip is only as tall as the system titlebar (~32pt)
+    // while the app-drawn caption below it is taller, so centering in the
+    // strip would sit too high — keep the tuned fixed inset that aligns the
+    // lights with the Flutter caption content (center ~25pt from the top).
+    // Fullscreen: there is no app caption; the buttons must center in the
+    // accessory strip AppKit reveals on hover, whose height varies. AppKit
+    // re-lays-out the strip on transitions and can drop our constraints, so
+    // this runs on every window update and skips no-op work.
+    let buttonHeight = closeButton.frame.height
+    let topPadding: CGFloat
+    if styleMask.contains(.fullScreen) {
+      topPadding = max(0, (titlebarView.bounds.height - buttonHeight) / 2)
+    } else {
+      topPadding = 18.0
+    }
     // Left padding for the first button
     let leftPadding: CGFloat = 16.0
     // Spacing between buttons
     let buttonSpacing: CGFloat = 8.0
     // Button width (standard macOS traffic light button size)
     let buttonWidth: CGFloat = 12.0
+
+    let desiredLefts: [NSButton: CGFloat] = [
+      closeButton: leftPadding,
+      minButton: leftPadding + buttonWidth + buttonSpacing,
+      zoomButton: leftPadding + (buttonWidth + buttonSpacing) * 2,
+    ]
+    let needsRelayout = desiredLefts.contains { button, left in
+      abs(button.frame.minX - left) > 0.5 ||
+        abs(button.frame.minY - topPadding) > 0.5 ||
+        button.translatesAutoresizingMaskIntoConstraints
+    }
+    // AppKit re-lays-out the strip on fullscreen transitions and hover
+    // reveals; if it also dropped our constraints, re-install them even when
+    // the frames momentarily still match. Match on firstItem: a plain
+    // isEmpty check would loop forever on AppKit's own unrelated constraints.
+    let hasOurConstraints = titlebarView.constraints.contains {
+      ($0.firstItem as? NSView) === closeButton
+    }
+    guard needsRelayout || !hasOurConstraints else { return }
 
     // Disable autoresizing mask translation for all buttons
     closeButton.translatesAutoresizingMaskIntoConstraints = false
@@ -270,23 +314,13 @@ class MainFlutterWindow: NSWindow {
     // Remove existing constraints
     titlebarView.removeConstraints(titlebarView.constraints)
 
-    // Add constraints for close button
-    titlebarView.addConstraints([
-      NSLayoutConstraint(item: closeButton, attribute: .top, relatedBy: .equal, toItem: titlebarView, attribute: .top, multiplier: 1, constant: topPadding),
-      NSLayoutConstraint(item: closeButton, attribute: .left, relatedBy: .equal, toItem: titlebarView, attribute: .left, multiplier: 1, constant: leftPadding)
-    ])
-
-    // Add constraints for minimize button
-    titlebarView.addConstraints([
-      NSLayoutConstraint(item: minButton, attribute: .top, relatedBy: .equal, toItem: titlebarView, attribute: .top, multiplier: 1, constant: topPadding),
-      NSLayoutConstraint(item: minButton, attribute: .left, relatedBy: .equal, toItem: titlebarView, attribute: .left, multiplier: 1, constant: leftPadding + buttonWidth + buttonSpacing)
-    ])
-
-    // Add constraints for zoom button
-    titlebarView.addConstraints([
-      NSLayoutConstraint(item: zoomButton, attribute: .top, relatedBy: .equal, toItem: titlebarView, attribute: .top, multiplier: 1, constant: topPadding),
-      NSLayoutConstraint(item: zoomButton, attribute: .left, relatedBy: .equal, toItem: titlebarView, attribute: .left, multiplier: 1, constant: leftPadding + (buttonWidth + buttonSpacing) * 2)
-    ])
+    for (button, left) in desiredLefts {
+      titlebarView.addConstraints([
+        NSLayoutConstraint(item: button, attribute: .top, relatedBy: .equal, toItem: titlebarView, attribute: .top, multiplier: 1, constant: topPadding),
+        NSLayoutConstraint(item: button, attribute: .left, relatedBy: .equal, toItem: titlebarView, attribute: .left, multiplier: 1, constant: left)
+      ])
+    }
+    titlebarView.layoutSubtreeIfNeeded()
   }
 
   // MARK: - Native title bar drag opt-out

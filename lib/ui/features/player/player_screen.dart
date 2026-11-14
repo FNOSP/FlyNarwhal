@@ -125,14 +125,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       Duration(milliseconds: 200);
   static const Duration _playbackIndicatorExitDuration =
       Duration(milliseconds: 300);
-  // macOS swaps the overlay top bar between a windowed layout that clears the
-  // traffic lights and a fullscreen layout that sits higher. The switch is
-  // deferred until the native fullscreen transition settles (see
-  // [_topBarFullscreenLayout]), so these offsets ease the back button over
-  // instead of letting it jump once AppKit swaps in the live content.
-  static const Duration _topBarOffsetAnimationDuration =
-      Duration(milliseconds: 260);
-  static const Curve _topBarOffsetAnimationCurve = Curves.easeInOutCubic;
   static const Duration _hlsSubtitleInitTimeout = Duration(seconds: 5);
   static const Duration _directLinkEmbeddedSubtitleTracksTimeout =
       Duration(seconds: 3);
@@ -170,13 +162,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // `ref` — Riverpod forbids ref access once unmount has started.
   late final WatchTimeTracker _watchTimeTracker;
   bool _isFullscreen = false;
-  // Drives the overlay top bar's windowed/fullscreen layout. On macOS it
-  // follows the native transition's completion callbacks rather than
-  // [_isFullscreen], which flips as soon as the toggle starts: AppKit animates
-  // the window from a snapshot and only swaps in live content once it settles,
-  // so offsetting the bar during the zoom is invisible and reads as a jump.
-  // Flipping after the callback makes the back button visibly glide instead.
-  bool _topBarFullscreenLayout = false;
   int _currentPosition = 0;
   // The last position this app explicitly seeked to. mpv reports time-pos
   // optimistically (it echoes the requested target before any data is
@@ -4414,12 +4399,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return;
       }
 
-      // macOS moves the top bar layout when the native transition completes
-      // (onWindowEnterFullScreen / onWindowLeaveFullScreen); the
-      // pseudo-fullscreen platforms have no such callback and switch here.
       setState(() {
         _isFullscreen = isFullscreen;
-        if (!_isMacOS) _topBarFullscreenLayout = isFullscreen;
       });
       _syncWindowAspectRatioWithFullscreen(isFullscreen);
     } catch (error, stackTrace) {
@@ -6109,11 +6090,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // initial load — and after a failed load — so the user can always
           // return to the previous screen instead of being stuck.
           if (!_isInitialized && !_isPipMode)
-            AnimatedPositioned(
-              duration: _topBarOffsetAnimationDuration,
-              curve: _topBarOffsetAnimationCurve,
-              top: _isMacOS && !_topBarFullscreenLayout ? 12.0 : 6.0,
-              left: 16 + (_isMacOS && !_topBarFullscreenLayout ? 72.0 : 0.0),
+            Positioned(
+              top: _needsTrafficLightInset ? 12.0 : 6.0,
+              left: 16 + (_needsTrafficLightInset ? 72.0 : 0.0),
               child: _buildBackButton(),
             ),
           Positioned.fill(
@@ -7242,12 +7221,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     unawaited(_refreshPlaybackDetailsTranscodeStatus());
   }
 
+  /// The native traffic-light buttons stay pinned to the window's own
+  /// top-left corner whether or not it is fullscreen — unlike Flutter's
+  /// SafeArea, they do not move down when macOS reveals the menu bar /
+  /// title-bar accessory on hover in fullscreen. Reserving space for them
+  /// must therefore follow [_isFullscreen] alone: deferring it to a separate
+  /// flag driven only by the enter/leave-full-screen callbacks left the back
+  /// button indented as if still windowed whenever that callback was missed
+  /// (e.g. the player opened while the app window was already fullscreen),
+  /// while the traffic lights sat at the true corner.
+  bool get _needsTrafficLightInset => _isMacOS && !_isFullscreen;
+
   Widget _buildTopBar() {
-    final leftInset = _isMacOS && !_topBarFullscreenLayout ? 72.0 : 0.0;
-    final topPadding = _isMacOS && !_topBarFullscreenLayout ? 12.0 : 6.0;
+    final leftInset = _needsTrafficLightInset ? 72.0 : 0.0;
+    final topPadding = _needsTrafficLightInset ? 12.0 : 6.0;
     final topBarContentHeight = _isMacOS ? 30.0 : 36.0;
-    // Size the strip for the taller windowed layout so the animated top
-    // offset below never clips the back button while the layouts swap.
+    // Size the strip for the taller windowed layout so the back button is
+    // never clipped while [_needsTrafficLightInset] swaps.
     final topBarDragHeight = (_isMacOS ? 12.0 : 6.0) + topBarContentHeight;
     final isWindowsStyle = !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.windows ||
@@ -7263,9 +7253,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 child: SizedBox.expand(),
               ),
             ),
-            AnimatedPositioned(
-              duration: _topBarOffsetAnimationDuration,
-              curve: _topBarOffsetAnimationCurve,
+            Positioned(
               top: topPadding,
               left: 16,
               right: 16,
@@ -7292,11 +7280,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        AnimatedContainer(
-                          duration: _topBarOffsetAnimationDuration,
-                          curve: _topBarOffsetAnimationCurve,
-                          width: leftInset,
-                        ),
+                        SizedBox(width: leftInset),
                         _buildBackButton(),
                       ],
                     ),
@@ -7451,7 +7435,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     setState(() {
       _isFullscreen = isFullscreen;
-      _topBarFullscreenLayout = isFullscreen;
     });
   }
 
@@ -7481,7 +7464,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       setState(() {
         _isFullscreen = isFullscreen;
-        _topBarFullscreenLayout = isFullscreen;
       });
     } finally {
       _isRestoringWindowSession = false;
@@ -7787,7 +7769,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     setState(() {
       _isFullscreen = true;
-      _topBarFullscreenLayout = true;
     });
     _syncWindowAspectRatioWithFullscreen(true);
   }
@@ -7809,7 +7790,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     setState(() {
       _isFullscreen = false;
-      _topBarFullscreenLayout = false;
     });
     _syncWindowAspectRatioWithFullscreen(false);
   }

@@ -55,13 +55,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   static const Duration _sessionRequestTimeout = Duration(seconds: 15);
   static const double _trailingControlSpacing = 12;
   static const Duration _pipIdleHideDuration = Duration(seconds: 3);
-  // Eases the back button between the windowed and fullscreen top-bar
-  // layouts on macOS. The switch happens once the native fullscreen
-  // transition settles (see [_topBarFullscreenLayout]) so the motion is
-  // actually visible instead of jumping with AppKit's content swap.
-  static const Duration _topBarOffsetAnimationDuration =
-      Duration(milliseconds: 260);
-  static const Curve _topBarOffsetAnimationCurve = Curves.easeInOutCubic;
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'live-player');
   Player? _player;
@@ -75,12 +68,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   late final WatchTimeTracker _watchTimeTracker;
   bool _isBuffering = false;
   bool _isFullscreen = false;
-  // Drives the overlay top bar's windowed/fullscreen layout. On macOS it
-  // follows the native transition's completion callbacks rather than
-  // [_isFullscreen], which flips as soon as the toggle starts: AppKit animates
-  // the window from a snapshot and only swaps in live content once it settles,
-  // so offsetting the bar during the zoom is invisible and reads as a jump.
-  bool _topBarFullscreenLayout = false;
   bool _isPipMode = false;
   bool _isPipHovered = false;
   String? _errorMessage;
@@ -435,12 +422,8 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     try {
       final isFullscreen = await _fullscreenController.toggle();
       if (mounted) {
-        // macOS moves the top bar layout when the native transition completes
-        // (onWindowEnterFullScreen / onWindowLeaveFullScreen); the
-        // pseudo-fullscreen platforms have no such callback and switch here.
         setState(() {
           _isFullscreen = isFullscreen;
-          if (!_isMacOS) _topBarFullscreenLayout = isFullscreen;
         });
       }
       _syncWindowAspectRatioWithFullscreen(isFullscreen);
@@ -459,7 +442,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     if (mounted) {
       setState(() {
         _isFullscreen = isFullscreen;
-        _topBarFullscreenLayout = isFullscreen;
       });
     }
   }
@@ -720,12 +702,9 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
                 ),
               ),
             if (!_isInitialized && !_isPipMode)
-              AnimatedPositioned(
-                duration: _topBarOffsetAnimationDuration,
-                curve: _topBarOffsetAnimationCurve,
-                top: _isMacOS && !_topBarFullscreenLayout ? 12.0 : 6.0,
-                left:
-                    16 + (_isMacOS && !_topBarFullscreenLayout ? 72.0 : 0.0),
+              Positioned(
+                top: _needsTrafficLightInset ? 12.0 : 6.0,
+                left: 16 + (_needsTrafficLightInset ? 72.0 : 0.0),
                 child: _buildBackButton(),
               ),
             if (_isInitialized && !_isPipMode)
@@ -813,12 +792,20 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     );
   }
 
+  /// The native traffic lights stay pinned to the window's own corner and
+  /// never move with SafeArea, so this follows [_isFullscreen] alone:
+  /// deferring it to a flag driven only by the enter/leave-full-screen
+  /// callbacks left the back button indented as if still windowed whenever
+  /// that callback was missed (e.g. the player opened while the app window
+  /// was already fullscreen).
+  bool get _needsTrafficLightInset => _isMacOS && !_isFullscreen;
+
   Widget _buildTopBar() {
-    final leftInset = _isMacOS && !_topBarFullscreenLayout ? 72.0 : 0.0;
-    final topPadding = _isMacOS && !_topBarFullscreenLayout ? 12.0 : 6.0;
+    final leftInset = _needsTrafficLightInset ? 72.0 : 0.0;
+    final topPadding = _needsTrafficLightInset ? 12.0 : 6.0;
     final topBarContentHeight = _isMacOS ? 30.0 : 36.0;
-    // Size the strip for the taller windowed layout so the animated top
-    // offset below never clips the back button while the layouts swap.
+    // Size the strip for the taller windowed layout so the back button is
+    // never clipped while [_needsTrafficLightInset] swaps.
     final topBarDragHeight = (_isMacOS ? 12.0 : 6.0) + topBarContentHeight;
     final title = _playInfo?.item.title ?? '';
 
@@ -830,20 +817,14 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
             const Positioned.fill(
               child: DragToMoveArea(child: SizedBox.expand()),
             ),
-            AnimatedPositioned(
-              duration: _topBarOffsetAnimationDuration,
-              curve: _topBarOffsetAnimationCurve,
+            Positioned(
               top: topPadding,
               left: 16,
               right: 16,
               height: topBarContentHeight,
               child: Row(
                 children: [
-                  AnimatedContainer(
-                    duration: _topBarOffsetAnimationDuration,
-                    curve: _topBarOffsetAnimationCurve,
-                    width: leftInset,
-                  ),
+                  SizedBox(width: leftInset),
                   _buildBackButton(),
                   const SizedBox(width: 8),
                   Flexible(
@@ -1179,7 +1160,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
 
       setState(() {
         _isFullscreen = isFullscreen;
-        _topBarFullscreenLayout = isFullscreen;
       });
     } finally {
       _isRestoringWindowSession = false;
@@ -1492,7 +1472,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     }
     setState(() {
       _isFullscreen = true;
-      _topBarFullscreenLayout = true;
     });
     _syncWindowAspectRatioWithFullscreen(true);
   }
@@ -1514,7 +1493,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     }
     setState(() {
       _isFullscreen = false;
-      _topBarFullscreenLayout = false;
     });
     _syncWindowAspectRatioWithFullscreen(false);
   }
