@@ -409,7 +409,6 @@ class _ThumbnailScanConfigDialogState
       // next to its toast. 立即扫描 stays open.
       autoDismiss: true,
       tertiaryKeepsOpen: true,
-      onClose: () {},
       primaryButtonText: l10n.commonConfirm,
       onPrimaryPressed: () async {
         if (!await _save()) throw const _SaveRejected();
