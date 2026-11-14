@@ -13,6 +13,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../providers/file_providers.dart';
 import '../../../../providers/providers.dart';
 import '../../../../providers/thumbnail/thumbnail_scan_config_controller.dart';
+import '../../../../providers/thumbnail/thumbnail_scan_failure_humanizer.dart';
 import '../../../../providers/thumbnail/thumbnail_scan_run_watcher.dart';
 import '../../../shared/app_button.dart';
 import '../../../shared/dialogs/app_dialog.dart';
@@ -57,6 +58,10 @@ class _ThumbnailScanConfigDialogState
   bool _cronChecking = false;
   String _cronCheckedText = '';
 
+  /// Owned here, not by a TipBox: this link renders directly in the status
+  /// card, so its recognizer's lifetime is the dialog's own.
+  TapGestureRecognizer? _failureReasonRecognizer;
+
   ThumbnailScanConfigController get _controller =>
       ref.read(thumbnailScanConfigControllerProvider.notifier);
 
@@ -93,6 +98,7 @@ class _ThumbnailScanConfigDialogState
     _cronDebounce?.cancel();
     _cronController.removeListener(_onCronTextChanged);
     _cronController.dispose();
+    _failureReasonRecognizer?.dispose();
     super.dispose();
   }
 
@@ -848,6 +854,10 @@ class _ThumbnailScanConfigDialogState
             SelectableText(config.lastError!,
                 style: theme.typography.caption
                     ?.copyWith(color: Colors.red)),
+          if (config.lastRunId != null) ...[
+            const SizedBox(height: 4),
+            _buildFailureReasonLink(l10n, theme, config.lastRunId!),
+          ],
         ],
       );
     }
@@ -874,7 +884,44 @@ class _ThumbnailScanConfigDialogState
                 ),
           style: theme.typography.caption,
         ),
+        if (config.lastFailedCount > 0 && config.lastRunId != null) ...[
+          const SizedBox(height: 4),
+          _buildFailureReasonLink(l10n, theme, config.lastRunId!),
+        ],
       ],
+    );
+  }
+
+  /// "失败原因" rendered as a link; tapping opens the run's failure detail.
+  Widget _buildFailureReasonLink(
+      AppLocalizations l10n, FluentThemeData theme, int runId) {
+    final recognizer = _failureReasonRecognizer ??= TapGestureRecognizer();
+    recognizer.onTap = () => _showFailureReasons(runId);
+    return Text.rich(
+      TextSpan(
+        text: l10n.thumbnailScanDialogFailureReasonLink,
+        style: theme.typography.caption?.copyWith(
+          color: theme.accentColor.defaultBrushFor(theme.brightness),
+          decoration: TextDecoration.underline,
+        ),
+        mouseCursor: SystemMouseCursors.click,
+        recognizer: recognizer,
+      ),
+    );
+  }
+
+  Future<void> _showFailureReasons(int runId) async {
+    final l10n = AppLocalizations.of(context);
+    await showAppDialog<void>(
+      context: context,
+      title: l10n.thumbnailScanFailuresDialogTitle,
+      constraints: const BoxConstraints(minWidth: 520, maxWidth: 560, maxHeight: 600),
+      primaryButtonText: l10n.commonGotIt,
+      autoDismiss: true,
+      content: SizedBox(
+        width: 500,
+        child: _ThumbnailScanFailuresContent(runId: runId),
+      ),
     );
   }
 
@@ -925,5 +972,84 @@ class _ThumbnailScanConfigDialogState
     String two(int v) => v.toString().padLeft(2, '0');
     return '${time.year}-${two(time.month)}-${two(time.day)} '
         '${two(time.hour)}:${two(time.minute)}';
+  }
+}
+
+/// Body of the failure-reason popup: loads one run's failures on open and
+/// lists each with a humanized description plus its raw server wording.
+class _ThumbnailScanFailuresContent extends ConsumerStatefulWidget {
+  const _ThumbnailScanFailuresContent({required this.runId});
+
+  final int runId;
+
+  @override
+  ConsumerState<_ThumbnailScanFailuresContent> createState() =>
+      _ThumbnailScanFailuresContentState();
+}
+
+class _ThumbnailScanFailuresContentState
+    extends ConsumerState<_ThumbnailScanFailuresContent> {
+  List<ThumbnailScanFailure>? _failures;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final failures = await ref
+        .read(thumbnailScanConfigControllerProvider.notifier)
+        .loadFailures(widget.runId);
+    if (!mounted) return;
+    setState(() => _failures = failures);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = FluentTheme.of(context);
+    final failures = _failures;
+    if (failures == null) {
+      return const SizedBox(
+        height: 160,
+        child: Center(child: ProgressRing()),
+      );
+    }
+    if (failures.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Text(l10n.thumbnailScanFailuresEmpty,
+            style: theme.typography.body),
+      );
+    }
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 480),
+      child: ListView.separated(
+        shrinkWrap: true,
+        itemCount: failures.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final failure = failures[index];
+          final segments = failure.filePath.split('/').where((s) => s.isNotEmpty);
+          final name = segments.isEmpty ? failure.filePath : segments.last;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: theme.typography.bodyStrong),
+              const SizedBox(height: 2),
+              Text(humanizeThumbnailScanFailure(failure, l10n),
+                  style: theme.typography.body),
+              const SizedBox(height: 2),
+              SelectableText(
+                l10n.thumbnailScanFailuresRawErrorLabel(failure.rawError),
+                style: theme.typography.caption
+                    ?.copyWith(color: theme.inactiveColor),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }

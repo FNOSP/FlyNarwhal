@@ -3023,6 +3023,60 @@ class AppLocalizationsZh extends AppLocalizations {
   String get thumbnailScanDialogLoadFailed => '读取扫描配置失败';
 
   @override
+  String settingsThumbnailScanFailureBadgeTip(int count) {
+    return '上次扫描有 $count 个视频缩略图生成失败，点击配置查看原因';
+  }
+
+  @override
+  String get thumbnailScanDialogFailureReasonLink => '失败原因';
+
+  @override
+  String get thumbnailScanFailuresDialogTitle => '缩略图生成失败原因';
+
+  @override
+  String get thumbnailScanFailuresEmpty => '暂无本次扫描的失败详情';
+
+  @override
+  String thumbnailScanFailuresRawErrorLabel(String error) {
+    return '原始错误：$error';
+  }
+
+  @override
+  String get thumbnailScanFailureReasonFileUnreadable =>
+      '文件无法读取，或已被移动/删除。请检查文件是否仍存在，以及飞牛是否已授予本应用该目录的访问权限。';
+
+  @override
+  String get thumbnailScanFailureReasonFfmpegUnavailable =>
+      '服务器未安装或找不到 ffmpeg，无法生成缩略图，请联系管理员检查服务端环境。';
+
+  @override
+  String get thumbnailScanFailureReasonDurationUnreadable =>
+      '无法读取视频时长，文件可能已损坏或格式不受支持。';
+
+  @override
+  String get thumbnailScanFailureReasonTooShort =>
+      '视频时长过短（不足 2 秒），无法生成有意义的预览图。';
+
+  @override
+  String get thumbnailScanFailureReasonTimeout =>
+      '生成超时：视频较长或服务器性能有限，本次未能完成，下次扫描会自动重试。';
+
+  @override
+  String get thumbnailScanFailureReasonDecodeFailed =>
+      '视频解码失败，文件可能已损坏或编码格式不受支持。';
+
+  @override
+  String get thumbnailScanFailureReasonSheetInvalid =>
+      '生成的预览图文件异常，可能是磁盘空间不足或写入失败。';
+
+  @override
+  String get thumbnailScanFailureReasonDirInaccessible =>
+      '无法访问该目录：目录不存在，或未在飞牛中授予本应用访问权限。';
+
+  @override
+  String get thumbnailScanFailureReasonGeneric => '生成失败，请稍后重试，或查看服务端日志了解详情。';
+
+  @override
   String get thumbnailScanDialogAlreadyRunning => '已有扫描任务正在进行，请等待完成';
 
   @override
@@ -3234,7 +3288,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String settingsThumbnailScanPermHint(String script) {
-    return '需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，切换到 root 用户，执行此$script进行修复';
+    return '需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，切换到 root 用户下，执行此$script进行修复';
   }
 
   @override
@@ -6270,6 +6324,59 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get thumbnailScanDialogLoadFailed => '讀取掃描設定失敗';
 
   @override
+  String settingsThumbnailScanFailureBadgeTip(int count) {
+    return '上次掃描有 $count 個影片縮圖產生失敗，點擊設定查看原因';
+  }
+
+  @override
+  String get thumbnailScanDialogFailureReasonLink => '失敗原因';
+
+  @override
+  String get thumbnailScanFailuresDialogTitle => '縮圖產生失敗原因';
+
+  @override
+  String get thumbnailScanFailuresEmpty => '暫無本次掃描的失敗詳情';
+
+  @override
+  String thumbnailScanFailuresRawErrorLabel(String error) {
+    return '原始錯誤：$error';
+  }
+
+  @override
+  String get thumbnailScanFailureReasonFileUnreadable =>
+      '檔案無法讀取，或已被移動/刪除。請檢查檔案是否仍存在，以及飛牛是否已授予本應用該目錄的存取權限。';
+
+  @override
+  String get thumbnailScanFailureReasonFfmpegUnavailable =>
+      '伺服器未安裝或找不到 ffmpeg，無法產生縮圖，請聯絡管理員檢查伺服器環境。';
+
+  @override
+  String get thumbnailScanFailureReasonDurationUnreadable =>
+      '無法讀取影片時長，檔案可能已損壞或格式不受支援。';
+
+  @override
+  String get thumbnailScanFailureReasonTooShort => '影片時長過短（不足 2 秒），無法產生意義的預覽圖。';
+
+  @override
+  String get thumbnailScanFailureReasonTimeout =>
+      '產生逾時：影片較長或伺服器效能有限，本次未能完成，下次掃描會自動重試。';
+
+  @override
+  String get thumbnailScanFailureReasonDecodeFailed =>
+      '影片解碼失敗，檔案可能已損壞或編碼格式不受支援。';
+
+  @override
+  String get thumbnailScanFailureReasonSheetInvalid =>
+      '產生的預覽圖檔案異常，可能是磁碟空間不足或寫入失敗。';
+
+  @override
+  String get thumbnailScanFailureReasonDirInaccessible =>
+      '無法存取該目錄：目錄不存在，或未在飛牛中授予本應用存取權限。';
+
+  @override
+  String get thumbnailScanFailureReasonGeneric => '產生失敗，請稍後重試，或查看伺服器日誌了解詳情。';
+
+  @override
   String get thumbnailScanDialogAlreadyRunning => '已有掃描任務正在進行，請等待完成';
 
   @override
@@ -6481,7 +6588,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String settingsThumbnailScanPermHint(String script) {
-    return '需要在飛牛 -> 系統設置 -> 應用 -> 飛鯨影視中添加所要掃描的目錄的訪問權限，否則無法獲取視頻縮略圖。如已配置目錄訪問權限仍然出現無法訪問的情況，請連接 NAS SSH，切換到 root 用戶，執行此$script進行修復';
+    return '需要在飛牛 -> 系統設置 -> 應用 -> 飛鯨影視中添加所要掃描的目錄的訪問權限，否則無法獲取視頻縮略圖。如已配置目錄訪問權限仍然出現無法訪問的情況，請連接 NAS SSH，切換到 root 用戶下，執行此$script進行修復';
   }
 
   @override

@@ -5568,6 +5568,90 @@ abstract class AppLocalizations {
   /// **'读取扫描配置失败'**
   String get thumbnailScanDialogLoadFailed;
 
+  /// Hover tip on the red badge next to the thumbnail-scan settings row.
+  ///
+  /// In zh, this message translates to:
+  /// **'上次扫描有 {count} 个视频缩略图生成失败，点击配置查看原因'**
+  String settingsThumbnailScanFailureBadgeTip(int count);
+
+  /// Clickable text appended after the last-run status line when a run had failures.
+  ///
+  /// In zh, this message translates to:
+  /// **'失败原因'**
+  String get thumbnailScanDialogFailureReasonLink;
+
+  /// Title of the dialog listing why each file/directory failed in the last scan.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图生成失败原因'**
+  String get thumbnailScanFailuresDialogTitle;
+
+  /// Shown when the failure-detail request returns nothing (e.g. an older server without the endpoint).
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无本次扫描的失败详情'**
+  String get thumbnailScanFailuresEmpty;
+
+  /// Selectable raw server error text shown under the humanized description, for troubleshooting.
+  ///
+  /// In zh, this message translates to:
+  /// **'原始错误：{error}'**
+  String thumbnailScanFailuresRawErrorLabel(String error);
+
+  /// Humanized reason for 'media file not found or unreadable'.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件无法读取，或已被移动/删除。请检查文件是否仍存在，以及飞牛是否已授予本应用该目录的访问权限。'**
+  String get thumbnailScanFailureReasonFileUnreadable;
+
+  /// Humanized reason for 'ffmpeg is not available on the server'.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器未安装或找不到 ffmpeg，无法生成缩略图，请联系管理员检查服务端环境。'**
+  String get thumbnailScanFailureReasonFfmpegUnavailable;
+
+  /// Humanized reason for 'cannot read media duration'.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法读取视频时长，文件可能已损坏或格式不受支持。'**
+  String get thumbnailScanFailureReasonDurationUnreadable;
+
+  /// Humanized reason for 'media too short for thumbnails'.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频时长过短（不足 2 秒），无法生成有意义的预览图。'**
+  String get thumbnailScanFailureReasonTooShort;
+
+  /// Humanized reason for 'sprite generation timed out after Ns'.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成超时：视频较长或服务器性能有限，本次未能完成，下次扫描会自动重试。'**
+  String get thumbnailScanFailureReasonTimeout;
+
+  /// Humanized reason for 'sprite generation failed (exit N)'.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频解码失败，文件可能已损坏或编码格式不受支持。'**
+  String get thumbnailScanFailureReasonDecodeFailed;
+
+  /// Humanized reason for 'cannot read dimensions of generated sprite sheet'.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成的预览图文件异常，可能是磁盘空间不足或写入失败。'**
+  String get thumbnailScanFailureReasonSheetInvalid;
+
+  /// Humanized reason for a configured directory the run could not open at all.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法访问该目录：目录不存在，或未在飞牛中授予本应用访问权限。'**
+  String get thumbnailScanFailureReasonDirInaccessible;
+
+  /// Fallback humanized reason for an unrecognized server error message.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成失败，请稍后重试，或查看服务端日志了解详情。'**
+  String get thumbnailScanFailureReasonGeneric;
+
   /// Server rejection mapped: a manual trigger while a scan runs.
   ///
   /// In zh, this message translates to:
@@ -5932,7 +6016,7 @@ abstract class AppLocalizations {
   /// Hover tip next to the scan-directories label. {script} is rendered as a clickable link that saves the repair script.
   ///
   /// In zh, this message translates to:
-  /// **'需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，切换到 root 用户，执行此{script}进行修复'**
+  /// **'需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，切换到 root 用户下，执行此{script}进行修复'**
   String settingsThumbnailScanPermHint(String script);
 
   /// Clickable word inside settingsThumbnailScanPermHint; tapping saves the bundled repair script.

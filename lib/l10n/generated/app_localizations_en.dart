@@ -3128,6 +3128,63 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to load the scan configuration';
 
   @override
+  String settingsThumbnailScanFailureBadgeTip(int count) {
+    return '$count video(s) failed to generate thumbnails in the last scan. Open the configuration to see why.';
+  }
+
+  @override
+  String get thumbnailScanDialogFailureReasonLink => 'Failure reason';
+
+  @override
+  String get thumbnailScanFailuresDialogTitle =>
+      'Thumbnail generation failure reasons';
+
+  @override
+  String get thumbnailScanFailuresEmpty =>
+      'No failure details are available for this scan';
+
+  @override
+  String thumbnailScanFailuresRawErrorLabel(String error) {
+    return 'Raw error: $error';
+  }
+
+  @override
+  String get thumbnailScanFailureReasonFileUnreadable =>
+      'The file could not be read, or was moved/deleted. Check that it still exists and that fnOS has granted this app access to its folder.';
+
+  @override
+  String get thumbnailScanFailureReasonFfmpegUnavailable =>
+      'ffmpeg is not installed or could not be found on the server, so thumbnails cannot be generated. Ask the administrator to check the server environment.';
+
+  @override
+  String get thumbnailScanFailureReasonDurationUnreadable =>
+      'The video\'s duration could not be read; the file may be corrupted or in an unsupported format.';
+
+  @override
+  String get thumbnailScanFailureReasonTooShort =>
+      'The video is too short (under 2 seconds) to produce a meaningful preview.';
+
+  @override
+  String get thumbnailScanFailureReasonTimeout =>
+      'Generation timed out: the video is long or the server is slow. It did not finish this time; the next scan will retry automatically.';
+
+  @override
+  String get thumbnailScanFailureReasonDecodeFailed =>
+      'Video decoding failed; the file may be corrupted or use an unsupported codec.';
+
+  @override
+  String get thumbnailScanFailureReasonSheetInvalid =>
+      'The generated preview image was invalid, possibly due to insufficient disk space or a failed write.';
+
+  @override
+  String get thumbnailScanFailureReasonDirInaccessible =>
+      'This directory could not be opened: it does not exist, or fnOS has not granted this app access to it.';
+
+  @override
+  String get thumbnailScanFailureReasonGeneric =>
+      'Generation failed. Try again later, or check the server logs for details.';
+
+  @override
   String get thumbnailScanDialogAlreadyRunning =>
       'A scan is already running, please wait for it to finish';
 

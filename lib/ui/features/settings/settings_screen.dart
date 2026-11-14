@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../data/models/fly_narwhal/index.dart';
 import '../../../data/storage/update_settings_store.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/fly_narwhal_server_capabilities.dart';
@@ -19,6 +20,7 @@ import '../../settings/ui_font_scale.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
 import '../../shared/hover_tip.dart';
+import '../../shared/tip_box.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
@@ -214,6 +216,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return config.isBusy
         ? '$base · ${l10n.settingsThumbnailScanCaptionScanning}'
         : base;
+  }
+
+  /// How many videos the last scan failed to generate sprites for, or 0 when
+  /// it had no failures (or has never run). A wholly failed run with no
+  /// per-file count still counts as 1 so the badge shows something.
+  int _thumbnailScanFailureCount() {
+    final config =
+        ref.watch(thumbnailScanConfigControllerProvider).config.valueOrNull;
+    if (config == null) return 0;
+    if (config.lastFailedCount > 0) return config.lastFailedCount;
+    return config.lastStatus == ThumbnailScanConfig.lastStatusFailed ? 1 : 0;
+  }
+
+  /// Red circle + exclamation mark shown next to the settings row's title
+  /// when the last scan had generation failures; hovering explains the count.
+  Widget _thumbnailScanFailureBadge(AppLocalizations l10n) {
+    return TipBox(
+      message: l10n.settingsThumbnailScanFailureBadgeTip(
+          _thumbnailScanFailureCount()),
+      maxWidth: 260,
+      child: const Icon(
+        FluentIcons.status_error_full,
+        size: 16,
+        color: Color(0xFFE81123),
+      ),
+    );
   }
 
   void _openFlyNarwhalAuthCodeDialog() {
@@ -1136,8 +1164,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         icon: const Icon(
                                           FluentIcons.calendar_week,
                                         ),
-                                        heading: Text(
-                                          l10n.settingsThumbnailScanTitle,
+                                        heading: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              l10n.settingsThumbnailScanTitle,
+                                            ),
+                                            if (_thumbnailScanFailureCount() > 0) ...[
+                                              const SizedBox(width: 6),
+                                              _thumbnailScanFailureBadge(l10n),
+                                            ],
+                                          ],
                                         ),
                                         caption: Text(
                                           _thumbnailScanCaption(l10n),
