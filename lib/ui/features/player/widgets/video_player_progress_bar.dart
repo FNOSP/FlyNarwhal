@@ -107,6 +107,10 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     return (start / widget.totalDuration, end / widget.totalDuration);
   }
 
+  /// Measures the widest tooltip the hover label can take. Text length grows
+  /// with the time value, so the longest string is the one at the end of the
+  /// media; measuring it keeps the label centered on the cursor at every
+  /// position instead of only at the end.
   double _measureHoverTimestampWidth(int totalDuration) {
     final text = formatDurationToDateTime(totalDuration);
     final painter = TextPainter(
@@ -233,10 +237,14 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
                         constraints: const BoxConstraints(
                           minWidth: _hoverTimestampMinWidth,
                         ),
-                        child: _HoverTimestamp(
-                          key: playerProgressBarTimestampKey,
-                          hoverProgress: _hoverPositionX / _layoutWidth,
-                          totalDuration: widget.totalDuration,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          widthFactor: 1.0,
+                          child: _HoverTimestamp(
+                            key: playerProgressBarTimestampKey,
+                            hoverProgress: _hoverPositionX / _layoutWidth,
+                            totalDuration: widget.totalDuration,
+                          ),
                         ),
                       ),
                     ),
