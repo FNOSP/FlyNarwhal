@@ -179,6 +179,21 @@ class ThumbnailScanConfigController
     }
   }
 
+  /// Every failure of one run: files whose generation failed and directories
+  /// the run could not open. Empty when the request itself failed — a missing
+  /// detail must never block the dialog that asked for it.
+  Future<List<ThumbnailScanFailure>> loadFailures(int runId) async {
+    try {
+      final result = await _dataSource.getThumbnailScanRunFailures(runId);
+      return result.when(
+        success: (smart) => smart.data ?? const [],
+        failure: (_) => const [],
+      );
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// The mutation error to show the user, or null when the last one succeeded.
   String? get actionError => state.actionError;
 

@@ -223,6 +223,17 @@ class FlyNarwhalRemoteDataSource {
             Map<String, dynamic>.from(json as Map)));
   }
 
+  /// Every failure of one scan run: files whose generation failed and
+  /// directories the run could not open. Requires server >= 2.1.3.
+  Future<ApiResult<SmartAnalysisResult<List<ThumbnailScanFailure>>>>
+      getThumbnailScanRunFailures(int runId) {
+    return _get(ApiEndpoints.flyNarwhalThumbnailScanRunFailures(runId),
+        fromJsonT: (json) => (json as List<dynamic>? ?? const [])
+            .map((item) =>
+                ThumbnailScanFailure.fromJson(Map<String, dynamic>.from(item as Map)))
+            .toList(growable: false));
+  }
+
   /// Stateless cron validation + the next [count] fire times (server clock).
   Future<ApiResult<SmartAnalysisResult<CronPreviewResult>>>
       previewThumbnailCron({required String cron, int count = 8}) {

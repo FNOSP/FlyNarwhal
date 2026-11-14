@@ -99,6 +99,10 @@ class ApiEndpoints {
   static String flyNarwhalThumbnailScanRun(int id) =>
       '/api/analysis/thumbnails/scan/runs/$id';
 
+  /// Every failure of one scan run: failed files and inaccessible directories.
+  static String flyNarwhalThumbnailScanRunFailures(int id) =>
+      '/api/analysis/thumbnails/scan/runs/$id/failures';
+
   static const String flyNarwhalThumbnailScanTrigger =
       '/api/analysis/thumbnails/scan/trigger';
   static const String flyNarwhalThumbnailScanCronPreview =

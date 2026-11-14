@@ -9,4 +9,5 @@ export 'smart_skip_config.dart';
 export 'thumbnail_generate_request.dart';
 export 'thumbnail_metadata.dart';
 export 'thumbnail_scan_config.dart';
+export 'thumbnail_scan_failure.dart';
 export 'update_season_status_request.dart';
