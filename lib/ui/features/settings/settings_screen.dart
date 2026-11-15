@@ -229,17 +229,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return config.lastStatus == ThumbnailScanConfig.lastStatusFailed ? 1 : 0;
   }
 
-  /// Red circle + exclamation mark shown next to the settings row's title
-  /// when the last scan had generation failures; hovering explains the count.
+  /// Small solid red dot shown next to the settings row's title when the last
+  /// scan had generation failures; hovering explains the count.
   Widget _thumbnailScanFailureBadge(AppLocalizations l10n) {
     return TipBox(
       message: l10n.settingsThumbnailScanFailureBadgeTip(
           _thumbnailScanFailureCount()),
       maxWidth: 260,
-      child: const Icon(
-        FluentIcons.status_error_full,
-        size: 16,
-        color: Color(0xFFE81123),
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xFFE81123),
+        ),
       ),
     );
   }
