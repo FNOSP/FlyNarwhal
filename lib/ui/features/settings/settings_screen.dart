@@ -564,6 +564,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         nextState.whenOrNull(
           data: (version) {
             if (version == null) return;
+            // The test button asks the server directly for a quick yes/no,
+            // bypassing the capability probe. Re-run that probe too so its
+            // answer — not just this toast — reaches the version-gated cards.
+            unawaited(_runCapabilitiesProbe());
             ref.read(toastManagerProvider.notifier).showToast(
                   l10n.settingsServerTestSuccess(version),
                   type: ToastType.success,

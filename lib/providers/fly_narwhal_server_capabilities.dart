@@ -139,18 +139,19 @@ final serverVersionProbeProvider =
 /// Re-probes the server now and reports a failure the user should be told
 /// about.
 ///
-/// Probes directly rather than refreshing [serverVersionProbeProvider]: that
-/// provider remembers the settings it first read, and a probe that ran before
-/// the settings loaded would keep answering "server not configured" forever.
+/// Refreshes [serverVersionProbeProvider] rather than probing outside it: that
+/// provider reads the settings fresh on every run (no `ref.watch` to freeze an
+/// early answer), so refreshing it is safe even if a probe ran before the
+/// settings loaded, and it's what lets [flyNarwhalServerCapabilitiesProvider] —
+/// which watches it — redraw the version-gated cards from this same answer.
 Future<FlyNarwhalServerProbeResult> probeFlyNarwhalServer(WidgetRef ref) async {
-  final container = ProviderScope.containerOf(ref.context);
-  final result = await _probeServerVersion(container);
+  final result = await ref.refresh(serverVersionProbeProvider.future);
   if (result.capabilities.versionKnown) {
     await ref
         .read(flyNarwhalServerUpdateAvailableProvider.notifier)
         .check(result.capabilities.rawVersion);
   }
-  return result.toResult();
+  return result;
 }
 
 Future<FlyNarwhalServerProbeResult> _probeServerVersion(
