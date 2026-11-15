@@ -2830,6 +2830,482 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get danmuDandanNoneEnabled => '未启用任何弹弹play来源';
+
+  @override
+  String get movieDetailGenerateThumbnails => '生成缩略图';
+
+  @override
+  String get movieDetailThumbnailQueued => '排队中';
+
+  @override
+  String get movieDetailThumbnailGenerating => '生成中';
+
+  @override
+  String get movieDetailThumbnailRegenerate => '重新生成缩略图';
+
+  @override
+  String get movieDetailThumbnailNoFile => '无法获取视频文件路径';
+
+  @override
+  String movieDetailThumbnailStatus(String status) {
+    return '缩略图预览：$status';
+  }
+
+  @override
+  String get movieDetailThumbnailQueuedToast => '缩略图生成任务已加入队列';
+
+  @override
+  String get movieDetailThumbnailCompletedToast => '缩略图生成完成，播放时悬浮进度条即可预览';
+
+  @override
+  String movieDetailThumbnailFailed(String error) {
+    return '缩略图生成失败：$error';
+  }
+
+  @override
+  String get movieDetailThumbnailFailedGeneric => '缩略图生成失败';
+
+  @override
+  String get movieDetailThumbnailCompletedShort => '已生成';
+
+  @override
+  String get movieDetailThumbnailStale => '已生成，但影片文件已更新，建议重新生成';
+
+  @override
+  String get movieDetailThumbnailFailedShort => '生成失败';
+
+  @override
+  String get movieDetailThumbnailFailureDialogTitle => '缩略图生成失败';
+
+  @override
+  String get settingsThumbnailScanTitle => '视频缩略图生成';
+
+  @override
+  String get settingsThumbnailScanCaption => '按计划扫描 NAS 目录，自动为缺少缩略图的视频生成进度条预览图';
+
+  @override
+  String get settingsThumbnailScanConfigure => '配置';
+
+  @override
+  String get settingsThumbnailScanCaptionNone => '未配置';
+
+  @override
+  String settingsThumbnailScanCaptionEnabled(String schedule, int count) {
+    return '$schedule · $count 个目录';
+  }
+
+  @override
+  String settingsThumbnailScanCaptionDisabled(String schedule, int count) {
+    return '已停用 · $schedule · $count 个目录';
+  }
+
+  @override
+  String get settingsThumbnailScanCaptionScanning => '扫描中';
+
+  @override
+  String get thumbnailScanDialogTitle => '视频缩略图生成';
+
+  @override
+  String get thumbnailScanDialogEnable => '启用定时扫描';
+
+  @override
+  String get thumbnailScanDialogEnableCaption =>
+      '开启后按下方周期自动扫描所选目录，为缺少缩略图的视频生成预览图';
+
+  @override
+  String get thumbnailScanDialogCronLabel => '执行周期（cron 表达式）';
+
+  @override
+  String get thumbnailScanDialogCronGenerate => '生成器';
+
+  @override
+  String get thumbnailScanDialogCronChecking => '校验中…';
+
+  @override
+  String thumbnailScanDialogCronInvalid(String error) {
+    return '表达式无效：$error';
+  }
+
+  @override
+  String get thumbnailScanDialogCronInvalidShort => 'cron 表达式无效';
+
+  @override
+  String get thumbnailScanDialogCronRequired => '请填写 cron 表达式';
+
+  @override
+  String get thumbnailScanDialogCronCustom => '自定义计划';
+
+  @override
+  String thumbnailScanDialogCronNextRun(String time) {
+    return '下次运行：$time';
+  }
+
+  @override
+  String get thumbnailScanDialogDirsLabel => '扫描目录';
+
+  @override
+  String get thumbnailScanDialogDirsPick => '选择目录';
+
+  @override
+  String get thumbnailScanDialogDirsEmpty => '未选择目录';
+
+  @override
+  String get thumbnailScanDialogDirsRequired => '请至少选择一个扫描目录';
+
+  @override
+  String get thumbnailScanDialogTooManyDirs => '扫描目录过多';
+
+  @override
+  String thumbnailScanDialogStatusRunning(String dir, int count) {
+    return '扫描中：$dir（已发现 $count 个视频）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusScanning(int count) {
+    return '扫描中（已发现 $count 个视频）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusScanningDir(String dir, int count) {
+    return '扫描中：$dir（已发现 $count 个视频）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusGenerating(int done, int total) {
+    return '生成缩略图中：已完成 $done/$total';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusGeneratingIdle => '生成缩略图中：正在等待生成队列';
+
+  @override
+  String thumbnailScanDialogStatusGeneratingFailed(
+      int done, int total, int failed) {
+    return '生成缩略图中：已完成 $done/$total（失败 $failed）';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusQueued => '已加入扫描队列';
+
+  @override
+  String get thumbnailScanDialogStatusNever => '尚未执行过扫描';
+
+  @override
+  String thumbnailScanDialogStatusLastOk(
+      String time, int scanned, int queued, int generated) {
+    return '上次扫描：$time · 发现 $scanned 个视频 · 入队 $queued 个 · 成功 $generated 个';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastOkFailed(
+      String time, int scanned, int queued, int generated, int failed) {
+    return '上次扫描：$time · 发现 $scanned 个视频 · 入队 $queued 个 · 成功 $generated 个 · 失败 $failed 个';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastFailed(String time) {
+    return '上次扫描：$time · 失败';
+  }
+
+  @override
+  String get thumbnailScanDialogSaved => '配置已保存';
+
+  @override
+  String get thumbnailScanDialogSaveFailedGeneric => '保存失败';
+
+  @override
+  String get thumbnailScanDialogScanNow => '立即扫描';
+
+  @override
+  String get thumbnailScanDialogScanNowTip => '立即执行一次扫描';
+
+  @override
+  String get thumbnailScanDialogTriggerFailedGeneric => '触发扫描失败';
+
+  @override
+  String get thumbnailScanDialogLoadFailed => '读取扫描配置失败';
+
+  @override
+  String settingsThumbnailScanFailureBadgeTip(int count) {
+    return '上次扫描有 $count 个视频缩略图生成失败，点击配置查看原因';
+  }
+
+  @override
+  String get thumbnailScanDialogFailureReasonLink => '失败原因';
+
+  @override
+  String get thumbnailScanFailuresDialogTitle => '缩略图生成失败原因';
+
+  @override
+  String get thumbnailScanFailuresEmpty => '暂无本次扫描的失败详情';
+
+  @override
+  String thumbnailScanFailuresRawErrorLabel(String error) {
+    return '原始错误：$error';
+  }
+
+  @override
+  String get thumbnailScanFailureReasonFileUnreadable =>
+      '文件无法读取，或已被移动/删除。请检查文件是否仍存在，以及飞牛是否已授予本应用该目录的访问权限。';
+
+  @override
+  String get thumbnailScanFailureReasonFfmpegUnavailable =>
+      '服务器未安装或找不到 ffmpeg，无法生成缩略图，请联系管理员检查服务端环境。';
+
+  @override
+  String get thumbnailScanFailureReasonDurationUnreadable =>
+      '无法读取视频时长，文件可能已损坏或格式不受支持。';
+
+  @override
+  String get thumbnailScanFailureReasonTooShort =>
+      '视频时长过短（不足 2 秒），无法生成有意义的预览图。';
+
+  @override
+  String get thumbnailScanFailureReasonTimeout =>
+      '生成超时：视频较长或服务器性能有限，本次未能完成，下次扫描会自动重试。';
+
+  @override
+  String get thumbnailScanFailureReasonDecodeFailed =>
+      '视频解码失败，文件可能已损坏或编码格式不受支持。';
+
+  @override
+  String get thumbnailScanFailureReasonSheetInvalid =>
+      '生成的预览图文件异常，可能是磁盘空间不足或写入失败。';
+
+  @override
+  String get thumbnailScanFailureReasonDirInaccessible =>
+      '无法访问该目录：目录不存在，或未在飞牛中授予本应用访问权限。';
+
+  @override
+  String get thumbnailScanFailureReasonGeneric => '生成失败，请稍后重试，或查看服务端日志了解详情。';
+
+  @override
+  String get thumbnailScanDialogAlreadyRunning => '已有扫描任务正在进行，请等待完成';
+
+  @override
+  String thumbnailScanDialogDirsNotSaved(int count) {
+    return '有 $count 个扫描目录尚未保存，请先保存配置';
+  }
+
+  @override
+  String thumbnailScanDialogDirsInaccessible(String dirs) {
+    return '飞鲸影视无法访问「$dirs」，请给飞鲸影视服务端添加目录访问权限';
+  }
+
+  @override
+  String thumbnailScanRunFinished(int scanned, int queued, int generated) {
+    return '缩略图扫描完成：发现 $scanned 个视频，$queued 个已加入生成队列 · 成功 $generated 个';
+  }
+
+  @override
+  String thumbnailScanRunFinishedFailed(
+      int scanned, int queued, int generated, int failed) {
+    return '缩略图扫描完成：发现 $scanned 个视频，$queued 个已加入生成队列 · 成功 $generated 个 · 失败 $failed 个';
+  }
+
+  @override
+  String thumbnailScanRunFailed(String error) {
+    return '缩略图扫描失败：$error';
+  }
+
+  @override
+  String get thumbnailScanRunFailedGeneric => '缩略图扫描失败';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsTitle => '发现尚未保存的扫描目录修改';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsMessage =>
+      '是否保存修改？点击「保存」后将按修改后目录扫描。';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsSave => '保存';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsDiscard => '抛弃修改';
+
+  @override
+  String get cronGeneratorTitle => 'cron 表达式生成器';
+
+  @override
+  String get cronGeneratorTabSecond => '秒';
+
+  @override
+  String get cronGeneratorTabMinute => '分';
+
+  @override
+  String get cronGeneratorTabHour => '时';
+
+  @override
+  String get cronGeneratorTabDayOfMonth => '日';
+
+  @override
+  String get cronGeneratorTabMonth => '月';
+
+  @override
+  String get cronGeneratorTabDayOfWeek => '周';
+
+  @override
+  String get cronGeneratorTabYear => '年';
+
+  @override
+  String get cronGeneratorEvery => '每（*）';
+
+  @override
+  String get cronGeneratorRangePrefix => '周期 从';
+
+  @override
+  String get cronGeneratorRangeTo => '到';
+
+  @override
+  String get cronGeneratorIncrementPrefix => '从';
+
+  @override
+  String get cronGeneratorIncrementEvery => '开始，每';
+
+  @override
+  String get cronGeneratorSpecific => '指定';
+
+  @override
+  String get cronGeneratorUnspecified => '不指定';
+
+  @override
+  String get cronGeneratorEveryDay => '每日';
+
+  @override
+  String get cronGeneratorEveryMonth => '每月';
+
+  @override
+  String get cronGeneratorEveryYear => '每年';
+
+  @override
+  String get cronGeneratorYearUnspecified => '不指定（可选）';
+
+  @override
+  String get cronGeneratorYearHint => '年份留空生成 6 段表达式，指定后为 7 段';
+
+  @override
+  String get cronGeneratorNearestWeekdayPrefix => '每月';
+
+  @override
+  String get cronGeneratorNearestWeekdaySuffix => '号最近的那个工作日';
+
+  @override
+  String get cronGeneratorLastDay => '本月最后一日';
+
+  @override
+  String get cronGeneratorNthPrefix => '第';
+
+  @override
+  String get cronGeneratorNthMiddle => '个';
+
+  @override
+  String get cronGeneratorLastWeekdayPrefix => '本月最后一个';
+
+  @override
+  String get cronGeneratorPreviewLabel => '表达式预览';
+
+  @override
+  String get cronGeneratorValid => '合法';
+
+  @override
+  String get cronGeneratorInvalid => '表达式无效';
+
+  @override
+  String cronGeneratorNextRuns(int count) {
+    return '最近 $count 次运行时间';
+  }
+
+  @override
+  String get cronGeneratorUnparseable => '无法解析原表达式，已重置为默认';
+
+  @override
+  String get cronGeneratorAm => '上午';
+
+  @override
+  String get cronGeneratorPm => '下午';
+
+  @override
+  String cronGeneratorMonthN(int n) {
+    return '$n月';
+  }
+
+  @override
+  String get cronWeekdaySun => '周日';
+
+  @override
+  String get cronWeekdayMon => '周一';
+
+  @override
+  String get cronWeekdayTue => '周二';
+
+  @override
+  String get cronWeekdayWed => '周三';
+
+  @override
+  String get cronWeekdayThu => '周四';
+
+  @override
+  String get cronWeekdayFri => '周五';
+
+  @override
+  String get cronWeekdaySat => '周六';
+
+  @override
+  String cronDescDaily(String time) {
+    return '每天 $time';
+  }
+
+  @override
+  String cronDescWeekly(String days, String time) {
+    return '每周$days $time';
+  }
+
+  @override
+  String cronDescMonthly(String days, String time) {
+    return '每月 $days 号 $time';
+  }
+
+  @override
+  String cronDescEveryNSeconds(int n) {
+    return '每 $n 秒';
+  }
+
+  @override
+  String cronDescEveryNMinutes(int n) {
+    return '每 $n 分钟';
+  }
+
+  @override
+  String cronDescEveryNHours(int n) {
+    return '每 $n 小时';
+  }
+
+  @override
+  String get nasDirPickerTitle => '选择扫描目录';
+
+  @override
+  String nasDirPickerLimitReached(String max) {
+    return '最多选择 $max 个目录';
+  }
+
+  @override
+  String settingsThumbnailScanPermHint(String script) {
+    return '需要在飞牛 -> 系统设置 -> 应用 -> 飞鲸影视中添加所要扫描的目录的访问权限，否则无法获取视频缩略图。如已配置目录访问权限仍然出现无法访问的情况，请连接 NAS SSH，切换到 root 用户下，执行此$script进行修复';
+  }
+
+  @override
+  String get thumbnailScanScriptLinkLabel => '脚本';
+
+  @override
+  String thumbnailScanScriptSavedToast(String path) {
+    return '修复脚本已保存：$path';
+  }
+
+  @override
+  String thumbnailScanScriptSaveFailedToast(String error) {
+    return '保存修复脚本失败：$error';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5658,4 +6134,479 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get danmuDandanNoneEnabled => '未啟用任何彈彈play來源';
+
+  @override
+  String get movieDetailGenerateThumbnails => '生成縮圖';
+
+  @override
+  String get movieDetailThumbnailQueued => '排隊中';
+
+  @override
+  String get movieDetailThumbnailGenerating => '生成中';
+
+  @override
+  String get movieDetailThumbnailRegenerate => '重新生成縮圖';
+
+  @override
+  String get movieDetailThumbnailNoFile => '無法取得影片檔案路徑';
+
+  @override
+  String movieDetailThumbnailStatus(String status) {
+    return '縮圖預覽：$status';
+  }
+
+  @override
+  String get movieDetailThumbnailQueuedToast => '縮圖生成任務已加入佇列';
+
+  @override
+  String get movieDetailThumbnailCompletedToast => '縮圖生成完成，播放時懸浮進度條即可預覽';
+
+  @override
+  String movieDetailThumbnailFailed(String error) {
+    return '縮圖生成失敗：$error';
+  }
+
+  @override
+  String get movieDetailThumbnailFailedGeneric => '縮圖生成失敗';
+
+  @override
+  String get movieDetailThumbnailCompletedShort => '已生成';
+
+  @override
+  String get movieDetailThumbnailStale => '已生成，但影片檔案已更新，建議重新生成';
+
+  @override
+  String get movieDetailThumbnailFailedShort => '生成失敗';
+
+  @override
+  String get movieDetailThumbnailFailureDialogTitle => '縮圖產生失敗';
+
+  @override
+  String get settingsThumbnailScanTitle => '影片縮圖生成';
+
+  @override
+  String get settingsThumbnailScanCaption => '依排程掃描 NAS 目錄，自動為缺少縮圖的影片產生進度列預覽圖';
+
+  @override
+  String get settingsThumbnailScanConfigure => '設定';
+
+  @override
+  String get settingsThumbnailScanCaptionNone => '未設定';
+
+  @override
+  String settingsThumbnailScanCaptionEnabled(String schedule, int count) {
+    return '$schedule · $count 個目錄';
+  }
+
+  @override
+  String settingsThumbnailScanCaptionDisabled(String schedule, int count) {
+    return '已停用 · $schedule · $count 個目錄';
+  }
+
+  @override
+  String get settingsThumbnailScanCaptionScanning => '掃描中';
+
+  @override
+  String get thumbnailScanDialogTitle => '影片縮圖生成';
+
+  @override
+  String get thumbnailScanDialogEnable => '啟用排程掃描';
+
+  @override
+  String get thumbnailScanDialogEnableCaption =>
+      '開啟後依下方週期自動掃描所選目錄，為缺少縮圖的影片產生預覽圖';
+
+  @override
+  String get thumbnailScanDialogCronLabel => '執行週期（cron 運算式）';
+
+  @override
+  String get thumbnailScanDialogCronGenerate => '產生器';
+
+  @override
+  String get thumbnailScanDialogCronChecking => '驗證中…';
+
+  @override
+  String thumbnailScanDialogCronInvalid(String error) {
+    return '運算式無效：$error';
+  }
+
+  @override
+  String get thumbnailScanDialogCronInvalidShort => 'cron 運算式無效';
+
+  @override
+  String get thumbnailScanDialogCronRequired => '請填寫 cron 運算式';
+
+  @override
+  String get thumbnailScanDialogCronCustom => '自訂排程';
+
+  @override
+  String thumbnailScanDialogCronNextRun(String time) {
+    return '下次執行：$time';
+  }
+
+  @override
+  String get thumbnailScanDialogDirsLabel => '掃描目錄';
+
+  @override
+  String get thumbnailScanDialogDirsPick => '選擇目錄';
+
+  @override
+  String get thumbnailScanDialogDirsEmpty => '未選擇目錄';
+
+  @override
+  String get thumbnailScanDialogDirsRequired => '請至少選擇一個掃描目錄';
+
+  @override
+  String get thumbnailScanDialogTooManyDirs => '掃描目錄過多';
+
+  @override
+  String thumbnailScanDialogStatusRunning(String dir, int count) {
+    return '掃描中：$dir（已發現 $count 部影片）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusScanning(int count) {
+    return '掃描中（已發現 $count 部影片）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusScanningDir(String dir, int count) {
+    return '掃描中：$dir（已發現 $count 部影片）';
+  }
+
+  @override
+  String thumbnailScanDialogStatusGenerating(int done, int total) {
+    return '產生縮圖中：已完成 $done/$total';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusGeneratingIdle => '產生縮圖中：正在等待產生佇列';
+
+  @override
+  String thumbnailScanDialogStatusGeneratingFailed(
+      int done, int total, int failed) {
+    return '產生縮圖中：已完成 $done/$total（失敗 $failed）';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusQueued => '已加入掃描佇列';
+
+  @override
+  String get thumbnailScanDialogStatusNever => '尚未執行過掃描';
+
+  @override
+  String thumbnailScanDialogStatusLastOk(
+      String time, int scanned, int queued, int generated) {
+    return '上次掃描：$time · 發現 $scanned 部影片 · 排入 $queued 部 · 成功 $generated 部';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastOkFailed(
+      String time, int scanned, int queued, int generated, int failed) {
+    return '上次掃描：$time · 發現 $scanned 部影片 · 排入 $queued 部 · 成功 $generated 部 · 失敗 $failed 部';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastFailed(String time) {
+    return '上次掃描：$time · 失敗';
+  }
+
+  @override
+  String get thumbnailScanDialogSaved => '設定已儲存';
+
+  @override
+  String get thumbnailScanDialogSaveFailedGeneric => '儲存失敗';
+
+  @override
+  String get thumbnailScanDialogScanNow => '立即掃描';
+
+  @override
+  String get thumbnailScanDialogScanNowTip => '立即執行一次掃描';
+
+  @override
+  String get thumbnailScanDialogTriggerFailedGeneric => '觸發掃描失敗';
+
+  @override
+  String get thumbnailScanDialogLoadFailed => '讀取掃描設定失敗';
+
+  @override
+  String settingsThumbnailScanFailureBadgeTip(int count) {
+    return '上次掃描有 $count 個影片縮圖產生失敗，點擊設定查看原因';
+  }
+
+  @override
+  String get thumbnailScanDialogFailureReasonLink => '失敗原因';
+
+  @override
+  String get thumbnailScanFailuresDialogTitle => '縮圖產生失敗原因';
+
+  @override
+  String get thumbnailScanFailuresEmpty => '暫無本次掃描的失敗詳情';
+
+  @override
+  String thumbnailScanFailuresRawErrorLabel(String error) {
+    return '原始錯誤：$error';
+  }
+
+  @override
+  String get thumbnailScanFailureReasonFileUnreadable =>
+      '檔案無法讀取，或已被移動/刪除。請檢查檔案是否仍存在，以及飛牛是否已授予本應用該目錄的存取權限。';
+
+  @override
+  String get thumbnailScanFailureReasonFfmpegUnavailable =>
+      '伺服器未安裝或找不到 ffmpeg，無法產生縮圖，請聯絡管理員檢查伺服器環境。';
+
+  @override
+  String get thumbnailScanFailureReasonDurationUnreadable =>
+      '無法讀取影片時長，檔案可能已損壞或格式不受支援。';
+
+  @override
+  String get thumbnailScanFailureReasonTooShort => '影片時長過短（不足 2 秒），無法產生意義的預覽圖。';
+
+  @override
+  String get thumbnailScanFailureReasonTimeout =>
+      '產生逾時：影片較長或伺服器效能有限，本次未能完成，下次掃描會自動重試。';
+
+  @override
+  String get thumbnailScanFailureReasonDecodeFailed =>
+      '影片解碼失敗，檔案可能已損壞或編碼格式不受支援。';
+
+  @override
+  String get thumbnailScanFailureReasonSheetInvalid =>
+      '產生的預覽圖檔案異常，可能是磁碟空間不足或寫入失敗。';
+
+  @override
+  String get thumbnailScanFailureReasonDirInaccessible =>
+      '無法存取該目錄：目錄不存在，或未在飛牛中授予本應用存取權限。';
+
+  @override
+  String get thumbnailScanFailureReasonGeneric => '產生失敗，請稍後重試，或查看伺服器日誌了解詳情。';
+
+  @override
+  String get thumbnailScanDialogAlreadyRunning => '已有掃描任務正在進行，請等待完成';
+
+  @override
+  String thumbnailScanDialogDirsNotSaved(int count) {
+    return '有 $count 個掃描目錄尚未儲存，請先儲存設定';
+  }
+
+  @override
+  String thumbnailScanDialogDirsInaccessible(String dirs) {
+    return '飛鯨影視無法存取「$dirs」，請給飛鯨影視服務端新增目錄存取權限';
+  }
+
+  @override
+  String thumbnailScanRunFinished(int scanned, int queued, int generated) {
+    return '縮圖掃描完成：發現 $scanned 部影片，$queued 部已加入產生佇列 · 成功 $generated 部';
+  }
+
+  @override
+  String thumbnailScanRunFinishedFailed(
+      int scanned, int queued, int generated, int failed) {
+    return '縮圖掃描完成：發現 $scanned 部影片，$queued 部已加入產生佇列 · 成功 $generated 部 · 失敗 $failed 部';
+  }
+
+  @override
+  String thumbnailScanRunFailed(String error) {
+    return '縮圖掃描失敗：$error';
+  }
+
+  @override
+  String get thumbnailScanRunFailedGeneric => '縮圖掃描失敗';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsTitle => '發現尚未儲存的掃描目錄修改';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsMessage =>
+      '是否儲存修改？點擊「儲存」後將依修改後目錄掃描。';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsSave => '儲存';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsDiscard => '拋棄修改';
+
+  @override
+  String get cronGeneratorTitle => 'cron 運算式產生器';
+
+  @override
+  String get cronGeneratorTabSecond => '秒';
+
+  @override
+  String get cronGeneratorTabMinute => '分';
+
+  @override
+  String get cronGeneratorTabHour => '時';
+
+  @override
+  String get cronGeneratorTabDayOfMonth => '日';
+
+  @override
+  String get cronGeneratorTabMonth => '月';
+
+  @override
+  String get cronGeneratorTabDayOfWeek => '週';
+
+  @override
+  String get cronGeneratorTabYear => '年';
+
+  @override
+  String get cronGeneratorEvery => '每（*）';
+
+  @override
+  String get cronGeneratorRangePrefix => '週期 從';
+
+  @override
+  String get cronGeneratorRangeTo => '到';
+
+  @override
+  String get cronGeneratorIncrementPrefix => '從';
+
+  @override
+  String get cronGeneratorIncrementEvery => '開始，每';
+
+  @override
+  String get cronGeneratorSpecific => '指定';
+
+  @override
+  String get cronGeneratorUnspecified => '不指定';
+
+  @override
+  String get cronGeneratorEveryDay => '每日';
+
+  @override
+  String get cronGeneratorEveryMonth => '每月';
+
+  @override
+  String get cronGeneratorEveryYear => '每年';
+
+  @override
+  String get cronGeneratorYearUnspecified => '不指定（可選）';
+
+  @override
+  String get cronGeneratorYearHint => '年份留空產生 6 欄運算式，指定後為 7 欄';
+
+  @override
+  String get cronGeneratorNearestWeekdayPrefix => '每月';
+
+  @override
+  String get cronGeneratorNearestWeekdaySuffix => '號最近的那個工作日';
+
+  @override
+  String get cronGeneratorLastDay => '本月最後一日';
+
+  @override
+  String get cronGeneratorNthPrefix => '第';
+
+  @override
+  String get cronGeneratorNthMiddle => '個';
+
+  @override
+  String get cronGeneratorLastWeekdayPrefix => '本月最後一個';
+
+  @override
+  String get cronGeneratorPreviewLabel => '運算式預覽';
+
+  @override
+  String get cronGeneratorValid => '合法';
+
+  @override
+  String get cronGeneratorInvalid => '運算式無效';
+
+  @override
+  String cronGeneratorNextRuns(int count) {
+    return '最近 $count 次執行時間';
+  }
+
+  @override
+  String get cronGeneratorUnparseable => '無法解析原運算式，已重設為預設';
+
+  @override
+  String get cronGeneratorAm => '上午';
+
+  @override
+  String get cronGeneratorPm => '下午';
+
+  @override
+  String cronGeneratorMonthN(int n) {
+    return '$n月';
+  }
+
+  @override
+  String get cronWeekdaySun => '週日';
+
+  @override
+  String get cronWeekdayMon => '週一';
+
+  @override
+  String get cronWeekdayTue => '週二';
+
+  @override
+  String get cronWeekdayWed => '週三';
+
+  @override
+  String get cronWeekdayThu => '週四';
+
+  @override
+  String get cronWeekdayFri => '週五';
+
+  @override
+  String get cronWeekdaySat => '週六';
+
+  @override
+  String cronDescDaily(String time) {
+    return '每天 $time';
+  }
+
+  @override
+  String cronDescWeekly(String days, String time) {
+    return '每週$days $time';
+  }
+
+  @override
+  String cronDescMonthly(String days, String time) {
+    return '每月 $days 號 $time';
+  }
+
+  @override
+  String cronDescEveryNSeconds(int n) {
+    return '每 $n 秒';
+  }
+
+  @override
+  String cronDescEveryNMinutes(int n) {
+    return '每 $n 分鐘';
+  }
+
+  @override
+  String cronDescEveryNHours(int n) {
+    return '每 $n 小時';
+  }
+
+  @override
+  String get nasDirPickerTitle => '選擇掃描目錄';
+
+  @override
+  String nasDirPickerLimitReached(String max) {
+    return '最多選擇 $max 個目錄';
+  }
+
+  @override
+  String settingsThumbnailScanPermHint(String script) {
+    return '需要在飛牛 -> 系統設置 -> 應用 -> 飛鯨影視中添加所要掃描的目錄的訪問權限，否則無法獲取視頻縮略圖。如已配置目錄訪問權限仍然出現無法訪問的情況，請連接 NAS SSH，切換到 root 用戶下，執行此$script進行修復';
+  }
+
+  @override
+  String get thumbnailScanScriptLinkLabel => '腳本';
+
+  @override
+  String thumbnailScanScriptSavedToast(String path) {
+    return '修復腳本已保存：$path';
+  }
+
+  @override
+  String thumbnailScanScriptSaveFailedToast(String error) {
+    return '保存修復腳本失敗：$error';
+  }
 }

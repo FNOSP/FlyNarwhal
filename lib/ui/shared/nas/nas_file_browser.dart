@@ -39,6 +39,16 @@ class TreeNode {
   });
 }
 
+/// What kind of node a [NasFileBrowser] lets the user check.
+enum NasBrowserSelectionMode {
+  /// Default: files are checkable, directories only expand (subtitle picker).
+  files,
+
+  /// Directories are checkable at any depth (scan-directory picker); files are
+  /// shown for orientation but carry no checkbox.
+  directories,
+}
+
 /// A tree-view NAS file browser mirroring the web player's "添加 NAS 字幕文件"
 /// picker: expandable/collapsible folders with checkboxes and lazy loading.
 class NasFileBrowser extends ConsumerStatefulWidget {
@@ -47,6 +57,14 @@ class NasFileBrowser extends ConsumerStatefulWidget {
   final bool hideRoot;
   final List<String> allowedExtensions;
   final ValueChanged<Set<String>> onSelectionChanged;
+
+  /// Which node kind is checkable; defaults to files (subtitle picker).
+  final NasBrowserSelectionMode selectionMode;
+
+  /// Paths already selected when the browser opens (e.g. previously saved
+  /// scan directories). Survives re-initialization and is echoed back through
+  /// [onSelectionChanged] once on init.
+  final Set<String> initialSelection;
 
   /// Called when a row is clicked (activated), with the node's path.
   /// This drives the breadcrumb bar — NOT hover.
@@ -59,6 +77,8 @@ class NasFileBrowser extends ConsumerStatefulWidget {
     required this.onSelectionChanged,
     this.hideRoot = false,
     this.allowedExtensions = const [],
+    this.selectionMode = NasBrowserSelectionMode.files,
+    this.initialSelection = const {},
     this.onRowActivated,
   });
 
@@ -88,9 +108,11 @@ class _NasFileBrowserState extends ConsumerState<NasFileBrowser> {
   }
 
   void _initializeTree() {
-    _selected.clear();
+    _selected
+      ..clear()
+      ..addAll(widget.initialSelection);
     _activePath = null;
-    widget.onSelectionChanged({});
+    widget.onSelectionChanged(Set.of(_selected));
 
     _roots = widget.roots.map((root) {
       final segments = root.path.split('/').where((s) => s.isNotEmpty).toList();
@@ -192,7 +214,10 @@ class _NasFileBrowserState extends ConsumerState<NasFileBrowser> {
   }
 
   void _toggleSelection(TreeNode node) {
-    if (node.isDir) return; // Only files are selectable.
+    final selectable = widget.selectionMode == NasBrowserSelectionMode.directories
+        ? node.isDir
+        : !node.isDir;
+    if (!selectable) return;
     if (_selected.contains(node.path)) {
       _selected.remove(node.path);
     } else {
@@ -282,6 +307,7 @@ class _NasFileBrowserState extends ConsumerState<NasFileBrowser> {
           index: index,
           isSelected: _selected.contains(node.path),
           isActive: _activePath == node.path,
+          selectionMode: widget.selectionMode,
           onRowTap: () => _onRowTap(node),
           onToggleSelection: () => _toggleSelection(node),
         ),
@@ -298,6 +324,7 @@ class _TreeNodeRow extends StatefulWidget {
   final int index;
   final bool isSelected;
   final bool isActive;
+  final NasBrowserSelectionMode selectionMode;
   final VoidCallback onRowTap;
   final VoidCallback onToggleSelection;
 
@@ -308,6 +335,7 @@ class _TreeNodeRow extends StatefulWidget {
     required this.index,
     required this.isSelected,
     required this.isActive,
+    required this.selectionMode,
     required this.onRowTap,
     required this.onToggleSelection,
   });
@@ -322,7 +350,10 @@ class _TreeNodeRowState extends State<_TreeNodeRow> {
   @override
   Widget build(BuildContext context) {
     final isDir = widget.node.isDir;
-    final isSelectable = !isDir;
+    final isSelectable =
+        widget.selectionMode == NasBrowserSelectionMode.directories
+            ? isDir
+            : !isDir;
     final indent = widget.depth * 24.0 + 8.0;
 
     // Active row gets the blue highlight; hover gets a subtle overlay.
@@ -366,21 +397,30 @@ class _TreeNodeRowState extends State<_TreeNodeRow> {
                     : const SizedBox.shrink(),
               ),
               const SizedBox(width: 4),
-              // Checkbox: enabled only for selectable files.
+              // Checkbox: enabled only for selectable rows. In directories
+              // mode, file rows show no checkbox at all (a disabled box on
+              // every file is just noise); in files mode, directory rows keep
+              // the historical disabled checkbox.
               // Its own gesture recognizer wins the arena for taps on the
               // checkbox area, so the outer row tap won't also fire here.
               SizedBox(
                 width: 20,
                 height: 20,
-                child: Checkbox(
-                  key: isSelectable
-                      ? ValueKey(
-                          'nas-tree-check-${widget.depth}-${widget.index}')
-                      : null,
-                  checked: isSelectable && widget.isSelected,
-                  onChanged:
-                      isSelectable ? (_) => widget.onToggleSelection() : null,
-                ),
+                child: isSelectable
+                    ? Checkbox(
+                        key: ValueKey(
+                            'nas-tree-check-${widget.depth}-${widget.index}'),
+                        checked: widget.isSelected,
+                        onChanged: (_) => widget.onToggleSelection(),
+                      )
+                    : (isDir
+                        ? Checkbox(
+                            key: ValueKey(
+                                'nas-tree-check-${widget.depth}-${widget.index}'),
+                            checked: false,
+                            onChanged: null,
+                          )
+                        : const SizedBox.shrink()),
               ),
               const SizedBox(width: 8),
               // Folder / file icon.

@@ -131,6 +131,7 @@ class AppDialog<T> extends StatelessWidget {
     this.titleIcon,
     this.onClose,
     this.autoDismiss = false,
+    this.tertiaryKeepsOpen = false,
   });
 
   final String title;
@@ -169,6 +170,11 @@ class AppDialog<T> extends StatelessWidget {
   /// buttons must keep the dialog open while an async step runs.
   final bool autoDismiss;
 
+  /// With [autoDismiss], the tertiary action runs its callback but leaves the
+  /// dialog open — for dialogs whose tertiary action starts a process the
+  /// dialog keeps showing (e.g. a manual scan trigger).
+  final bool tertiaryKeepsOpen;
+
   @override
   Widget build(BuildContext context) {
     final palette = FluentTheme.of(context).brightness == Brightness.dark
@@ -185,7 +191,8 @@ class AppDialog<T> extends StatelessWidget {
     final tertiary = _visible(tertiaryButtonText)
         ? _secondary(context, palette, tertiaryButtonText!, onTertiaryPressed,
             tertiaryResult, 'tertiary',
-            colorType: tertiaryButtonType ?? AppDialogButtonType.neutral)
+            colorType: tertiaryButtonType ?? AppDialogButtonType.neutral,
+            keepsOpen: tertiaryKeepsOpen)
         : null;
     final secondary = _visible(secondaryButtonText)
         ? _secondary(context, palette, secondaryButtonText!, onSecondaryPressed,
@@ -330,6 +337,7 @@ class AppDialog<T> extends StatelessWidget {
     T? result,
     String name, {
     required AppDialogButtonType colorType,
+    bool keepsOpen = false,
   }) {
     final isDanger = colorType == AppDialogButtonType.danger;
     // Danger secondary keeps a transparent fill: only the text and border
@@ -373,7 +381,7 @@ class AppDialog<T> extends StatelessWidget {
           EdgeInsets.symmetric(horizontal: 16),
         ),
       ),
-      onPressed: () => _invoke(context, callback, result),
+      onPressed: () => _invoke(context, callback, result, keepsOpen),
       child: _label(text),
     );
   }
@@ -395,12 +403,13 @@ class AppDialog<T> extends StatelessWidget {
   Future<void> _invoke(
     BuildContext context,
     FutureOr<void> Function()? callback,
-    T? result,
-  ) async {
+    T? result, [
+    bool keepsOpen = false,
+  ]) async {
     if (callback != null) {
       await Future<void>.sync(callback);
     }
-    if (autoDismiss || callback == null) {
+    if ((autoDismiss && !keepsOpen) || callback == null) {
       if (context.mounted) {
         Navigator.of(context).pop(result);
       }
@@ -436,6 +445,7 @@ Future<T?> showAppDialog<T>({
   Widget? titleIcon,
   FutureOr<void> Function()? onClose,
   bool autoDismiss = false,
+  bool tertiaryKeepsOpen = false,
 }) {
   return showDialog<T>(
     context: context,
@@ -460,6 +470,7 @@ Future<T?> showAppDialog<T>({
       titleIcon: titleIcon,
       onClose: onClose,
       autoDismiss: autoDismiss,
+      tertiaryKeepsOpen: tertiaryKeepsOpen,
     ),
   );
 }

@@ -80,14 +80,53 @@ class ResponseDecoder {
     return '${normalized.substring(0, limit)}...';
   }
 
+  /// Identifies the payload when it is a known image container, so a sprite
+  /// sheet reads as `jpeg` rather than an opaque byte count.
+  static String? _binaryFormat(List<int> bytes) {
+    if (_startsWith(bytes, const [0xFF, 0xD8, 0xFF])) {
+      return 'jpeg';
+    }
+    if (_startsWith(bytes, const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) {
+      return 'png';
+    }
+    if (_startsWith(bytes, const [0x47, 0x49, 0x46, 0x38])) {
+      return 'gif';
+    }
+    if (_startsWith(bytes, const [0x52, 0x49, 0x46, 0x46])) {
+      return 'riff';
+    }
+    return null;
+  }
+
+  static bool _startsWith(List<int> bytes, List<int> prefix) {
+    if (bytes.length < prefix.length) {
+      return false;
+    }
+    for (var i = 0; i < prefix.length; i++) {
+      if (bytes[i] != prefix[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   static String formatForLogging(dynamic data, {int? limit}) {
     final bytes = extractBytes(data);
     if (bytes != null) {
+      // Binary payloads (the trickplay sprite JPEG) reach the log as a byte
+      // list. Check the container signature first: image headers are bytes
+      // below 0x80, so they decode as valid UTF-8 even though the payload as a
+      // whole is binary, and a text preview of them would drag the rest of the
+      // frame into the log.
+      final format = _binaryFormat(bytes);
+      if (format != null) {
+        return 'binary $format, ${bytes.length} bytes, head ${previewBytes(bytes)}';
+      }
       final text = decodeBytes(bytes);
       if (text.trim().isNotEmpty) {
         return previewText(text, limit: limit);
       }
-      return 'bytes(${bytes.length}): ${previewBytes(bytes)}';
+      return 'binary ${bytes.length} bytes, head ${previewBytes(bytes)}';
     }
 
     if (data is String) {

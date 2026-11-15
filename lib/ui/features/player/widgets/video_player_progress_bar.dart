@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../../../providers/thumbnail/player_thumbnail_controller.dart';
 import '../models/resolved_skip_segments.dart';
+import 'thumbnail_preview.dart';
 
 const playerProgressBarKey = ValueKey('player-progress-bar');
 const playerProgressBarCanvasKey = ValueKey('player-progress-bar-canvas');
@@ -35,6 +37,7 @@ class VideoPlayerProgressBar extends StatefulWidget {
     this.onInteractionCancel,
     this.segments = const <SkipSegmentMarker>[],
     this.showHoverTimestamp = true,
+    this.thumbnailResolver,
   });
 
   final int currentPosition;
@@ -50,6 +53,10 @@ class VideoPlayerProgressBar extends StatefulWidget {
   final List<SkipSegmentMarker> segments;
   final bool showHoverTimestamp;
 
+  /// Resolves the sprite frame under the hover position, or null when the
+  /// media has no previews (not generated / stale / fetch failed).
+  final Future<SpritePreview?> Function(Duration hoverTime)? thumbnailResolver;
+
   @override
   State<VideoPlayerProgressBar> createState() => _VideoPlayerProgressBarState();
 }
@@ -61,6 +68,14 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
   double _hoverPositionX = 0.0;
   double _layoutWidth = 0.0;
   double _hoverTimestampWidth = _hoverTimestampMinWidth;
+  SpritePreview? _activePreview;
+  int _previewToken = 0;
+  /// Preview updates are throttled: a mouse sweep emits one hover event per
+  /// pixel, but the sprite under the cursor only changes per 10s slot, and
+  /// re-decoding sheets faster than the eye can follow them just starves the
+  /// video render loop (see PlayerThumbnailController prefetch).
+  int _lastResolveStartedAtMs = 0;
+  static const int _resolveThrottleMs = 40;
 
   bool get _showDetails => _isHovered || _isDragging;
 
@@ -92,6 +107,10 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     return (start / widget.totalDuration, end / widget.totalDuration);
   }
 
+  /// Measures the widest tooltip the hover label can take. Text length grows
+  /// with the time value, so the longest string is the one at the end of the
+  /// media; measuring it keeps the label centered on the cursor at every
+  /// position instead of only at the end.
   double _measureHoverTimestampWidth(int totalDuration) {
     final text = formatDurationToDateTime(totalDuration);
     final painter = TextPainter(
@@ -148,9 +167,16 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      onExit: (_) {
+        _previewToken++;
+        setState(() {
+          _isHovered = false;
+          _activePreview = null;
+        });
+      },
       onHover: (event) {
         setState(() => _hoverPositionX = event.localPosition.dx);
+        _maybeResolvePreview();
       },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -167,11 +193,13 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
             _isDragging = true;
             _hoverPositionX = details.localPosition.dx;
           });
+          _maybeResolvePreview();
           final renderBox = context.findRenderObject() as RenderBox;
           _seekAt(details.localPosition, renderBox.size.width);
         },
         onHorizontalDragUpdate: (details) {
           setState(() => _hoverPositionX = details.localPosition.dx);
+          _maybeResolvePreview();
           final renderBox = context.findRenderObject() as RenderBox;
           _seekAt(details.localPosition, renderBox.size.width);
         },
@@ -209,12 +237,25 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
                         constraints: const BoxConstraints(
                           minWidth: _hoverTimestampMinWidth,
                         ),
-                        child: _HoverTimestamp(
-                          key: playerProgressBarTimestampKey,
-                          hoverProgress: _hoverPositionX / _layoutWidth,
-                          totalDuration: widget.totalDuration,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          widthFactor: 1.0,
+                          child: _HoverTimestamp(
+                            key: playerProgressBarTimestampKey,
+                            hoverProgress: _hoverPositionX / _layoutWidth,
+                            totalDuration: widget.totalDuration,
+                          ),
                         ),
                       ),
+                    ),
+                  if (_showDetails &&
+                      _activePreview != null &&
+                      _layoutWidth > 0)
+                    Positioned(
+                      left: _calculatePreviewPosition(),
+                      // Sit above the hover timestamp tooltip.
+                      bottom: barHeight + 8 + 30,
+                      child: ThumbnailPreview(preview: _activePreview!),
                     ),
                 ],
               );
@@ -229,6 +270,38 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     if (_layoutWidth <= 0) return 0;
     final position = _hoverPositionX - _hoverTimestampWidth / 2;
     return position.clamp(0.0, _layoutWidth - _hoverTimestampWidth);
+  }
+
+  double _calculatePreviewPosition() {
+    if (_layoutWidth <= 0) return 0;
+    final position = _hoverPositionX - kThumbnailPreviewWidth / 2;
+    return position.clamp(0.0, _layoutWidth - kThumbnailPreviewWidth);
+  }
+
+  int get _hoverTimeMillis {
+    if (_layoutWidth <= 0 || widget.totalDuration <= 0) return 0;
+    return ((_hoverPositionX / _layoutWidth).clamp(0.0, 1.0) *
+            widget.totalDuration)
+        .toInt();
+  }
+
+  void _maybeResolvePreview() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastResolveStartedAtMs < _resolveThrottleMs) {
+      return;
+    }
+    _lastResolveStartedAtMs = now;
+    _resolvePreview();
+  }
+
+  Future<void> _resolvePreview() async {
+    final resolver = widget.thumbnailResolver;
+    if (resolver == null) return;
+    final hoverTime = Duration(milliseconds: _hoverTimeMillis);
+    final token = ++_previewToken;
+    final preview = await resolver(hoverTime);
+    if (!mounted || token != _previewToken) return;
+    setState(() => _activePreview = preview);
   }
 }
 

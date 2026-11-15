@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../data/models/fly_narwhal/index.dart';
 import '../../../data/storage/update_settings_store.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/fly_narwhal_server_capabilities.dart';
@@ -19,6 +20,7 @@ import '../../settings/ui_font_scale.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
 import '../../shared/hover_tip.dart';
+import '../../shared/tip_box.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
@@ -29,6 +31,8 @@ import 'widgets/shortcut_settings_dialog.dart';
 import 'widgets/smart_skip_config_dialog.dart';
 import 'widgets/ssl_whitelist_dialog.dart';
 import 'widgets/support_author_item.dart';
+import 'widgets/cron/cron_description.dart';
+import 'widgets/thumbnail_scan_config_dialog.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 import 'package:fly_narwhal/ui/shared/semi_icons.dart';
 
@@ -49,6 +53,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final TextEditingController _updateProxyUrlController =
       TextEditingController();
   bool _danmuSourceConfigLoadRequested = false;
+  bool _thumbnailScanConfigLoadRequested = false;
   bool _capabilitiesProbeRequested = false;
   String? _lastProbedFlyNarwhalServerUrl;
   bool _isFlyNarwhalAuthCodeVisible = false;
@@ -193,6 +198,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         : '$title · $state';
   }
 
+  /// One-line state of the scheduled thumbnail scan for the settings card,
+  /// e.g. "每天 03:00 · 2 个目录" or "未配置".
+  String _thumbnailScanCaption(AppLocalizations l10n) {
+    final config =
+        ref.watch(thumbnailScanConfigControllerProvider).config.valueOrNull;
+    if (config == null) return l10n.settingsThumbnailScanCaption;
+    if (config.cron.isEmpty && config.dirs.isEmpty) {
+      return l10n.settingsThumbnailScanCaptionNone;
+    }
+    final schedule = describeCron(config.cron, l10n) ?? config.cron;
+    final base = config.enabled
+        ? l10n.settingsThumbnailScanCaptionEnabled(
+            schedule, config.dirs.length)
+        : l10n.settingsThumbnailScanCaptionDisabled(
+            schedule, config.dirs.length);
+    return config.isBusy
+        ? '$base · ${l10n.settingsThumbnailScanCaptionScanning}'
+        : base;
+  }
+
+  /// How many videos the last scan failed to generate sprites for, or 0 when
+  /// it had no failures (or has never run). A wholly failed run with no
+  /// per-file count still counts as 1 so the badge shows something.
+  int _thumbnailScanFailureCount() {
+    final config =
+        ref.watch(thumbnailScanConfigControllerProvider).config.valueOrNull;
+    if (config == null) return 0;
+    if (config.lastFailedCount > 0) return config.lastFailedCount;
+    return config.lastStatus == ThumbnailScanConfig.lastStatusFailed ? 1 : 0;
+  }
+
+  /// Small solid red dot shown next to the settings row's title when the last
+  /// scan had generation failures; hovering explains the count.
+  Widget _thumbnailScanFailureBadge(AppLocalizations l10n) {
+    return TipBox(
+      message: l10n.settingsThumbnailScanFailureBadgeTip(
+          _thumbnailScanFailureCount()),
+      maxWidth: 260,
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xFFE81123),
+        ),
+      ),
+    );
+  }
+
   void _openFlyNarwhalAuthCodeDialog() {
     final l10n = AppLocalizations.of(context);
     _flyNarwhalAuthCodeController.text =
@@ -270,10 +324,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _isResettingImageCache = true);
 
     final l10n = AppLocalizations.of(context);
+    final container = ProviderScope.containerOf(context);
     try {
       await clearImageCache(ref.read(imageCacheManagerProvider));
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
+      // Sprite sheets live in a separate on-disk cache, and their decoded
+      // copies are held by the per-media controllers, which dispose them
+      // safely (the in-memory image cache above knows nothing about either).
+      dropAllDecodedSpriteSheets(container);
+      await ref.read(thumbnailSpriteCacheProvider).clear();
       if (!mounted) {
         return;
       }
@@ -449,6 +509,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
       });
     }
+    // Same pattern for the scheduled thumbnail scan card (server >= 2.1.0):
+    // pull the stored config once so the card summary reflects it.
+    final supportsThumbnailScheduling = ref
+            .watch(flyNarwhalServerCapabilitiesProvider)
+            .valueOrNull
+            ?.supportsThumbnailScheduling ??
+        false;
+    if (supportsThumbnailScheduling && !_thumbnailScanConfigLoadRequested) {
+      _thumbnailScanConfigLoadRequested = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(thumbnailScanConfigControllerProvider.notifier).load();
+        }
+      });
+    }
     final updateState = ref.watch(updateControllerProvider);
     final updateSettingsAsync = ref.watch(updateSettingsProvider);
     final updateSettings = updateSettingsAsync.asData?.value;
@@ -489,6 +564,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         nextState.whenOrNull(
           data: (version) {
             if (version == null) return;
+            // The test button asks the server directly for a quick yes/no,
+            // bypassing the capability probe. Re-run that probe too so its
+            // answer — not just this toast — reaches the version-gated cards.
+            unawaited(_runCapabilitiesProbe());
             ref.read(toastManagerProvider.notifier).showToast(
                   l10n.settingsServerTestSuccess(version),
                   type: ToastType.success,
@@ -1082,6 +1161,47 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         ),
                                       ),
                                     ],
+                                    // The scheduled thumbnail scan endpoints
+                                    // only exist on servers 2.1.0 or newer.
+                                    if (supportsThumbnailScheduling)
+                                      CardExpanderItem(
+                                        key: const ValueKey(
+                                          'settings-fly-narwhal-thumbnail-scan',
+                                        ),
+                                        icon: const Icon(
+                                          FluentIcons.calendar_week,
+                                        ),
+                                        heading: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              l10n.settingsThumbnailScanTitle,
+                                            ),
+                                            if (_thumbnailScanFailureCount() > 0) ...[
+                                              const SizedBox(width: 6),
+                                              _thumbnailScanFailureBadge(l10n),
+                                            ],
+                                          ],
+                                        ),
+                                        caption: Text(
+                                          _thumbnailScanCaption(l10n),
+                                        ),
+                                        trailing: AppButton(
+                                          key: const ValueKey(
+                                            'settings-thumbnail-scan-open',
+                                          ),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  const ThumbnailScanConfigDialog(),
+                                            );
+                                          },
+                                          child: Text(
+                                            l10n.settingsThumbnailScanConfigure,
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),

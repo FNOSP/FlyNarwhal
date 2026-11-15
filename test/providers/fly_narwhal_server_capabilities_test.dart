@@ -51,6 +51,47 @@ void main() {
       expect(capabilities.versionKnown, isFalse);
       expect(capabilities.rawVersion, isEmpty);
       expect(capabilities.supportsModernContract, isFalse);
+      expect(capabilities.supportsThumbnailScheduling, isFalse);
+    });
+  });
+
+  group('supportsThumbnailScheduling', () {
+    test('2.1.0 and newer expose the scan endpoints', () {
+      for (final version in <String>['2.1.0', '2.1.1', '2.2.0', '3.0.0']) {
+        expect(
+          FlyNarwhalServerCapabilities.fromVersion(version)
+              .supportsThumbnailScheduling,
+          isTrue,
+          reason: 'version="$version"',
+        );
+      }
+    });
+
+    test('a build suffix counts too', () {
+      expect(
+        FlyNarwhalServerCapabilities.fromVersion('2.1.0-fnapp')
+            .supportsThumbnailScheduling,
+        isTrue,
+      );
+    });
+
+    test('older servers do not', () {
+      for (final version in <String>['2.0.9', '2.0.0', '1.9.9']) {
+        expect(
+          FlyNarwhalServerCapabilities.fromVersion(version)
+              .supportsThumbnailScheduling,
+          isFalse,
+          reason: 'version="$version"',
+        );
+      }
+    });
+
+    test('an unknown version does not', () {
+      expect(
+        FlyNarwhalServerCapabilities.fromVersion('')
+            .supportsThumbnailScheduling,
+        isFalse,
+      );
     });
   });
 }

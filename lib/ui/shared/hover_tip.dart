@@ -7,11 +7,16 @@ import 'tip_box.dart';
 class HoverTip extends StatelessWidget {
   const HoverTip({
     super.key,
-    required this.tipText,
+    this.tipText,
+    this.richMessage,
     this.maxWidth = 300,
-  });
+  }) : assert(tipText != null || richMessage != null);
 
-  final String tipText;
+  final String? tipText;
+
+  /// 富文本提示内容（如含可点击链接）；提供时优先于 [tipText]。
+  final InlineSpan? richMessage;
+
   final double maxWidth;
 
   @override
@@ -21,7 +26,8 @@ class HoverTip extends StatelessWidget {
     final captionColor = theme.typography.caption?.color ?? textColor;
 
     return TipBox(
-      message: tipText,
+      message: tipText ?? '',
+      richMessage: richMessage,
       maxWidth: maxWidth,
       // 触发控件是 12px 的小圆点，间距只需略大于其半高(6)。
       verticalOffset: 14,

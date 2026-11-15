@@ -2928,4 +2928,496 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get danmuDandanNoneEnabled => 'No dandanplay source is enabled';
+
+  @override
+  String get movieDetailGenerateThumbnails => 'Generate thumbnails';
+
+  @override
+  String get movieDetailThumbnailQueued => 'Queued';
+
+  @override
+  String get movieDetailThumbnailGenerating => 'Generating';
+
+  @override
+  String get movieDetailThumbnailRegenerate => 'Regenerate thumbnails';
+
+  @override
+  String get movieDetailThumbnailNoFile => 'Video file path is unavailable';
+
+  @override
+  String movieDetailThumbnailStatus(String status) {
+    return 'Thumbnail preview: $status';
+  }
+
+  @override
+  String get movieDetailThumbnailQueuedToast =>
+      'Thumbnail generation task added to queue';
+
+  @override
+  String get movieDetailThumbnailCompletedToast =>
+      'Thumbnails generated — hover the progress bar during playback to preview';
+
+  @override
+  String movieDetailThumbnailFailed(String error) {
+    return 'Thumbnail generation failed: $error';
+  }
+
+  @override
+  String get movieDetailThumbnailFailedGeneric => 'Thumbnail generation failed';
+
+  @override
+  String get movieDetailThumbnailCompletedShort => 'Generated';
+
+  @override
+  String get movieDetailThumbnailStale =>
+      'Generated, but the video file changed — regenerating is recommended';
+
+  @override
+  String get movieDetailThumbnailFailedShort => 'Failed';
+
+  @override
+  String get movieDetailThumbnailFailureDialogTitle =>
+      'Thumbnail generation failed';
+
+  @override
+  String get settingsThumbnailScanTitle => 'Video thumbnails';
+
+  @override
+  String get settingsThumbnailScanCaption =>
+      'Scan NAS folders on a schedule and generate progress-bar previews for videos that have none';
+
+  @override
+  String get settingsThumbnailScanConfigure => 'Configure';
+
+  @override
+  String get settingsThumbnailScanCaptionNone => 'Not configured';
+
+  @override
+  String settingsThumbnailScanCaptionEnabled(String schedule, int count) {
+    return '$schedule · $count folder(s)';
+  }
+
+  @override
+  String settingsThumbnailScanCaptionDisabled(String schedule, int count) {
+    return 'Disabled · $schedule · $count folder(s)';
+  }
+
+  @override
+  String get settingsThumbnailScanCaptionScanning => 'scanning';
+
+  @override
+  String get thumbnailScanDialogTitle => 'Video thumbnails';
+
+  @override
+  String get thumbnailScanDialogEnable => 'Enable scheduled scan';
+
+  @override
+  String get thumbnailScanDialogEnableCaption =>
+      'When on, the server scans the selected folders on the schedule below and generates thumbnails for videos missing them';
+
+  @override
+  String get thumbnailScanDialogCronLabel => 'Schedule (cron expression)';
+
+  @override
+  String get thumbnailScanDialogCronGenerate => 'Generator';
+
+  @override
+  String get thumbnailScanDialogCronChecking => 'Checking…';
+
+  @override
+  String thumbnailScanDialogCronInvalid(String error) {
+    return 'Invalid expression: $error';
+  }
+
+  @override
+  String get thumbnailScanDialogCronInvalidShort => 'Invalid cron expression';
+
+  @override
+  String get thumbnailScanDialogCronRequired => 'A cron expression is required';
+
+  @override
+  String get thumbnailScanDialogCronCustom => 'Custom schedule';
+
+  @override
+  String thumbnailScanDialogCronNextRun(String time) {
+    return 'Next run: $time';
+  }
+
+  @override
+  String get thumbnailScanDialogDirsLabel => 'Scan folders';
+
+  @override
+  String get thumbnailScanDialogDirsPick => 'Select folders';
+
+  @override
+  String get thumbnailScanDialogDirsEmpty => 'No folder selected';
+
+  @override
+  String get thumbnailScanDialogDirsRequired =>
+      'Select at least one scan folder';
+
+  @override
+  String get thumbnailScanDialogTooManyDirs => 'Too many scan folders';
+
+  @override
+  String thumbnailScanDialogStatusRunning(String dir, int count) {
+    return 'Scanning: $dir ($count videos found)';
+  }
+
+  @override
+  String thumbnailScanDialogStatusScanning(int count) {
+    return 'Scanning ($count videos found)';
+  }
+
+  @override
+  String thumbnailScanDialogStatusScanningDir(String dir, int count) {
+    return 'Scanning: $dir ($count videos found)';
+  }
+
+  @override
+  String thumbnailScanDialogStatusGenerating(int done, int total) {
+    return 'Generating thumbnails: $done/$total done';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusGeneratingIdle =>
+      'Generating thumbnails: waiting for the generation queue';
+
+  @override
+  String thumbnailScanDialogStatusGeneratingFailed(
+      int done, int total, int failed) {
+    return 'Generating thumbnails: $done/$total done ($failed failed)';
+  }
+
+  @override
+  String get thumbnailScanDialogStatusQueued => 'Added to the scan queue';
+
+  @override
+  String get thumbnailScanDialogStatusNever => 'No scan has run yet';
+
+  @override
+  String thumbnailScanDialogStatusLastOk(
+      String time, int scanned, int queued, int generated) {
+    return 'Last scan: $time · $scanned videos found · $queued queued · $generated succeeded';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastOkFailed(
+      String time, int scanned, int queued, int generated, int failed) {
+    return 'Last scan: $time · $scanned videos found · $queued queued · $generated succeeded · $failed failed';
+  }
+
+  @override
+  String thumbnailScanDialogStatusLastFailed(String time) {
+    return 'Last scan: $time · failed';
+  }
+
+  @override
+  String get thumbnailScanDialogSaved => 'Configuration saved';
+
+  @override
+  String get thumbnailScanDialogSaveFailedGeneric => 'Save failed';
+
+  @override
+  String get thumbnailScanDialogScanNow => 'Scan now';
+
+  @override
+  String get thumbnailScanDialogScanNowTip => 'Run one scan immediately';
+
+  @override
+  String get thumbnailScanDialogTriggerFailedGeneric =>
+      'Failed to trigger the scan';
+
+  @override
+  String get thumbnailScanDialogLoadFailed =>
+      'Failed to load the scan configuration';
+
+  @override
+  String settingsThumbnailScanFailureBadgeTip(int count) {
+    return '$count video(s) failed to generate thumbnails in the last scan. Open the configuration to see why.';
+  }
+
+  @override
+  String get thumbnailScanDialogFailureReasonLink => 'Failure reason';
+
+  @override
+  String get thumbnailScanFailuresDialogTitle =>
+      'Thumbnail generation failure reasons';
+
+  @override
+  String get thumbnailScanFailuresEmpty =>
+      'No failure details are available for this scan';
+
+  @override
+  String thumbnailScanFailuresRawErrorLabel(String error) {
+    return 'Raw error: $error';
+  }
+
+  @override
+  String get thumbnailScanFailureReasonFileUnreadable =>
+      'The file could not be read, or was moved/deleted. Check that it still exists and that fnOS has granted this app access to its folder.';
+
+  @override
+  String get thumbnailScanFailureReasonFfmpegUnavailable =>
+      'ffmpeg is not installed or could not be found on the server, so thumbnails cannot be generated. Ask the administrator to check the server environment.';
+
+  @override
+  String get thumbnailScanFailureReasonDurationUnreadable =>
+      'The video\'s duration could not be read; the file may be corrupted or in an unsupported format.';
+
+  @override
+  String get thumbnailScanFailureReasonTooShort =>
+      'The video is too short (under 2 seconds) to produce a meaningful preview.';
+
+  @override
+  String get thumbnailScanFailureReasonTimeout =>
+      'Generation timed out: the video is long or the server is slow. It did not finish this time; the next scan will retry automatically.';
+
+  @override
+  String get thumbnailScanFailureReasonDecodeFailed =>
+      'Video decoding failed; the file may be corrupted or use an unsupported codec.';
+
+  @override
+  String get thumbnailScanFailureReasonSheetInvalid =>
+      'The generated preview image was invalid, possibly due to insufficient disk space or a failed write.';
+
+  @override
+  String get thumbnailScanFailureReasonDirInaccessible =>
+      'This directory could not be opened: it does not exist, or fnOS has not granted this app access to it.';
+
+  @override
+  String get thumbnailScanFailureReasonGeneric =>
+      'Generation failed. Try again later, or check the server logs for details.';
+
+  @override
+  String get thumbnailScanDialogAlreadyRunning =>
+      'A scan is already running, please wait for it to finish';
+
+  @override
+  String thumbnailScanDialogDirsNotSaved(int count) {
+    return '$count scan folder(s) are not saved yet, save the configuration first';
+  }
+
+  @override
+  String thumbnailScanDialogDirsInaccessible(String dirs) {
+    return 'FlyNarwhal cannot access \"$dirs\". Grant the FlyNarwhal server access to this folder';
+  }
+
+  @override
+  String thumbnailScanRunFinished(int scanned, int queued, int generated) {
+    return 'Scan finished: $scanned video(s) found, $queued queued for generation · $generated succeeded';
+  }
+
+  @override
+  String thumbnailScanRunFinishedFailed(
+      int scanned, int queued, int generated, int failed) {
+    return 'Scan finished: $scanned video(s) found, $queued queued for generation · $generated succeeded · $failed failed';
+  }
+
+  @override
+  String thumbnailScanRunFailed(String error) {
+    return 'Thumbnail scan failed: $error';
+  }
+
+  @override
+  String get thumbnailScanRunFailedGeneric => 'Thumbnail scan failed';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsTitle =>
+      'Unsaved scan folder changes';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsMessage =>
+      'Save the changes and scan the modified folders?';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsSave => 'Save';
+
+  @override
+  String get thumbnailScanDialogUnsavedDirsDiscard => 'Discard changes';
+
+  @override
+  String get cronGeneratorTitle => 'Cron expression generator';
+
+  @override
+  String get cronGeneratorTabSecond => 'Second';
+
+  @override
+  String get cronGeneratorTabMinute => 'Minute';
+
+  @override
+  String get cronGeneratorTabHour => 'Hour';
+
+  @override
+  String get cronGeneratorTabDayOfMonth => 'Day';
+
+  @override
+  String get cronGeneratorTabMonth => 'Month';
+
+  @override
+  String get cronGeneratorTabDayOfWeek => 'Week';
+
+  @override
+  String get cronGeneratorTabYear => 'Year';
+
+  @override
+  String get cronGeneratorEvery => 'Every (*)';
+
+  @override
+  String get cronGeneratorRangePrefix => 'Range from';
+
+  @override
+  String get cronGeneratorRangeTo => 'to';
+
+  @override
+  String get cronGeneratorIncrementPrefix => 'From';
+
+  @override
+  String get cronGeneratorIncrementEvery => 'on, every';
+
+  @override
+  String get cronGeneratorSpecific => 'Specified';
+
+  @override
+  String get cronGeneratorUnspecified => 'Unspecified';
+
+  @override
+  String get cronGeneratorEveryDay => 'Every day';
+
+  @override
+  String get cronGeneratorEveryMonth => 'Every month';
+
+  @override
+  String get cronGeneratorEveryYear => 'Every year';
+
+  @override
+  String get cronGeneratorYearUnspecified => 'Unspecified (optional)';
+
+  @override
+  String get cronGeneratorYearHint =>
+      'Leave the year empty for a 6-field expression; specifying it produces 7 fields';
+
+  @override
+  String get cronGeneratorNearestWeekdayPrefix => 'Nearest weekday to day';
+
+  @override
+  String get cronGeneratorNearestWeekdaySuffix => 'of the month';
+
+  @override
+  String get cronGeneratorLastDay => 'Last day of the month';
+
+  @override
+  String get cronGeneratorNthPrefix => 'The';
+
+  @override
+  String get cronGeneratorNthMiddle => '№';
+
+  @override
+  String get cronGeneratorLastWeekdayPrefix => 'Last';
+
+  @override
+  String get cronGeneratorPreviewLabel => 'Expression preview';
+
+  @override
+  String get cronGeneratorValid => 'Valid';
+
+  @override
+  String get cronGeneratorInvalid => 'Invalid expression';
+
+  @override
+  String cronGeneratorNextRuns(int count) {
+    return 'Next $count run times';
+  }
+
+  @override
+  String get cronGeneratorUnparseable =>
+      'Cannot parse the original expression; it was reset to the default';
+
+  @override
+  String get cronGeneratorAm => 'AM';
+
+  @override
+  String get cronGeneratorPm => 'PM';
+
+  @override
+  String cronGeneratorMonthN(int n) {
+    return '$n';
+  }
+
+  @override
+  String get cronWeekdaySun => 'Sun';
+
+  @override
+  String get cronWeekdayMon => 'Mon';
+
+  @override
+  String get cronWeekdayTue => 'Tue';
+
+  @override
+  String get cronWeekdayWed => 'Wed';
+
+  @override
+  String get cronWeekdayThu => 'Thu';
+
+  @override
+  String get cronWeekdayFri => 'Fri';
+
+  @override
+  String get cronWeekdaySat => 'Sat';
+
+  @override
+  String cronDescDaily(String time) {
+    return 'Daily at $time';
+  }
+
+  @override
+  String cronDescWeekly(String days, String time) {
+    return 'Weekly on $days at $time';
+  }
+
+  @override
+  String cronDescMonthly(String days, String time) {
+    return 'Monthly on day $days at $time';
+  }
+
+  @override
+  String cronDescEveryNSeconds(int n) {
+    return 'Every $n seconds';
+  }
+
+  @override
+  String cronDescEveryNMinutes(int n) {
+    return 'Every $n minutes';
+  }
+
+  @override
+  String cronDescEveryNHours(int n) {
+    return 'Every $n hours';
+  }
+
+  @override
+  String get nasDirPickerTitle => 'Select scan folders';
+
+  @override
+  String nasDirPickerLimitReached(String max) {
+    return 'At most $max folders can be selected';
+  }
+
+  @override
+  String settingsThumbnailScanPermHint(String script) {
+    return 'Access permission for the directories to be scanned must be added in fnOS -> System Settings -> Apps -> FlyNarwhal; otherwise video thumbnails cannot be generated. If access still fails after granting directory permissions, connect to the NAS over SSH, switch to the root user, and run this $script to fix it';
+  }
+
+  @override
+  String get thumbnailScanScriptLinkLabel => 'script';
+
+  @override
+  String thumbnailScanScriptSavedToast(String path) {
+    return 'Repair script saved: $path';
+  }
+
+  @override
+  String thumbnailScanScriptSaveFailedToast(String error) {
+    return 'Failed to save the repair script: $error';
+  }
 }

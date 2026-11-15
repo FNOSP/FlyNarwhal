@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -148,6 +149,141 @@ class FlyNarwhalRemoteDataSource {
         parameters: <String, dynamic>{'user_guid': userGuid},
         fromJsonT: (json) => SmartSkipConfig.fromJson(
             Map<String, dynamic>.from(json as Map)));
+  }
+
+  Future<ApiResult<SmartAnalysisResult<ThumbnailMetadata>>>
+      generateThumbnails(ThumbnailGenerateRequest request) {
+    return _post(ApiEndpoints.flyNarwhalThumbnailGenerate,
+        data: request.toJson(),
+        fromJsonT: (json) => ThumbnailMetadata.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Task state for [guid]. Pass [filePath] (the local NAS path of the media)
+  /// when known: on server >= 2.1.0 it lets a status query adopt sprites the
+  /// scheduled scan generated for the same file under a synthetic guid, so
+  /// playback shows previews the client never explicitly requested.
+  Future<ApiResult<SmartAnalysisResult<ThumbnailMetadata>>>
+      getThumbnailStatus(String guid, {String? filePath}) {
+    return _get(ApiEndpoints.flyNarwhalThumbnailStatus,
+        parameters: <String, dynamic>{
+          'guid': guid,
+          if (filePath != null && filePath.isNotEmpty) 'file_path': filePath,
+        },
+        fromJsonT: (json) => ThumbnailMetadata.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Scheduled thumbnail scan configuration plus live scan state.
+  /// Requires server >= 2.1.0.
+  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>>
+      getThumbnailScanConfig() {
+    return _get(ApiEndpoints.flyNarwhalThumbnailScanConfig,
+        fromJsonT: (json) => ThumbnailScanConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Saves the scan configuration; the server is the authoritative cron
+  /// validator and rejects an unparsable expression or an enabled schedule
+  /// without directories.
+  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>>
+      saveThumbnailScanConfig({
+    required bool enabled,
+    required String cron,
+    required List<String> dirs,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalThumbnailScanConfig,
+        data: <String, dynamic>{
+          'enabled': enabled,
+          'cron': cron,
+          'dirs': dirs,
+        },
+        fromJsonT: (json) => ThumbnailScanConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Queues a scan now. Idempotent server-side: a scan already queued or
+  /// running answers with its current state instead of starting a second one.
+  /// [dirs] are the folders the dialog is showing: only the saved subset is
+  /// accepted, so unsaved edits are never scanned.
+  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>>
+      triggerThumbnailScan({List<String> dirs = const []}) {
+    return _post(ApiEndpoints.flyNarwhalThumbnailScanTrigger,
+        data: <String, dynamic>{'dirs': dirs},
+        fromJsonT: (json) => ThumbnailScanConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Status of one scan run, polled by the id the trigger answered with.
+  /// Requires server >= 2.1.0.
+  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>> getThumbnailScanRun(
+      int runId) {
+    return _get(ApiEndpoints.flyNarwhalThumbnailScanRun(runId),
+        fromJsonT: (json) => ThumbnailScanConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Every failure of one scan run: files whose generation failed and
+  /// directories the run could not open. Requires server >= 2.1.3.
+  Future<ApiResult<SmartAnalysisResult<List<ThumbnailScanFailure>>>>
+      getThumbnailScanRunFailures(int runId) {
+    return _get(ApiEndpoints.flyNarwhalThumbnailScanRunFailures(runId),
+        fromJsonT: (json) => (json as List<dynamic>? ?? const [])
+            .map((item) =>
+                ThumbnailScanFailure.fromJson(Map<String, dynamic>.from(item as Map)))
+            .toList(growable: false));
+  }
+
+  /// Stateless cron validation + the next [count] fire times (server clock).
+  Future<ApiResult<SmartAnalysisResult<CronPreviewResult>>>
+      previewThumbnailCron({required String cron, int count = 8}) {
+    return _post(ApiEndpoints.flyNarwhalThumbnailScanCronPreview,
+        data: <String, dynamic>{'cron': cron, 'count': count},
+        fromJsonT: (json) => CronPreviewResult.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Raw sprite sheet bytes. The server answers plain JPEG (not a Result
+  /// envelope), so this bypasses the SmartAnalysisResult decode path entirely;
+  /// a non-200 (404 guards) maps to a failure the caller treats as "no preview".
+  Future<ApiResult<Uint8List>> fetchSpriteBytes({
+    required String guid,
+    required int index,
+    required int generation,
+  }) async {
+    const path = ApiEndpoints.flyNarwhalThumbnailSprite;
+    try {
+      final url = _buildFullUrl(path);
+      final parameters = <String, dynamic>{
+        'guid': guid,
+        'index': index,
+        'generation': generation,
+      };
+      final response = await _dio.get<List<int>>(url,
+          queryParameters: parameters,
+          options: Options(
+              headers: await _buildHeaders(
+                signaturePath: path,
+                parameters: parameters,
+              ),
+              responseType: ResponseType.bytes));
+      if (response.statusCode == 200 && response.data != null) {
+        return Success(Uint8List.fromList(response.data!));
+      }
+      return ResultFailure(FailureInfo(
+        message: 'sprite HTTP ${response.statusCode}',
+        code: response.statusCode ?? 0,
+        displayMessage: 'sprite HTTP ${response.statusCode}',
+      ));
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'FlyNarwhal',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'GET sprite 失败: $path',
+      );
+      return ResultFailure(_wrapFailureInfo(error));
+    }
   }
 
   Future<ApiResult<SmartAnalysisResult<String>>> saveSmartSkipConfig({

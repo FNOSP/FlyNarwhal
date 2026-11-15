@@ -140,3 +140,4 @@ windows/native/build-test/
 # flutter gen-l10n incremental build bookkeeping
 gen_l10n_inputs_and_outputs.json
 lib/l10n/untranslated.json
+/design/
