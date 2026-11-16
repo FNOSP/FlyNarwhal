@@ -70,6 +70,7 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
   double _hoverTimestampWidth = _hoverTimestampMinWidth;
   SpritePreview? _activePreview;
   int _previewToken = 0;
+
   /// Preview updates are throttled: a mouse sweep emits one hover event per
   /// pixel, but the sprite under the cursor only changes per 10s slot, and
   /// re-decoding sheets faster than the eye can follow them just starves the
@@ -128,6 +129,29 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     final width = painter.width + 16;
     painter.dispose();
     return width > _hoverTimestampMinWidth ? width : _hoverTimestampMinWidth;
+  }
+
+  /// Measures the bounds the hover label's text will actually paint in for
+  /// [text], matching the constraints the popup gives it: no line breaking
+  /// and no ellipsis character inserted, so the area is exactly the glyphs'
+  /// ink. Returns the text width without the pill's horizontal padding.
+  double _measureTimestampTextWidth(String text) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
   }
 
   void _seekAt(Offset offset, double width) {
@@ -233,13 +257,10 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
                     Positioned(
                       left: _calculateTimestampPosition(),
                       bottom: barHeight + 8,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minWidth: _hoverTimestampMinWidth,
-                        ),
+                      child: SizedBox(
+                        width: _calculateTimestampBoxWidth(),
                         child: Align(
-                          alignment: Alignment.topCenter,
-                          widthFactor: 1.0,
+                          alignment: Alignment.bottomCenter,
                           child: _HoverTimestamp(
                             key: playerProgressBarTimestampKey,
                             hoverProgress: _hoverPositionX / _layoutWidth,
@@ -266,11 +287,25 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     );
   }
 
+  double _calculateTimestampBoxWidth() {
+    final pillWidth = _measureTimestampTextWidth(_hoverTimestampText) + 16;
+    if (pillWidth > _hoverTimestampWidth) return pillWidth;
+    return _hoverTimestampWidth;
+  }
+
   double _calculateTimestampPosition() {
     if (_layoutWidth <= 0) return 0;
-    final position = _hoverPositionX - _hoverTimestampWidth / 2;
-    return position.clamp(0.0, _layoutWidth - _hoverTimestampWidth);
+    final boxWidth = _calculateTimestampBoxWidth();
+    // Center the pill (not the box) on the cursor: a short `MM:SS` label makes
+    // the box wider than the pill, and centering the box pushed the text off.
+    final pillWidth = _measureTimestampTextWidth(_hoverTimestampText) + 16;
+    final boxLeft = _hoverPositionX - boxWidth / 2;
+    final pillLeft = (boxLeft + (boxWidth - pillWidth) / 2)
+        .clamp(0.0, _layoutWidth - pillWidth);
+    return pillLeft - (boxWidth - pillWidth) / 2;
   }
+
+  String get _hoverTimestampText => formatDurationToDateTime(_hoverTimeMillis);
 
   double _calculatePreviewPosition() {
     if (_layoutWidth <= 0) return 0;
@@ -366,8 +401,7 @@ class _ProgressBarPainter extends CustomPainter {
 
     // 2. Skip segment markers (commercials colored separately)
     for (final range in segmentRangeRatios) {
-      _drawSegmentMarker(
-          canvas, size, range, trackYCenter, trackStrokeWidth);
+      _drawSegmentMarker(canvas, size, range, trackYCenter, trackStrokeWidth);
     }
 
     // 4. Buffered progress
@@ -425,10 +459,9 @@ class _ProgressBarPainter extends CustomPainter {
   ) {
     // Commercials get an amber marker so ad breaks read differently from the
     // green intro/outro segments at a glance.
-    final segmentColor = (range.isCommercial
-            ? const Color(0xFFF59E0B)
-            : const Color(0xFF22C55E))
-        .withValues(alpha: 0.45);
+    final segmentColor =
+        (range.isCommercial ? const Color(0xFFF59E0B) : const Color(0xFF22C55E))
+            .withValues(alpha: 0.45);
     final startX = range.startRatio.clamp(0.0, 1.0) * size.width;
     final endX = range.endRatio.clamp(0.0, 1.0) * size.width;
 
