@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -270,7 +271,7 @@ final flyNarwhalRemoteDataSourceProvider =
     getFlyNarwhalServerEnabled: () => flyNarwhalSettings.enabled,
     getAuthCode: () => flyNarwhalSettings.authCode ?? '',
     getClientVersion: () => clientVersionCache.value,
-    getDeviceId: () => prefsManager.getFallbackDeviceId() ?? '',
+    getDeviceId: () => _ensureFallbackDeviceId(prefsManager),
     onClientVersionTooLow: (message) {
       // Polling loops would otherwise stack the same upgrade prompt.
       final now = DateTime.now();
@@ -323,6 +324,19 @@ final flyNarwhalRemoteDataSourceProvider =
     runtimeConfiguration: runtimeConfiguration,
   );
 });
+
+/// Returns the persisted device id, generating and persisting one on first
+/// use. The player context service does the same lazily, but activation can
+/// happen before any playback, so the auth path must not depend on it.
+String _ensureFallbackDeviceId(PreferencesManager prefsManager) {
+  final existing = prefsManager.getFallbackDeviceId();
+  if (existing != null && existing.isNotEmpty) {
+    return existing;
+  }
+  final generated = 'flutter_${const Uuid().v4()}';
+  unawaited(prefsManager.saveFallbackDeviceId(generated));
+  return generated;
+}
 
 Future<void> _refreshClientCodeMeta(Ref ref) async {
   try {
