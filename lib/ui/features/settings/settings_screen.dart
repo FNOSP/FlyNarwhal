@@ -347,10 +347,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             );
         return;
       }
-      // Probe the server first: an old server must say "upgrade" rather than
-      // fail activation with an opaque 401.
+      // Install the new code first so the probe itself signs with Fnauth:
+      // an old server answers 401 (no Fnauth support) → "upgrade the server";
+      // a new server answers the version → proceed to activation. Roll the
+      // previous code back on any failure.
+      final previousCode = notifier.getFlyNarwhalAuthCode();
+      await notifier.setFlyNarwhalAuthCode(code);
       final probe = await probeFlyNarwhalServer(ref);
       if (!probe.capabilities.versionKnown) {
+        await notifier.setFlyNarwhalAuthCode(previousCode);
+        if (!mounted) return;
         ref.read(toastManagerProvider.notifier).showToast(
               l10n.authCodeServerTooOld,
               type: ToastType.failed,
