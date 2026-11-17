@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
@@ -9,6 +10,35 @@ class FlyNarwhalAuthHelper {
   static final Random _random = Random.secure();
 
   const FlyNarwhalAuthHelper._();
+
+  /// Generates the Fnauth header for a per-client FNK2 code.
+  ///
+  /// `sig = HMAC-SHA256(signKey, "FNK2_method_url_ts_nonce_dataJsonMd5_deviceId")`.
+  /// The code plaintext never appears in the header — only its SHA-256 keyid.
+  static String generateFnauth({
+    required String method,
+    required String url,
+    required String keyIdHex,
+    required List<int> signKey,
+    required String deviceId,
+    Map<String, dynamic>? parameters,
+    dynamic data,
+  }) {
+    final nonceBytes = Uint8List(16);
+    for (var i = 0; i < nonceBytes.length; i++) {
+      nonceBytes[i] = _random.nextInt(256);
+    }
+    final nonce = nonceBytes
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
+    final ts = DateTime.now().millisecondsSinceEpoch.toString();
+    final dataJsonMd5 = buildDataJsonMd5(parameters: parameters, data: data);
+    final message =
+        ['FNK2', method.toUpperCase(), url, ts, nonce, dataJsonMd5, deviceId]
+            .join('_');
+    final sig = Hmac(sha256, signKey).convert(utf8.encode(message)).toString();
+    return 'keyid=$keyIdHex&ts=$ts&nonce=$nonce&sig=$sig';
+  }
 
   // Generate the Authx header value.
   static String generateAuthx(

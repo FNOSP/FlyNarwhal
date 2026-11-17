@@ -8,6 +8,7 @@ import '../../../core/config/runtime_configuration.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/fly_narwhal_auth_helper.dart';
+import '../../../core/network/fly_narwhal_client_code.dart';
 import '../../../core/network/fly_narwhal_response_crypto.dart';
 import '../../../core/network/interceptors/logging_interceptor.dart';
 import '../../../core/network/ssl/ssl_trust_configurator.dart';
@@ -31,10 +32,23 @@ class FlyNarwhalRemoteDataSource {
   final bool Function() getFlyNarwhalServerEnabled;
   final String Function() getAuthCode;
   final String Function()? getClientVersion;
+  final String Function()? getDeviceId;
   final void Function(String message)? onClientVersionTooLow;
+
+  /// Called with the business code when a per-client code request is rejected
+  /// (4101–4107); the provider layer maps it to a localized toast.
+  final void Function(int code, String message)? onAuthCodeRejected;
+
+  /// Called when a response carries X-Fn-Auth-Mode: legacy — the combination
+  /// "old FN1 code on a new server" that triggers the deprecation warning.
+  final void Function()? onLegacyAuthMode;
   final RuntimeConfiguration? _runtimeConfiguration;
   final FlyNarwhalResponseCrypto _crypto;
   final Dio _dio;
+
+  /// Cached FNK2 derivations for the currently configured code.
+  FlyNarwhalClientCode? _fnk2Code;
+  List<int>? _fnk2SignKey;
 
   /// Server-side business code meaning the client version is below the
   /// server's configured minimum (ResultCodes.CLIENT_VERSION_TOO_LOW).
@@ -48,7 +62,10 @@ class FlyNarwhalRemoteDataSource {
     bool Function()? getFlyNarwhalServerEnabled,
     required this.getAuthCode,
     this.getClientVersion,
+    this.getDeviceId,
     this.onClientVersionTooLow,
+    this.onAuthCodeRejected,
+    this.onLegacyAuthMode,
     RuntimeConfiguration? runtimeConfiguration,
     Dio? dio,
     FlyNarwhalResponseCrypto? crypto,
@@ -90,6 +107,36 @@ class FlyNarwhalRemoteDataSource {
       ApiEndpoints.flyNarwhalVersion,
       baseUrl: baseUrl,
       fromJsonT: (json) => json?.toString() ?? '',
+    );
+  }
+
+  /// Activates the configured FNK2 code: proves possession via the Fnauth
+  /// signature, binds this device on first use, and returns the code metadata.
+  Future<ApiResult<SmartAnalysisResult<ClientCodeInfo>>> activateClientCode({
+    required String deviceLabel,
+    required String platform,
+  }) {
+    return _post(
+      ApiEndpoints.flyNarwhalClientActivate,
+      data: <String, dynamic>{
+        'deviceId': getDeviceId?.call() ?? '',
+        'deviceLabel': deviceLabel,
+        'clientVersion': getClientVersion?.call() ?? '',
+        'platform': platform,
+      },
+      fromJsonT: (json) => ClientCodeInfo.fromJson(
+        Map<String, dynamic>.from(json as Map),
+      ),
+    );
+  }
+
+  /// Refreshes the configured code's metadata (name/expiry/scope/status).
+  Future<ApiResult<SmartAnalysisResult<ClientCodeInfo>>> getClientCodeInfo() {
+    return _get(
+      ApiEndpoints.flyNarwhalClientMe,
+      fromJsonT: (json) => ClientCodeInfo.fromJson(
+        Map<String, dynamic>.from(json as Map),
+      ),
     );
   }
 
@@ -395,6 +442,7 @@ class FlyNarwhalRemoteDataSource {
                 parameters: parameters,
               ),
               responseType: ResponseType.plain));
+      _noteAuthMode(response.headers);
       return Success(await _decodeSmartResult(
         response.data ?? '',
         fromJsonT,
@@ -422,8 +470,10 @@ class FlyNarwhalRemoteDataSource {
                 signaturePath: path,
                 data: data,
                 isPost: true,
+                method: 'POST',
               ),
               responseType: ResponseType.plain));
+      _noteAuthMode(response.headers);
       return Success(await _decodeSmartResult(
         response.data ?? '',
         fromJsonT,
@@ -446,8 +496,9 @@ class FlyNarwhalRemoteDataSource {
       final url = _buildFullUrl(path);
       final response = await _dio.delete<String>(url,
           options: Options(
-              headers: await _buildHeaders(signaturePath: path),
+              headers: await _buildHeaders(signaturePath: path, method: 'DELETE'),
               responseType: ResponseType.plain));
+      _noteAuthMode(response.headers);
       return Success(await _decodeSmartResult(
         response.data ?? '',
         fromJsonT,
@@ -480,6 +531,7 @@ class FlyNarwhalRemoteDataSource {
               ),
               responseType: ResponseType.stream,
               receiveTimeout: _sseReceiveTimeout));
+      _noteAuthMode(response.headers);
       AppTalker.info(
         'FlyNarwhal',
         'SSE GET 已连接: $path，状态码 ${response.statusCode}，耗时 ${requestStopwatch.elapsedMilliseconds}ms',
@@ -510,9 +562,11 @@ class FlyNarwhalRemoteDataSource {
                 data: data,
                 isPost: true,
                 isSse: true,
+                method: 'POST',
               ),
               responseType: ResponseType.stream,
               receiveTimeout: _sseReceiveTimeout));
+      _noteAuthMode(response.headers);
       AppTalker.info(
         'FlyNarwhal',
         'SSE POST 已连接: $path，状态码 ${response.statusCode}，耗时 ${requestStopwatch.elapsedMilliseconds}ms',
@@ -662,8 +716,49 @@ class FlyNarwhalRemoteDataSource {
     dynamic data,
     bool isPost = false,
     bool isSse = false,
+    String method = 'GET',
   }) async {
     final authCode = getAuthCode();
+
+    // FNK2 per-client code path: HMAC signature keyed by the code itself; the
+    // shared API secret is never touched.
+    final fnk2 = FlyNarwhalClientCode.tryParse(authCode);
+    if (fnk2 != null) {
+      if (_fnk2Code?.fullCode != fnk2.fullCode || _fnk2SignKey == null) {
+        _fnk2Code = fnk2;
+        _fnk2SignKey = await fnk2.deriveSignKey().then((k) => k.extractBytes());
+      }
+      final deviceId = getDeviceId?.call() ?? '';
+      final headers = <String, String>{
+        'Accept': isSse ? 'text/event-stream' : 'application/json',
+        'User-Agent': AppConstants.userAgent,
+        'Fnauth': FlyNarwhalAuthHelper.generateFnauth(
+          method: method,
+          url: signaturePath,
+          keyIdHex: fnk2.keyIdHex,
+          signKey: _fnk2SignKey!,
+          deviceId: deviceId,
+          parameters: parameters,
+          data: data,
+        ),
+        'X-Fn-Device-Id': deviceId,
+        'Keyx': _crypto.fnk2KeyxBase64Url(),
+      };
+      final clientVersion = getClientVersion?.call() ?? '';
+      if (clientVersion.isNotEmpty) {
+        headers['X-Client-Version'] = clientVersion;
+      }
+      final token = getToken();
+      final cookie = getCookie();
+      if (token.isNotEmpty) {
+        headers['Authorization'] = token;
+      }
+      if (cookie.isNotEmpty) {
+        headers['Cookie'] = cookie;
+      }
+      return headers;
+    }
+
     final authx = await _generateAuthx(
       signaturePath: signaturePath,
       parameters: parameters,
@@ -702,6 +797,16 @@ class FlyNarwhalRemoteDataSource {
     return headers;
   }
 
+  /// Observes the passive legacy-auth marker the new server adds to old-path
+  /// responses; released clients ignore unknown headers, new clients use it to
+  /// detect "old FN1 code on a new server".
+  void _noteAuthMode(Headers headers) {
+    final mode = headers.value('X-Fn-Auth-Mode');
+    if (mode == 'legacy') {
+      onLegacyAuthMode?.call();
+    }
+  }
+
   Future<SmartAnalysisResult<T>> _decodeSmartResult<T>(
     String raw,
     T Function(Object? json) fromJsonT, {
@@ -717,6 +822,10 @@ class FlyNarwhalRemoteDataSource {
         // The server rejected this client version; surface its message once
         // (the category keeps fast polling loops from stacking duplicates).
         onClientVersionTooLow?.call(result.msg);
+      }
+      if (result.code >= ResponseCodes.authCodeInvalid &&
+          result.code <= ResponseCodes.authCodeReadOnly) {
+        onAuthCodeRejected?.call(result.code, result.msg);
       }
       throw FailureInfo(
         message: result.msg,

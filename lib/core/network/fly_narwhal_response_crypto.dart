@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+
+import 'fly_narwhal_client_code.dart';
 
 class FlyNarwhalResponseCrypto {
   static final FlyNarwhalResponseCrypto instance = FlyNarwhalResponseCrypto._();
@@ -10,7 +13,28 @@ class FlyNarwhalResponseCrypto {
   final AesGcm _aesGcm = AesGcm.with256bits();
   Future<SimpleKeyPair>? _clientKeyPairFuture;
 
+  /// v2 (FNK2) path: a random 32-byte Keyx per process, not an X25519 key.
+  Uint8List? _fnk2Keyx;
+  final Map<String, Future<SecretKey>> _fnk2SignKeys = {};
+
   FlyNarwhalResponseCrypto._();
+
+  /// Random per-process Keyx for the FNK2 response envelope.
+  Uint8List fnk2KeyxBytes() {
+    if (_fnk2Keyx == null) {
+      final random = Random.secure();
+      _fnk2Keyx = Uint8List.fromList(
+        List<int>.generate(32, (_) => random.nextInt(256)),
+      );
+    }
+    return _fnk2Keyx!;
+  }
+
+  String fnk2KeyxBase64Url() => _encodeBase64UrlNoPadding(fnk2KeyxBytes());
+
+  Future<SecretKey> _fnk2SignKey(FlyNarwhalClientCode code) {
+    return _fnk2SignKeys.putIfAbsent(code.fullCode, code.deriveSignKey);
+  }
 
   // Client X25519 public key, base64url without padding.
   Future<String> clientKeyxBase64Url() async {
@@ -18,14 +42,17 @@ class FlyNarwhalResponseCrypto {
     return _encodeBase64UrlNoPadding(publicKey.bytes);
   }
 
-  // Decrypt an encrypted response payload using the FN1 auth code.
+  // Decrypt an encrypted response payload using the FN1 or FNK2 auth code.
   Future<String> decryptAesGcmBase64Url(
     String ciphertextBase64Url,
     String authCode,
   ) async {
-    final serverPublicKeyBytes = _decodeAuthCodeServerPublicKey(authCode);
     final payload = _decodeBase64UrlNoPadding(ciphertextBase64Url);
-    if (payload.length < 14 || payload.first != 1) {
+    if (payload.length < 14) {
+      throw const FormatException('Invalid FlyNarwhal encrypted payload');
+    }
+    final version = payload.first;
+    if (version != 1 && version != 2) {
       throw const FormatException('Invalid FlyNarwhal encrypted payload');
     }
 
@@ -42,7 +69,21 @@ class FlyNarwhalResponseCrypto {
     final macBytes = encryptedBytesWithMac.sublist(
       encryptedBytesWithMac.length - 16,
     );
-    final secretKey = await _deriveResponseSecretKey(serverPublicKeyBytes);
+    final SecretKey secretKey;
+    if (version == 2) {
+      final code = FlyNarwhalClientCode.tryParse(authCode);
+      if (code == null) {
+        throw const FormatException('FNK2 auth code required for v2 payload');
+      }
+      final signKey = await _fnk2SignKey(code);
+      secretKey = await FlyNarwhalClientCode.deriveResponseKey(
+        signKey,
+        fnk2KeyxBytes(),
+      );
+    } else {
+      final serverPublicKeyBytes = _decodeAuthCodeServerPublicKey(authCode);
+      secretKey = await _deriveResponseSecretKey(serverPublicKeyBytes);
+    }
     final decryptedBytes = await _aesGcm.decrypt(
       SecretBox(cipherText, nonce: nonce, mac: Mac(macBytes)),
       secretKey: secretKey,

@@ -6,6 +6,7 @@ class FlyNarwhalSettings {
   static const String _enabledKey = 'fly_narwhal_server_enabled';
   static const String _baseUrlKey = 'fly_narwhal_server_base_url';
   static const String _authCodeKey = 'fly_narwhal_server_auth_code';
+  static const String _authCodeMetaKey = 'fly_narwhal_server_auth_code_meta';
 
   final SharedPreferences _prefs;
   final String? _userGuid;
@@ -31,6 +32,18 @@ class FlyNarwhalSettings {
 
   Future<void> setAuthCode(String value) {
     return _writeStringScoped(_authCodeKey, value);
+  }
+
+  /// JSON snapshot of the activated FNK2 code's metadata (name/expiry/scope),
+  /// written after a successful activation or /me refresh. Null for legacy FN1.
+  String? get authCodeMeta => _readStringScoped(_authCodeMetaKey);
+
+  Future<void> setAuthCodeMeta(String value) {
+    return _writeStringScoped(_authCodeMetaKey, value);
+  }
+
+  Future<void> clearAuthCodeMeta() async {
+    await _prefs.remove(_scopedKey(_authCodeMetaKey));
   }
 
   String _scopedKey(String rawKey) {

@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../core/network/fly_narwhal_client_code.dart';
 import '../../../data/models/fly_narwhal/index.dart';
 import '../../../data/storage/update_settings_store.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../providers/fly_narwhal_client_auth.dart';
 import '../../../providers/fly_narwhal_server_capabilities.dart';
 import '../../../providers/fly_narwhal_server_update_available_notifier.dart';
 import '../../../providers/providers.dart';
@@ -247,6 +250,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  /// Caption for the auth-code row: activated FNK2 codes show name/expiry/scope;
+  /// legacy FN1 codes keep the original "filled" text.
+  String _authCodeCaption(AppLocalizations l10n, SettingsState settings) {
+    if (!settings.hasFlyNarwhalAuthCode) {
+      return l10n.settingsServerAuthCodePrompt;
+    }
+    final meta = ref.watch(flyNarwhalClientCodeMetaProvider);
+    if (meta == null) {
+      return l10n.settingsServerAuthCodeFilled;
+    }
+    final expiry = meta.permanent
+        ? l10n.settingsServerAuthCodePermanent
+        : (meta.expireTime == null
+            ? '—'
+            : DateTime.fromMillisecondsSinceEpoch(meta.expireTime!)
+                .toLocal()
+                .toString()
+                .split('.')
+                .first);
+    final scope = meta.isReadOnly
+        ? l10n.settingsServerAuthCodeScopeReadOnly
+        : l10n.settingsServerAuthCodeScopeReadWrite;
+    return '${meta.name} · $expiry · $scope';
+  }
+
   void _openFlyNarwhalAuthCodeDialog() {
     final l10n = AppLocalizations.of(context);
     _flyNarwhalAuthCodeController.text =
@@ -304,9 +332,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _saveFlyNarwhalAuthCode() async {
-    await ref
-        .read(settingsProvider.notifier)
-        .setFlyNarwhalAuthCode(_flyNarwhalAuthCodeController.text);
+    final l10n = AppLocalizations.of(context);
+    final code = _flyNarwhalAuthCodeController.text.trim();
+    final notifier = ref.read(settingsProvider.notifier);
+
+    // FNK2 codes activate against the server before being saved; FN1 legacy
+    // codes save directly (old servers have no activation endpoint).
+    if (FlyNarwhalClientCode.isFnk2(code)) {
+      final baseUrl = ref.read(settingsProvider).flyNarwhalServerBaseUrl;
+      if (baseUrl.isEmpty) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              l10n.toastServerCredentialsRequired,
+              type: ToastType.failed,
+            );
+        return;
+      }
+      // Probe the server first: an old server must say "upgrade" rather than
+      // fail activation with an opaque 401.
+      final probe = await probeFlyNarwhalServer(ref);
+      if (!probe.capabilities.versionKnown) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              l10n.authCodeServerTooOld,
+              type: ToastType.failed,
+            );
+        return;
+      }
+      final deviceLabel = Platform.localHostname;
+      final error = await activateFlyNarwhalClientCode(
+        ref,
+        code: code,
+        deviceLabel: deviceLabel,
+      );
+      if (!mounted) return;
+      if (error != null) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              error,
+              type: ToastType.failed,
+            );
+        return;
+      }
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.authCodeActivateSuccess,
+            type: ToastType.success,
+          );
+      return;
+    }
+
+    await notifier.setFlyNarwhalAuthCode(code);
+    await ref.read(flyNarwhalSettingsProvider).clearAuthCodeMeta();
+    ref.read(flyNarwhalClientCodeMetaProvider.notifier).state = null;
+  }
+
+  Future<void> _reverifyFlyNarwhalAuthCode() async {
+    final l10n = AppLocalizations.of(context);
+    final error = await refreshFlyNarwhalClientCodeInfo(ref);
+    if (!mounted) return;
+    ref.read(toastManagerProvider.notifier).showToast(
+          error ?? l10n.authCodeActivateSuccess,
+          type: error == null ? ToastType.success : ToastType.failed,
+        );
   }
 
   void _openSslWhitelistDialog() {
@@ -495,12 +579,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     // Once the connected server is known to carry the danmu source config API,
     // pull the stored values a single time per screen life so the card summary
-    // reflects the current sources without opening the dialog.
-    final supportsModernContract = ref
-            .watch(flyNarwhalServerCapabilitiesProvider)
-            .valueOrNull
-            ?.supportsModernContract ??
-        false;
+    // reflects the current sources without opening the dialog. Read-only codes
+    // never see (or load) these config cards.
+    final canWriteServerConfig =
+        ref.watch(flyNarwhalCanWriteServerConfigProvider);
+    final supportsModernContract = (ref
+                .watch(flyNarwhalServerCapabilitiesProvider)
+                .valueOrNull
+                ?.supportsModernContract ??
+            false) &&
+        canWriteServerConfig;
     if (supportsModernContract && !_danmuSourceConfigLoadRequested) {
       _danmuSourceConfigLoadRequested = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -511,11 +599,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     // Same pattern for the scheduled thumbnail scan card (server >= 2.1.0):
     // pull the stored config once so the card summary reflects it.
-    final supportsThumbnailScheduling = ref
-            .watch(flyNarwhalServerCapabilitiesProvider)
-            .valueOrNull
-            ?.supportsThumbnailScheduling ??
-        false;
+    final supportsThumbnailScheduling = (ref
+                .watch(flyNarwhalServerCapabilitiesProvider)
+                .valueOrNull
+                ?.supportsThumbnailScheduling ??
+            false) &&
+        canWriteServerConfig;
     if (supportsThumbnailScheduling && !_thumbnailScanConfigLoadRequested) {
       _thumbnailScanConfigLoadRequested = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -927,6 +1016,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 visible: settings.flyNarwhalServerEnabled,
                                 child: Column(
                                   children: [
+                                    // Legacy code on a new server: persistent
+                                    // banner urging a regenerated code.
+                                    if (ref.watch(legacyAuthDeprecationProvider))
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        child: InfoBar(
+                                          key: const ValueKey(
+                                            'settings-legacy-auth-banner',
+                                          ),
+                                          title: Text(
+                                            l10n.legacyAuthBannerTitle,
+                                          ),
+                                          content: Text(
+                                            l10n.legacyAuthBannerBody,
+                                          ),
+                                          severity: InfoBarSeverity.warning,
+                                          isLong: true,
+                                        ),
+                                      ),
                                     CardExpanderItem(
                                       key: const ValueKey(
                                         'settings-fly-narwhal-url',
@@ -1045,26 +1156,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         ],
                                       ),
                                       caption: Text(
-                                        settings.hasFlyNarwhalAuthCode
-                                            ? l10n.settingsServerAuthCodeFilled
-                                            : l10n.settingsServerAuthCodePrompt,
+                                        _authCodeCaption(l10n, settings),
                                       ),
-                                      trailing: AppButton(
-                                        onPressed:
-                                            _openFlyNarwhalAuthCodeDialog,
-                                        child: Text(l10n.settingsServerAuthCodePlaceholder),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (ref.watch(
+                                                  flyNarwhalClientCodeMetaProvider) !=
+                                              null)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 8,
+                                              ),
+                                              child: AppButton(
+                                                key: const ValueKey(
+                                                  'settings-fly-narwhal-auth-code-reverify',
+                                                ),
+                                                onPressed:
+                                                    _reverifyFlyNarwhalAuthCode,
+                                                child: Text(
+                                                  l10n.settingsServerAuthCodeReverify,
+                                                ),
+                                              ),
+                                            ),
+                                          AppButton(
+                                            onPressed:
+                                                _openFlyNarwhalAuthCodeDialog,
+                                            child: Text(l10n.settingsServerAuthCodePlaceholder),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                     // Servers below 2.0.0 analyze segments but
                                     // expose no config API, so this card would
-                                    // open onto a failing request.
-                                    if (ref
-                                            .watch(
-                                              flyNarwhalServerCapabilitiesProvider,
-                                            )
-                                            .valueOrNull
-                                            ?.supportsModernContract ??
-                                        false)
+                                    // open onto a failing request. Read-only
+                                    // codes hide it entirely.
+                                    if ((ref
+                                                .watch(
+                                                  flyNarwhalServerCapabilitiesProvider,
+                                                )
+                                                .valueOrNull
+                                                ?.supportsModernContract ??
+                                            false) &&
+                                        canWriteServerConfig)
                                       CardExpanderItem(
                                         key: const ValueKey(
                                           'settings-fly-narwhal-smart-skip-config',

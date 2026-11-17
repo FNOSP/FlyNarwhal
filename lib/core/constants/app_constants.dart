@@ -80,6 +80,8 @@ class ApiEndpoints {
 
   // FlyNarwhal Server
   static const String flyNarwhalVersion = '/api/config/version';
+  static const String flyNarwhalClientActivate = '/api/client/activate';
+  static const String flyNarwhalClientMe = '/api/client/me';
   static const String flyNarwhalUpdateStart = '/api/config/update/start';
   static const String flyNarwhalAnalyze = '/api/analysis/analyze';
   static const String flyNarwhalSeasonStatus = '/api/analysis/season/status';
@@ -181,6 +183,15 @@ class ResponseCodes {
   /// Business code returned when the requested resource does not exist
   /// (e.g. GET /v/api/v1/person/{guid} for a person with no stored record).
   static const int notFoundBusiness = -6;
+
+  /// Per-client authorization code failures (server ResultCodes 4101–4107).
+  static const int authCodeInvalid = 4101;
+  static const int authCodeExpired = 4102;
+  static const int authCodeDisabled = 4103;
+  static const int authCodeDeviceMismatch = 4104;
+  static const int authCodeRateLimited = 4105;
+  static const int authCodeReplayed = 4106;
+  static const int authCodeReadOnly = 4107;
 }
 
 /// Storage keys

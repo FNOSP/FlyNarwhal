@@ -119,6 +119,7 @@ class SmartAnalysisController
     StartSeasonPolling? startSeasonPreparedPolling,
     String? Function()? resolveUserGuid,
     String? Function()? resolveToken,
+    bool Function()? isLegacyLimited,
   })  : _getL10n = getL10n,
         _delay = delay ?? Future<void>.delayed,
         _startSeasonPolling = startSeasonPolling ?? _ignorePollingRequest,
@@ -126,9 +127,15 @@ class SmartAnalysisController
             startSeasonPreparedPolling ?? _ignorePollingRequest,
         _resolveUserGuid = resolveUserGuid ?? (() => null),
         _resolveToken = resolveToken ?? (() => null),
+        _isLegacyLimited = isLegacyLimited ?? (() => false),
         super(const SmartAnalysisSubmissionState());
 
   final AppLocalizations Function() _getL10n;
+
+  /// True when a legacy FN1 code is configured against a new-authorization
+  /// server: analysis submissions are silently skipped (the player already
+  /// disables smart skip for the session).
+  final bool Function() _isLegacyLimited;
 
   static void _ignorePollingRequest(String seasonGuid) {}
 
@@ -227,6 +234,7 @@ class SmartAnalysisController
     String tvTitle,
     int seasonNumber,
   ) async {
+    if (_isLegacyLimited()) return;
     final targetKey = SmartAnalysisTargetKey(
       type: SmartAnalysisTargetType.season,
       guid: seasonGuid,
@@ -279,6 +287,7 @@ class SmartAnalysisController
   }
 
   Future<void> analyzeTv(String tvGuid, String tvTitle) async {
+    if (_isLegacyLimited()) return;
     final targetKey = SmartAnalysisTargetKey(
       type: SmartAnalysisTargetType.tv,
       guid: tvGuid,

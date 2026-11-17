@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'home_view_model.dart';
 import '../../../providers/global_refresh.dart';
+import '../../../providers/fly_narwhal_client_auth.dart';
 import '../../../providers/providers.dart';
 import 'widgets/media_lib_card_row.dart';
 import 'widgets/media_lib_gallery.dart';
@@ -67,7 +68,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(userInfoProvider.notifier).loadUserInfo();
+      _maybeShowLegacyAuthPrompt();
     });
+  }
+
+  /// Once per app launch: when a legacy FN1 code is configured against a
+  /// new-authorization server, show a dismissible dialog pointing at Settings.
+  /// The flag is process-lifetime (not persisted), so every launch shows it
+  /// once while the condition holds; unconfigured users never see it.
+  void _maybeShowLegacyAuthPrompt() {
+    if (!ref.read(legacyAuthDeprecationProvider)) return;
+    if (ref.read(legacyAuthPromptShownProvider)) return;
+    ref.read(legacyAuthPromptShownProvider.notifier).state = true;
+    final l10n = AppLocalizations.of(context);
+    showAppDialog(
+      context: context,
+      title: l10n.legacyAuthPromptTitle,
+      content: Text(l10n.legacyAuthPromptBody),
+      secondaryButtonText: l10n.legacyAuthPromptDismiss,
+      primaryButtonText: l10n.legacyAuthPromptGoSettings,
+      onPrimaryPressed: () async {
+        if (mounted) context.go('/settings');
+      },
+      autoDismiss: true,
+    );
   }
 
   @override
@@ -82,6 +106,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final mediaDbListAsync = ref.watch(mediaDbListNotifierProvider);
     final playListAsync = ref.watch(playListNotifierProvider);
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
+
+    // The deprecation condition can flip true after the first frame (the
+    // legacy marker arrives with the first server response); the shown-flag
+    // keeps the dialog to once per launch.
+    ref.listen<bool>(legacyAuthDeprecationProvider, (previous, next) {
+      if (next && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _maybeShowLegacyAuthPrompt();
+        });
+      }
+    });
 
     // Consume each global refresh event once and keep the home data in sync.
     ref.listen<GlobalRefreshRequest?>(currentGlobalRefreshRequestProvider, (
@@ -135,6 +170,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: CustomScrollView(
               controller: _scrollController,
               slivers: [
+                // Legacy FN1 code on a new-authorization server: persistent,
+                // non-dismissible warning urging a regenerated code. Hidden
+                // for unconfigured users, old servers, and FNK2 codes.
+                if (ref.watch(legacyAuthDeprecationProvider))
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                      child: InfoBar(
+                        key: const ValueKey('home-legacy-auth-banner'),
+                        title: Text(l10n.legacyAuthBannerTitle),
+                        content: Text(l10n.legacyAuthBannerBody),
+                        severity: InfoBarSeverity.warning,
+                        isLong: true,
+                        action: Button(
+                          key: const ValueKey('home-legacy-auth-go-settings'),
+                          onPressed: () => context.go('/settings'),
+                          child: Align(
+                            widthFactor: 1.0,
+                            child: Text(l10n.legacyAuthPromptGoSettings),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 mediaDbListAsync.when(
                   data: (data) => SliverToBoxAdapter(
                     child: MediaLibCardRow(

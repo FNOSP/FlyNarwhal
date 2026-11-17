@@ -171,6 +171,88 @@ class AppLocalizationsEn extends AppLocalizations {
       'Open the FlyNarwhal server address deployed on your NAS in a browser (for the app-center build, click \"FlyNarwhal\" on the fnOS desktop), click \"Get auth code\" in the top-right corner, then paste the code into the auth code field.\\nServer version >= 0.6.0 is required. Older servers cannot auto-update to 0.6.0 or above; update them manually.';
 
   @override
+  String get authCodeInvalid =>
+      'Invalid authorization code; check it and try again';
+
+  @override
+  String get authCodeExpired =>
+      'This authorization code has expired; generate a new one in the server admin page';
+
+  @override
+  String get authCodeDisabled =>
+      'This authorization code was disabled; contact the server administrator';
+
+  @override
+  String get authCodeDeviceMismatch =>
+      'This code is bound to another device; unbind it in the server admin page and retry';
+
+  @override
+  String get authCodeRateLimited => 'Too many failed attempts; try again later';
+
+  @override
+  String get authCodeReplayed => 'Request expired or duplicated; please retry';
+
+  @override
+  String get authCodeReadOnly =>
+      'This code is read-only and cannot edit server configuration';
+
+  @override
+  String get authCodeActivateSuccess => 'Authorization code activated';
+
+  @override
+  String get authCodeActivateFailed =>
+      'Failed to activate the authorization code';
+
+  @override
+  String get authCodeServerTooOld =>
+      'This server does not support the new authorization codes; upgrade the server first';
+
+  @override
+  String get settingsServerAuthCodeName => 'Code name';
+
+  @override
+  String get settingsServerAuthCodeExpiry => 'Expires';
+
+  @override
+  String get settingsServerAuthCodePermanent => 'Permanent';
+
+  @override
+  String get settingsServerAuthCodeScope => 'Scope';
+
+  @override
+  String get settingsServerAuthCodeScopeReadOnly => 'Read-only';
+
+  @override
+  String get settingsServerAuthCodeScopeReadWrite => 'Read/write';
+
+  @override
+  String get settingsServerAuthCodeReverify => 'Re-verify';
+
+  @override
+  String get settingsServerAuthCodeActivating =>
+      'Activating authorization code…';
+
+  @override
+  String get legacyAuthBannerTitle => 'Authorization system updated';
+
+  @override
+  String get legacyAuthBannerBody =>
+      'Generate a new authorization code on the server to restore full server features (danmaku, intro/outro skip, thumbnails).';
+
+  @override
+  String get legacyAuthPromptTitle => 'Authorization system updated';
+
+  @override
+  String get legacyAuthPromptBody =>
+      'The legacy authorization code in use is now limited: danmaku, intro/outro detection and thumbnails are turned off. Generate a new code in the server admin page and replace it in Settings to restore all features.';
+
+  @override
+  String get legacyAuthPromptDismiss => 'Later';
+
+  @override
+  String get legacyAuthPromptGoSettings => 'Open Settings';
+
+  @override
   String get settingsServerTest => 'Test';
 
   @override

@@ -37,6 +37,7 @@ import '../../../providers/file_providers.dart';
 import '../../../providers/danmaku_controller.dart';
 import '../../../providers/episode_analysis_controller.dart';
 import '../../../providers/fly_narwhal_server_capabilities.dart';
+import '../../../providers/fly_narwhal_client_auth.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/quark_cdn_range_providers.dart';
 import '../../../providers/smart_skip_settings_controller.dart';
@@ -3642,8 +3643,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _streamInfo = result.streamInfo;
       _playingInfoCache = result.playingInfoCache;
       final flyNarwhalSettings = ref.read(settingsProvider);
+      // A legacy FN1 code on a new-authorization server keeps basic playback
+      // but loses danmaku / smart-skip / thumbnail generation until the user
+      // regenerates the code; gate the capability requests locally so the
+      // server never sees them (released old clients are unaffected).
+      final legacyLimited = ref.read(legacyAuthDeprecationProvider);
       final serverFullyConfigured =
-          flyNarwhalSettings.isFlyNarwhalServerAvailable;
+          flyNarwhalSettings.isFlyNarwhalServerAvailable && !legacyLimited;
       if (serverFullyConfigured) {
         // Probe before every playback: the server may have been updated or
         // rolled back since the last one, and the danmaku contract differs.

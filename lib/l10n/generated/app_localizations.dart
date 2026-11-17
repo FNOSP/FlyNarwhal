@@ -393,6 +393,150 @@ abstract class AppLocalizations {
   /// **'请在浏览器中访问部署在 NAS 中的飞鲸服务端地址（应用中心版请点击飞牛 OS 桌面中的「飞鲸影视」），点击右上角的「获取授权码」按钮，复制授权码后粘贴到填写授权码的文本框中。\\n需要服务端版本 >= 0.6.0，低于 0.6.0 版的服务端不支持自动更新到 0.6.0 或以上版本，请手动更新到 0.6.0 或以上版本'**
   String get settingsServerAuthCodeHelp;
 
+  /// Error when the per-client code is invalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权码无效，请检查后重新输入'**
+  String get authCodeInvalid;
+
+  /// Error when the per-client code expired.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权码已过期，请在服务端管理页重新生成'**
+  String get authCodeExpired;
+
+  /// Error when the per-client code was disabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权码已被停用，请联系服务端管理员'**
+  String get authCodeDisabled;
+
+  /// Error when the code is bound to another device.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权码已绑定其他设备，请在服务端管理页解绑后重试'**
+  String get authCodeDeviceMismatch;
+
+  /// Error when auth failures tripped the rate limit.
+  ///
+  /// In zh, this message translates to:
+  /// **'失败次数过多，请稍后再试'**
+  String get authCodeRateLimited;
+
+  /// Error on a replayed or stale request.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求已过期或重复，请重试'**
+  String get authCodeReplayed;
+
+  /// Error when a read-only code tries to edit config.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前授权码为只读权限，无法修改服务端配置'**
+  String get authCodeReadOnly;
+
+  /// Toast after successful code activation.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权码激活成功'**
+  String get authCodeActivateSuccess;
+
+  /// Generic activation failure.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权码激活失败'**
+  String get authCodeActivateFailed;
+
+  /// Shown when pasting a new code against an old server.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前服务端不支持新版授权码，请先升级服务端'**
+  String get authCodeServerTooOld;
+
+  /// Label for the activated code's name.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权码名称'**
+  String get settingsServerAuthCodeName;
+
+  /// Label for the code expiry.
+  ///
+  /// In zh, this message translates to:
+  /// **'有效期'**
+  String get settingsServerAuthCodeExpiry;
+
+  /// Value for a permanent code.
+  ///
+  /// In zh, this message translates to:
+  /// **'永久'**
+  String get settingsServerAuthCodePermanent;
+
+  /// Label for the code scope.
+  ///
+  /// In zh, this message translates to:
+  /// **'权限'**
+  String get settingsServerAuthCodeScope;
+
+  /// Read-only scope value.
+  ///
+  /// In zh, this message translates to:
+  /// **'只读'**
+  String get settingsServerAuthCodeScopeReadOnly;
+
+  /// Read/write scope value.
+  ///
+  /// In zh, this message translates to:
+  /// **'读写'**
+  String get settingsServerAuthCodeScopeReadWrite;
+
+  /// Button to refresh code metadata.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新验证'**
+  String get settingsServerAuthCodeReverify;
+
+  /// Progress text during activation.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在激活授权码…'**
+  String get settingsServerAuthCodeActivating;
+
+  /// Title of the legacy-code deprecation banner.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权系统已更新'**
+  String get legacyAuthBannerTitle;
+
+  /// Body of the legacy-code deprecation banner.
+  ///
+  /// In zh, this message translates to:
+  /// **'请从服务端重新生成新的授权码才可正常使用服务端能力（弹幕、片头片尾、缩略图）。'**
+  String get legacyAuthBannerBody;
+
+  /// Title of the once-per-launch deprecation dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权系统已更新'**
+  String get legacyAuthPromptTitle;
+
+  /// Body of the once-per-launch deprecation dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前使用的旧版授权码已受限：弹幕、片头片尾识别与缩略图能力已关闭。请在服务端管理页生成新的授权码，并在设置中替换，即可恢复全部能力。'**
+  String get legacyAuthPromptBody;
+
+  /// Dismiss button of the deprecation dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'稍后处理'**
+  String get legacyAuthPromptDismiss;
+
+  /// Go-to-settings button of the deprecation dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'去设置'**
+  String get legacyAuthPromptGoSettings;
+
   /// Button that tests the server connection.
   ///
   /// In zh, this message translates to:

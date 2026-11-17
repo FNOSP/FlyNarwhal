@@ -158,6 +158,79 @@ class AppLocalizationsZh extends AppLocalizations {
       '请在浏览器中访问部署在 NAS 中的飞鲸服务端地址（应用中心版请点击飞牛 OS 桌面中的「飞鲸影视」），点击右上角的「获取授权码」按钮，复制授权码后粘贴到填写授权码的文本框中。\\n需要服务端版本 >= 0.6.0，低于 0.6.0 版的服务端不支持自动更新到 0.6.0 或以上版本，请手动更新到 0.6.0 或以上版本';
 
   @override
+  String get authCodeInvalid => '授权码无效，请检查后重新输入';
+
+  @override
+  String get authCodeExpired => '授权码已过期，请在服务端管理页重新生成';
+
+  @override
+  String get authCodeDisabled => '授权码已被停用，请联系服务端管理员';
+
+  @override
+  String get authCodeDeviceMismatch => '授权码已绑定其他设备，请在服务端管理页解绑后重试';
+
+  @override
+  String get authCodeRateLimited => '失败次数过多，请稍后再试';
+
+  @override
+  String get authCodeReplayed => '请求已过期或重复，请重试';
+
+  @override
+  String get authCodeReadOnly => '当前授权码为只读权限，无法修改服务端配置';
+
+  @override
+  String get authCodeActivateSuccess => '授权码激活成功';
+
+  @override
+  String get authCodeActivateFailed => '授权码激活失败';
+
+  @override
+  String get authCodeServerTooOld => '当前服务端不支持新版授权码，请先升级服务端';
+
+  @override
+  String get settingsServerAuthCodeName => '授权码名称';
+
+  @override
+  String get settingsServerAuthCodeExpiry => '有效期';
+
+  @override
+  String get settingsServerAuthCodePermanent => '永久';
+
+  @override
+  String get settingsServerAuthCodeScope => '权限';
+
+  @override
+  String get settingsServerAuthCodeScopeReadOnly => '只读';
+
+  @override
+  String get settingsServerAuthCodeScopeReadWrite => '读写';
+
+  @override
+  String get settingsServerAuthCodeReverify => '重新验证';
+
+  @override
+  String get settingsServerAuthCodeActivating => '正在激活授权码…';
+
+  @override
+  String get legacyAuthBannerTitle => '授权系统已更新';
+
+  @override
+  String get legacyAuthBannerBody => '请从服务端重新生成新的授权码才可正常使用服务端能力（弹幕、片头片尾、缩略图）。';
+
+  @override
+  String get legacyAuthPromptTitle => '授权系统已更新';
+
+  @override
+  String get legacyAuthPromptBody =>
+      '当前使用的旧版授权码已受限：弹幕、片头片尾识别与缩略图能力已关闭。请在服务端管理页生成新的授权码，并在设置中替换，即可恢复全部能力。';
+
+  @override
+  String get legacyAuthPromptDismiss => '稍后处理';
+
+  @override
+  String get legacyAuthPromptGoSettings => '去设置';
+
+  @override
   String get settingsServerTest => '测试';
 
   @override
@@ -3460,6 +3533,79 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get settingsServerAuthCodeHelp =>
       '請在瀏覽器中前往部署於 NAS 的飛鯨伺服器位址（應用中心版請點擊飛牛 OS 桌面中的「飛鯨影視」），點擊右上角的「取得授權碼」按鈕，複製授權碼後貼到填寫授權碼的文字框中。\\n需要伺服器版本 >= 0.6.0，低於 0.6.0 版的伺服器不支援自動更新至 0.6.0 或以上版本，請手動更新至 0.6.0 或以上版本';
+
+  @override
+  String get authCodeInvalid => '授權碼無效，請檢查後重新輸入';
+
+  @override
+  String get authCodeExpired => '授權碼已過期，請在伺服端管理頁重新產生';
+
+  @override
+  String get authCodeDisabled => '授權碼已被停用，請聯絡伺服端管理員';
+
+  @override
+  String get authCodeDeviceMismatch => '授權碼已綁定其他裝置，請在伺服端管理頁解綁後重試';
+
+  @override
+  String get authCodeRateLimited => '失敗次數過多，請稍後再試';
+
+  @override
+  String get authCodeReplayed => '請求已過期或重複，請重試';
+
+  @override
+  String get authCodeReadOnly => '目前授權碼為唯讀權限，無法修改伺服端設定';
+
+  @override
+  String get authCodeActivateSuccess => '授權碼啟用成功';
+
+  @override
+  String get authCodeActivateFailed => '授權碼啟用失敗';
+
+  @override
+  String get authCodeServerTooOld => '目前伺服端不支援新版授權碼，請先升級伺服端';
+
+  @override
+  String get settingsServerAuthCodeName => '授權碼名稱';
+
+  @override
+  String get settingsServerAuthCodeExpiry => '有效期';
+
+  @override
+  String get settingsServerAuthCodePermanent => '永久';
+
+  @override
+  String get settingsServerAuthCodeScope => '權限';
+
+  @override
+  String get settingsServerAuthCodeScopeReadOnly => '唯讀';
+
+  @override
+  String get settingsServerAuthCodeScopeReadWrite => '讀寫';
+
+  @override
+  String get settingsServerAuthCodeReverify => '重新驗證';
+
+  @override
+  String get settingsServerAuthCodeActivating => '正在啟用授權碼…';
+
+  @override
+  String get legacyAuthBannerTitle => '授權系統已更新';
+
+  @override
+  String get legacyAuthBannerBody => '請從伺服端重新產生新的授權碼才可正常使用伺服端能力（彈幕、片頭片尾、縮圖）。';
+
+  @override
+  String get legacyAuthPromptTitle => '授權系統已更新';
+
+  @override
+  String get legacyAuthPromptBody =>
+      '目前使用的舊版授權碼已受限：彈幕、片頭片尾辨識與縮圖能力已關閉。請在伺服端管理頁產生新的授權碼，並在設定中替換，即可恢復全部能力。';
+
+  @override
+  String get legacyAuthPromptDismiss => '稍後處理';
+
+  @override
+  String get legacyAuthPromptGoSettings => '去設定';
 
   @override
   String get settingsServerTest => '測試';

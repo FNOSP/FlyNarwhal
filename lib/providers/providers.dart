@@ -4,9 +4,11 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import '../core/config/runtime_configuration.dart';
 import '../core/config/secret_bridge_selector.dart';
+import '../core/constants/app_constants.dart';
 import '../core/network/dio_client.dart';
 import '../core/network/ssl/ssl_trust_manager.dart';
 import '../core/network/ssl/ssl_trust_persistence.dart';
@@ -38,6 +40,7 @@ import '../ui/settings/app_language.dart';
 import '../ui/shared/toast.dart';
 import 'danmaku_controller.dart';
 import 'danmu_source_config_controller.dart';
+import 'fly_narwhal_client_auth.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
 import 'smart_analysis_controller.dart';
 import 'smart_analysis_status_controller.dart';
@@ -258,6 +261,7 @@ final flyNarwhalRemoteDataSourceProvider =
   final runtimeConfiguration = ref.watch(runtimeConfigurationProvider);
   final clientVersionCache = ref.watch(_flyNarwhalClientVersionCacheProvider);
   DateTime? lastClientVersionToastAt;
+  DateTime? lastAuthCodeToastAt;
   return FlyNarwhalRemoteDataSource(
     getToken: () => prefsManager.getToken() ?? '',
     getCookie: () => prefsManager.getCookie() ?? '',
@@ -266,6 +270,7 @@ final flyNarwhalRemoteDataSourceProvider =
     getFlyNarwhalServerEnabled: () => flyNarwhalSettings.enabled,
     getAuthCode: () => flyNarwhalSettings.authCode ?? '',
     getClientVersion: () => clientVersionCache.value,
+    getDeviceId: () => prefsManager.getFallbackDeviceId() ?? '',
     onClientVersionTooLow: (message) {
       // Polling loops would otherwise stack the same upgrade prompt.
       final now = DateTime.now();
@@ -281,9 +286,59 @@ final flyNarwhalRemoteDataSourceProvider =
             category: 'fly-narwhal-client-version',
           );
     },
+    onAuthCodeRejected: (code, message) {
+      final now = DateTime.now();
+      if (lastAuthCodeToastAt != null &&
+          now.difference(lastAuthCodeToastAt!) <
+              const Duration(seconds: 15)) {
+        return;
+      }
+      lastAuthCodeToastAt = now;
+      final l10n = lookupAppLocalizations(
+        AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+      );
+      final localized = switch (code) {
+        ResponseCodes.authCodeInvalid => l10n.authCodeInvalid,
+        ResponseCodes.authCodeExpired => l10n.authCodeExpired,
+        ResponseCodes.authCodeDisabled => l10n.authCodeDisabled,
+        ResponseCodes.authCodeDeviceMismatch => l10n.authCodeDeviceMismatch,
+        ResponseCodes.authCodeRateLimited => l10n.authCodeRateLimited,
+        ResponseCodes.authCodeReplayed => l10n.authCodeReplayed,
+        ResponseCodes.authCodeReadOnly => l10n.authCodeReadOnly,
+        _ => message,
+      };
+      ref.read(toastManagerProvider.notifier).showToast(
+            localized,
+            type: ToastType.failed,
+            category: 'fly-narwhal-auth-code',
+          );
+      // A read-only rejection may mean the admin changed the scope: refresh.
+      if (code == ResponseCodes.authCodeReadOnly) {
+        unawaited(_refreshClientCodeMeta(ref));
+      }
+    },
+    onLegacyAuthMode: () {
+      ref.read(flyNarwhalNewAuthSystemProvider.notifier).state = true;
+    },
     runtimeConfiguration: runtimeConfiguration,
   );
 });
+
+Future<void> _refreshClientCodeMeta(Ref ref) async {
+  try {
+    final result =
+        await ref.read(flyNarwhalRemoteDataSourceProvider).getClientCodeInfo();
+    final info = result.dataOrNull?.data;
+    if (info != null) {
+      await ref
+          .read(flyNarwhalSettingsProvider)
+          .setAuthCodeMeta(jsonEncode(info.toJson()));
+      ref.read(flyNarwhalClientCodeMetaProvider.notifier).state = info;
+    }
+  } catch (_) {
+    // Best-effort refresh; the next /me call retries.
+  }
+}
 
 final smartSkipConfigControllerProvider = StateNotifierProvider<
     SmartSkipConfigController, SmartSkipConfigState>((ref) {
@@ -359,6 +414,7 @@ final smartAnalysisControllerProvider = StateNotifierProvider<
     // media/stream probe identifies the client like the player does (md5 of
     // the login token) when detecting netdisk/STRM media.
     resolveToken: () => ref.read(preferencesManagerProvider).getToken(),
+    isLegacyLimited: () => ref.read(legacyAuthDeprecationProvider),
   );
 });
 
@@ -423,6 +479,7 @@ final thumbnailMenuControllerProvider = StateNotifierProvider.family<
     ref.watch(flyNarwhalRemoteDataSourceProvider),
     ref.watch(flyNarwhalSettingsProvider),
     guid,
+    isLegacyLimited: () => ref.read(legacyAuthDeprecationProvider),
   );
 });
 

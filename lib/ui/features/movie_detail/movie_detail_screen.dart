@@ -22,6 +22,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     as cache_manager;
 import '../../../providers/global_refresh.dart';
+import '../../../providers/fly_narwhal_client_auth.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/thumbnail/thumbnail_error_humanizer.dart';
@@ -382,7 +383,10 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final enabled = !running &&
         !_thumbnailActionLoading &&
         guid.isNotEmpty &&
-        _resolveCurrentFilePath().isNotEmpty;
+        _resolveCurrentFilePath().isNotEmpty &&
+        // Legacy code on a new-authorization server: generation is off until
+        // the user regenerates the code (existing sprites still display).
+        !ref.read(legacyAuthDeprecationProvider);
 
     _moreFlyoutController.showFlyout<void>(
       placementMode: FlyoutPlacementMode.bottomRight,

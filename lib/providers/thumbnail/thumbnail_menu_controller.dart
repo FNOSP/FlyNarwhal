@@ -66,6 +66,10 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
   final FlyNarwhalRemoteDataSource _remoteDataSource;
   final FlyNarwhalSettings _settings;
   final String _guid;
+
+  /// True when a legacy FN1 code is configured against a new-authorization
+  /// server: manual generation is skipped (existing sprites still display).
+  final bool Function() _isLegacyLimited;
   Timer? _pollingTimer;
 
   /// Last known local path of the media file. Sent with status queries so a
@@ -81,8 +85,10 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
   /// SeasonAnalysisStatusController._generations.
   int _generation = 0;
 
-  ThumbnailMenuController(this._remoteDataSource, this._settings, this._guid)
-      : super(const ThumbnailMenuState());
+  ThumbnailMenuController(this._remoteDataSource, this._settings, this._guid,
+      {bool Function()? isLegacyLimited})
+      : _isLegacyLimited = isLegacyLimited ?? (() => false),
+        super(const ThumbnailMenuState());
 
   /// Initial load so the menu can show "已生成/重新生成" before the user triggers.
   /// Also the entry point for re-entering the detail page, so it resumes a
@@ -119,6 +125,7 @@ class ThumbnailMenuController extends StateNotifier<ThumbnailMenuState> {
 
   Future<void> trigger({required String filePath, bool force = false}) async {
     if (state.submitting || !_settings.enabled || _guid.isEmpty) return;
+    if (_isLegacyLimited()) return;
     final generation = _generation;
     if (filePath.isNotEmpty) _filePath = filePath;
     state = state.copyWith(submitting: true, clearErrors: true);
