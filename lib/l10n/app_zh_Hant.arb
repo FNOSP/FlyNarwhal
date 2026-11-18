@@ -171,7 +171,7 @@
   "@settingsServerAuthCodeHint": {
     "description": "Hint under the auth code input."
   },
-  "settingsServerAuthCodeHelp": "請在瀏覽器中前往部署於 NAS 的飛鯨伺服器位址（應用中心版請點擊飛牛 OS 桌面中的「飛鯨影視」），點擊右上角的「取得授權碼」按鈕，複製授權碼後貼到填寫授權碼的文字框中。\\n需要伺服器版本 >= 0.6.0，低於 0.6.0 版的伺服器不支援自動更新至 0.6.0 或以上版本，請手動更新至 0.6.0 或以上版本",
+  "settingsServerAuthCodeHelp": "開啟飛牛 OS 桌面中的「飛鯨影視」，點擊「取得授權碼」進入授權管理頁，為這台用戶端產生新授權碼（只顯示一次），複製後貼到此處。舊版授權碼仍可連線，但彈幕、片頭片尾與縮圖能力需換用新授權碼。\\n新授權碼需要伺服端版本 >= 2.1.0；更低版本的伺服端請繼續使用舊版授權碼。",
   "@settingsServerAuthCodeHelp": {
     "description": "Long help text explaining how to obtain the auth code."
   },

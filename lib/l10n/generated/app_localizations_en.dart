@@ -168,7 +168,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsServerAuthCodeHelp =>
-      'Open the FlyNarwhal server address deployed on your NAS in a browser (for the app-center build, click \"FlyNarwhal\" on the fnOS desktop), click \"Get auth code\" in the top-right corner, then paste the code into the auth code field.\\nServer version >= 0.6.0 is required. Older servers cannot auto-update to 0.6.0 or above; update them manually.';
+      'Open \"FlyNarwhal\" on the fnOS desktop, click \"Get authorization code\" to enter the admin page, and generate a new code for this client (shown only once); copy it and paste it here. Legacy codes still connect, but danmaku, intro/outro skip and thumbnails require a new code.\\nNew codes need server version >= 2.1.0; on older servers keep using the legacy code.';
 
   @override
   String get authCodeInvalid =>

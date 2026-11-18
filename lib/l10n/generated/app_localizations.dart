@@ -390,7 +390,7 @@ abstract class AppLocalizations {
   /// Long help text explaining how to obtain the auth code.
   ///
   /// In zh, this message translates to:
-  /// **'请在浏览器中访问部署在 NAS 中的飞鲸服务端地址（应用中心版请点击飞牛 OS 桌面中的「飞鲸影视」），点击右上角的「获取授权码」按钮，复制授权码后粘贴到填写授权码的文本框中。\\n需要服务端版本 >= 0.6.0，低于 0.6.0 版的服务端不支持自动更新到 0.6.0 或以上版本，请手动更新到 0.6.0 或以上版本'**
+  /// **'打开飞牛 OS 桌面中的「飞鲸影视」，点击「获取授权码」进入授权管理页，为这台客户端生成新授权码（只展示一次），复制后粘贴到此处。旧版授权码仍可连接，但弹幕、片头片尾与缩略图能力需换用新授权码。\\n新授权码需要服务端版本 >= 2.1.0；更低版本的服务端请继续使用旧版授权码。'**
   String get settingsServerAuthCodeHelp;
 
   /// Error when the per-client code is invalid.
