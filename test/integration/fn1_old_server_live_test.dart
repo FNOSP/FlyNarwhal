@@ -31,7 +31,7 @@ FlyNarwhalRemoteDataSource _dataSource({void Function()? onLegacyAuthMode}) {
     getFlyNarwhalServerEnabled: () => true,
     getAuthCode: () => _authCode,
     getClientVersion: () => '9.9.9',
-    getDeviceId: () => 'flutter_live-test-device',
+    getInstanceId: () => 'flutter_live-test-device',
     onLegacyAuthMode: onLegacyAuthMode,
     dio: Dio(BaseOptions(
       responseType: ResponseType.plain,
@@ -77,8 +77,7 @@ void main() {
       () async {
     // A well-formed FNK2 code the old server cannot know: the Fnauth header is
     // ignored by the old interceptor, which then demands Authx and answers 401.
-    const fakeFnk2 =
-        'FNK2_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8';
+    const fakeFnk2 = 'FNK2_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8';
     final ds = FlyNarwhalRemoteDataSource(
       getToken: () => '',
       getCookie: () => '',
@@ -87,7 +86,7 @@ void main() {
       getFlyNarwhalServerEnabled: () => true,
       getAuthCode: () => fakeFnk2,
       getClientVersion: () => '9.9.9',
-      getDeviceId: () => 'flutter_live-test-device',
+      getInstanceId: () => 'flutter_live-test-device',
       dio: Dio(BaseOptions(
         responseType: ResponseType.plain,
         followRedirects: true,

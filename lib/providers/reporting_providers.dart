@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/network/dio_client.dart';
 import '../data/datasources/remote/reporting_remote_data_source.dart';
 import '../services/reporting/reporting_service.dart';
-import '../ui/features/player/services/player_device_context_service.dart';
+import '../ui/features/player/services/player_instance_context_service.dart';
 import 'providers.dart';
 import 'update_providers.dart';
 
@@ -29,7 +29,7 @@ final reportingServiceProvider = Provider<ReportingService>((ref) {
   return ReportingService(
     runtimeConfiguration: ref.watch(runtimeConfigurationProvider),
     remoteDataSource: ref.watch(reportingRemoteDataSourceProvider),
-    deviceContextService: ref.watch(playerDeviceContextServiceProvider),
+    instanceContextService: ref.watch(playerInstanceContextServiceProvider),
     versionService: ref.watch(appVersionServiceProvider),
     platformInfo: ref.watch(reportingPlatformInfoProvider),
     readSetting: (key) async => preferences.getString(key),

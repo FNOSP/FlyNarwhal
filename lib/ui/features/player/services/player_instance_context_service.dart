@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
+import '../../../../core/identity/instance_id.dart';
 import '../../../../data/storage/preferences_manager.dart';
 import '../../../../providers/providers.dart';
 
@@ -15,16 +16,21 @@ typedef ProcessRunner = Future<ProcessResult> Function(
 
 typedef FileExists = bool Function(String path);
 
-class PlayerDeviceContext {
-  final String deviceId;
-  final String deviceIdType;
-  final String deviceName;
+class PlayerInstanceContext {
+  final String instanceId;
+  final String instanceName;
 
-  const PlayerDeviceContext({
-    required this.deviceId,
-    required this.deviceIdType,
-    required this.deviceName,
-  });
+  /// The value the launch-report has always sent as `deviceId`: the id this
+  /// service persisted before the device→instance rename, or the instance id
+  /// for a profile that already had none. Only reporting reads it, so the
+  /// report payload stays exactly what older builds sent.
+  final String reportDeviceId;
+
+  const PlayerInstanceContext({
+    required this.instanceId,
+    required this.instanceName,
+    String? reportDeviceId,
+  }) : reportDeviceId = reportDeviceId ?? instanceId;
 }
 
 class WindowsVideoAdapterInfo {
@@ -110,23 +116,23 @@ bool _isNvidiaWindowsVideoAdapter(WindowsVideoAdapterInfo adapter) {
   return combined.contains('nvidia') || combined.contains('ven_10de');
 }
 
-class PlayerDeviceContextService {
-  PlayerDeviceContextService(
+class PlayerInstanceContextService {
+  PlayerInstanceContextService(
     this._preferencesManager, {
     ProcessRunner? processRunner,
-    Uuid? uuid,
+    Random? random,
     FileExists? fileExists,
   })  : _processRunner = processRunner ?? Process.run,
-        _uuid = uuid ?? const Uuid(),
+        _random = random,
         _fileExists = fileExists ?? ((path) => File(path).existsSync());
 
   final PreferencesManager _preferencesManager;
   final ProcessRunner _processRunner;
-  final Uuid _uuid;
+  final Random? _random;
   final FileExists _fileExists;
 
-  PlayerDeviceContext? _cachedContext;
-  Completer<PlayerDeviceContext>? _pendingContext;
+  PlayerInstanceContext? _cachedContext;
+  Completer<PlayerInstanceContext>? _pendingContext;
 
   Future<List<String>> loadSupportedHwdecApis() async {
     if (Platform.isWindows) {
@@ -141,7 +147,7 @@ class PlayerDeviceContextService {
     return const [];
   }
 
-  Future<PlayerDeviceContext> loadContext() async {
+  Future<PlayerInstanceContext> loadContext() async {
     final cached = _cachedContext;
     if (cached != null) {
       return cached;
@@ -152,15 +158,15 @@ class PlayerDeviceContextService {
       return pending.future;
     }
 
-    final completer = Completer<PlayerDeviceContext>();
+    final completer = Completer<PlayerInstanceContext>();
     _pendingContext = completer;
 
     try {
-      final deviceIdResult = await _resolveDeviceId();
-      final context = PlayerDeviceContext(
-        deviceId: deviceIdResult.id,
-        deviceIdType: deviceIdResult.type,
-        deviceName: await _resolveDeviceName(),
+      final instanceIdResult = await _resolveInstanceId();
+      final context = PlayerInstanceContext(
+        instanceId: instanceIdResult.id,
+        instanceName: await _resolveInstanceName(),
+        reportDeviceId: instanceIdResult.reportDeviceId,
       );
       _cachedContext = context;
       completer.complete(context);
@@ -173,21 +179,37 @@ class PlayerDeviceContextService {
     }
   }
 
-  Future<({String id, String type})> _resolveDeviceId() async {
+  Future<({String id, String? reportDeviceId})> _resolveInstanceId() async {
     // Always use a persisted id; the startup migration syncs the KMP-migrated
     // id into this key so it is reused as-is instead of generating a new one.
-    final savedId = _preferencesManager.getFallbackDeviceId();
+    final savedId = _preferencesManager.getInstanceId();
     if (savedId != null && savedId.isNotEmpty) {
-      return (id: savedId, type: 'persisted_uuid');
+      return (
+        id: savedId,
+        reportDeviceId: _preferencesManager.getLegacyReportDeviceId(),
+      );
     }
 
     // Persist a generated id so subsequent requests stay stable.
-    final generatedId = 'flutter_${_uuid.v4()}';
-    await _preferencesManager.saveFallbackDeviceId(generatedId);
-    return (id: generatedId, type: 'generated_uuid');
+    final environment = resolveInstanceIdEnvironment();
+    final randomHex = generateInstanceIdRandomHex(_random);
+    final generatedId = buildInstanceId(
+      os: environment.os,
+      arch: environment.arch,
+      randomHex: randomHex,
+    );
+    final generatedReportDeviceId = buildInstanceId(
+      os: environment.os,
+      arch: environment.arch,
+      randomHex: randomHex,
+      client: legacyReportClientTag,
+    );
+    await _preferencesManager.saveInstanceId(generatedId);
+    await _preferencesManager.saveLegacyReportDeviceId(generatedReportDeviceId);
+    return (id: generatedId, reportDeviceId: generatedReportDeviceId);
   }
 
-  Future<String> _resolveDeviceName() async {
+  Future<String> _resolveInstanceName() async {
     // Prefer the desktop machine name before falling back to generic host data.
     final windowsName = await _queryWindowsValue(
       '(Get-CimInstance Win32_ComputerSystem).Name',
@@ -326,10 +348,9 @@ class PlayerDeviceContextService {
         .where((item) => item.isNotEmpty)
         .toList();
   }
-
 }
 
-final playerDeviceContextServiceProvider =
-    Provider<PlayerDeviceContextService>((ref) {
-  return PlayerDeviceContextService(ref.watch(preferencesManagerProvider));
+final playerInstanceContextServiceProvider =
+    Provider<PlayerInstanceContextService>((ref) {
+  return PlayerInstanceContextService(ref.watch(preferencesManagerProvider));
 });

@@ -53,7 +53,7 @@ import 'services/skip_segment_resolver.dart';
 import 'services/direct_link_audio_track_resolver.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
-import 'services/player_device_context_service.dart';
+import 'services/player_instance_context_service.dart';
 import 'services/play_record_request_builder.dart';
 import 'controllers/desktop_pseudo_fullscreen_controller.dart';
 import 'controllers/pip_window_mode_controller.dart';
@@ -94,7 +94,6 @@ import '../../shared/toast.dart';
 import '../../shared/window_caption.dart';
 
 enum _PlaybackIndicatorType { play, pause }
-
 
 class PlayerScreen extends ConsumerStatefulWidget {
   final String guid;
@@ -530,7 +529,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     try {
       final supportedApis = await ref
-          .read(playerDeviceContextServiceProvider)
+          .read(playerInstanceContextServiceProvider)
           .loadSupportedHwdecApis();
       if (!mounted) return;
       final supportedOptions = List<HwdecOption>.unmodifiable(
@@ -2320,8 +2319,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   PlayRecordRequest? _buildPlayRecordRequest({
     required int positionSeconds,
-    required String deviceId,
-    required String deviceName,
+    required String instanceId,
+    required String instanceName,
     PlayingInfoCache? cacheOverride,
   }) {
     // Route play/record requests through a pure builder so direct-link and
@@ -2329,8 +2328,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return buildPlayRecordRequest(
       positionSeconds: positionSeconds,
       fallbackItemGuid: _currentItemGuid,
-      deviceId: deviceId,
-      deviceName: deviceName,
+      instanceId: instanceId,
+      instanceName: instanceName,
       cache: cacheOverride ?? _playingInfoCache,
     );
   }
@@ -2348,13 +2347,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     unawaited(() async {
       try {
-        // Resolve the current device metadata right before sending play/record.
-        final deviceContext =
-            await ref.read(playerDeviceContextServiceProvider).loadContext();
+        // Resolve the current instance metadata right before sending play/record.
+        final instanceContext =
+            await ref.read(playerInstanceContextServiceProvider).loadContext();
         final request = _buildPlayRecordRequest(
           positionSeconds: targetMs ~/ 1000,
-          deviceId: deviceContext.deviceId,
-          deviceName: deviceContext.deviceName,
+          instanceId: instanceContext.instanceId,
+          instanceName: instanceContext.instanceName,
           cacheOverride: cacheOverride,
         );
         if (request == null) return;
@@ -3660,8 +3659,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         unawaited(
           ref.read(danmakuControllerProvider.notifier).loadDanmaku(
                 _buildDanmakuRequest(result.playInfo),
-                allowLegacyKeyFallback:
-                    !capabilities.supportsModernContract,
+                allowLegacyKeyFallback: !capabilities.supportsModernContract,
               ),
         );
       } else {

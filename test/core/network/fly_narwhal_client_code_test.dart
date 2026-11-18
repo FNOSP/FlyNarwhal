@@ -79,7 +79,7 @@ void main() {
         url: '/api/danmu/get',
         keyIdHex: parsed.keyIdHex,
         signKey: signKey,
-        deviceId: 'flutter_test-device',
+        instanceId: 'flutter_test-device',
       );
       final parts = Uri.splitQueryString(header);
       expect(parts['keyid'], parsed.keyIdHex);
@@ -106,7 +106,7 @@ void main() {
         url: '/api/client/activate',
         keyIdHex: parsed.keyIdHex,
         signKey: signKey,
-        deviceId: 'd',
+        instanceId: 'd',
         data: {'a': 1},
       );
       final parts = Uri.splitQueryString(header);

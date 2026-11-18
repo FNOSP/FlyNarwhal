@@ -4,8 +4,8 @@ import '../../../../data/models/player_models.dart';
 PlayRecordRequest? buildPlayRecordRequest({
   required int positionSeconds,
   required String fallbackItemGuid,
-  required String deviceId,
-  required String deviceName,
+  required String instanceId,
+  required String instanceName,
   required PlayingInfoCache? cache,
 }) {
   final fileStream = cache?.currentFileStream;
@@ -31,9 +31,9 @@ PlayRecordRequest? buildPlayRecordRequest({
     ts: positionSeconds,
     duration: videoStream.duration,
     playLink: playRecordLink,
-    deviceId: deviceId,
+    instanceId: instanceId,
     directLinkAudioIndex: -1,
     lan: 'zh-CN',
-    deviceName: deviceName,
+    instanceName: instanceName,
   );
 }

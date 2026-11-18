@@ -5,7 +5,7 @@ import '../../core/config/runtime_configuration.dart';
 import '../../core/network/api_result.dart';
 import '../../data/datasources/remote/reporting_remote_data_source.dart';
 import '../../services/update/app_version_service.dart';
-import '../../ui/features/player/services/player_device_context_service.dart';
+import '../../ui/features/player/services/player_instance_context_service.dart';
 import 'reporting_models.dart';
 
 abstract interface class ReportingPlatformInfo {
@@ -73,7 +73,7 @@ final class ReportingService {
   ReportingService({
     required RuntimeConfiguration runtimeConfiguration,
     required ReportingRemoteDataSource remoteDataSource,
-    required PlayerDeviceContextService deviceContextService,
+    required PlayerInstanceContextService instanceContextService,
     required AppVersionService versionService,
     required ReportingPlatformInfo platformInfo,
     required Future<String?> Function(String key) readSetting,
@@ -81,7 +81,7 @@ final class ReportingService {
     DateTime Function()? now,
   })  : _runtimeConfiguration = runtimeConfiguration,
         _remoteDataSource = remoteDataSource,
-        _deviceContextService = deviceContextService,
+        _instanceContextService = instanceContextService,
         _versionService = versionService,
         _platformInfo = platformInfo,
         _readSetting = readSetting,
@@ -92,7 +92,7 @@ final class ReportingService {
 
   final RuntimeConfiguration _runtimeConfiguration;
   final ReportingRemoteDataSource _remoteDataSource;
-  final PlayerDeviceContextService _deviceContextService;
+  final PlayerInstanceContextService _instanceContextService;
   final AppVersionService _versionService;
   final ReportingPlatformInfo _platformInfo;
   final Future<String?> Function(String key) _readSetting;
@@ -136,11 +136,11 @@ final class ReportingService {
   }
 
   Future<ReportingLaunchRequest> _createRequest(String version) async {
-    final device = await _deviceContextService.loadContext();
+    final instance = await _instanceContextService.loadContext();
     final platform = await _platformInfo.load();
     return ReportingLaunchRequest(
-      deviceId: device.deviceId,
-      deviceIdType: device.deviceIdType,
+      deviceId: instance.reportDeviceId,
+      deviceIdType: _reportDeviceIdType(instance.reportDeviceId),
       osName: platform.osName,
       osArch: platform.osArch,
       cpuModel: platform.cpuModel,
@@ -149,6 +149,12 @@ final class ReportingService {
       version: version,
       timestamp: _now().millisecondsSinceEpoch,
     );
+  }
+
+  /// Matches the types earlier builds reported: the KMP-migrated profile said
+  /// `persisted_uuid`, an id this app minted said `generated_uuid`.
+  static String _reportDeviceIdType(String deviceId) {
+    return deviceId.startsWith('jvm_') ? 'persisted_uuid' : 'generated_uuid';
   }
 
   String _dateText(DateTime value) {

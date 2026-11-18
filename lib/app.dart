@@ -22,6 +22,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'core/config/runtime_configuration.dart';
 import 'core/config/secret_bridge_selector.dart';
+import 'core/identity/instance_id.dart';
 import 'core/network/ssl/ssl_trust_manager.dart';
 import 'core/network/ssl/ssl_trust_persistence.dart';
 import 'core/security/password_cipher.dart';
@@ -209,8 +210,7 @@ Future<void> bootstrapApp() async {
         titleBarStyle: TitleBarStyle.hidden,
         // Let the Flutter-side rounded clip (_LinuxWindowCornerClip) show
         // through instead of a solid native corner behind it.
-        backgroundColor:
-            Platform.isLinux ? Colors.transparent : null,
+        backgroundColor: Platform.isLinux ? Colors.transparent : null,
       );
 
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -295,7 +295,7 @@ Future<void> _runKmpMigration(SharedPreferences preferences) async {
 
     // Sync migrated login history to the key used by PreferencesManager.
     _syncMigratedLoginHistory(preferences, accountSettingsStore);
-    _syncMigratedFallbackDeviceId(preferences, accountSettingsStore);
+    _syncMigratedInstanceId(preferences, accountSettingsStore);
   } catch (error, stackTrace) {
     AppTalker.warning('Migration', 'KMP migration failed: $error');
     AppTalker.instance.handle(error, stackTrace);
@@ -319,21 +319,45 @@ void _syncMigratedLoginHistory(
   AppTalker.info('Migration', 'Login history synced to PreferencesManager key');
 }
 
-/// Copies the KMP-migrated fallback device id so it stays stable across runs.
-void _syncMigratedFallbackDeviceId(
+/// Seeds the instance id used for server auth, plus the id the launch-report
+/// keeps sending as `deviceId`.
+///
+/// A profile that already had a device id (KMP-migrated, or an earlier Flutter
+/// build's `fallback_device_id`) keeps that id for reporting so the report
+/// payload is unchanged; it is only converted to the instance format for auth.
+void _syncMigratedInstanceId(
   SharedPreferences preferences,
   AccountSettingsStore accountSettingsStore,
 ) {
-  const targetKey = 'fallback_device_id';
-  if (preferences.getString(targetKey) != null) {
-    return;
+  const instanceKey = 'instance_id';
+  const reportDeviceKey = 'report_device_id';
+  final migratedId =
+      accountSettingsStore.readGlobal<String>('fallbackDeviceId');
+  final previousDeviceId = preferences.getString('fallback_device_id') ??
+      (migratedId != null && migratedId.trim().isNotEmpty
+          ? migratedId.trim()
+          : null);
+  final environment = resolveInstanceIdEnvironment();
+
+  if (preferences.getString(instanceKey) == null) {
+    final instanceId = previousDeviceId != null
+        ? toInstanceIdFormat(previousDeviceId,
+            os: environment.os, arch: environment.arch)
+        : generateInstanceId(os: environment.os, arch: environment.arch);
+    preferences.setString(instanceKey, instanceId);
+    AppTalker.info(
+        'Migration', 'Instance id seeded into PreferencesManager key');
   }
-  final migratedId = accountSettingsStore.readGlobal<String>('fallbackDeviceId');
-  if (migratedId == null || migratedId.trim().isEmpty) {
-    return;
+
+  if (preferences.getString(reportDeviceKey) == null) {
+    final reportDeviceId = previousDeviceId ??
+        generateInstanceId(
+          os: environment.os,
+          arch: environment.arch,
+          client: legacyReportClientTag,
+        );
+    preferences.setString(reportDeviceKey, reportDeviceId);
   }
-  preferences.setString(targetKey, migratedId.trim());
-  AppTalker.info('Migration', 'KMP fallback device id synced to PreferencesManager key');
 }
 
 /// Pre-approves hosts named by `--dart-define=SSL_AUTO_TRUST_HOSTS` (comma
@@ -615,4 +639,3 @@ class _MouseBackNavigationListener extends StatelessWidget {
     }
   }
 }
-

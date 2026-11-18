@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../core/config/runtime_configuration.dart';
 import '../core/config/secret_bridge_selector.dart';
 import '../core/constants/app_constants.dart';
+import '../core/identity/instance_id.dart';
 import '../core/network/dio_client.dart';
 import '../core/network/ssl/ssl_trust_manager.dart';
 import '../core/network/ssl/ssl_trust_persistence.dart';
@@ -271,7 +271,7 @@ final flyNarwhalRemoteDataSourceProvider =
     getFlyNarwhalServerEnabled: () => flyNarwhalSettings.enabled,
     getAuthCode: () => flyNarwhalSettings.authCode ?? '',
     getClientVersion: () => clientVersionCache.value,
-    getDeviceId: () => _ensureFallbackDeviceId(prefsManager),
+    getInstanceId: () => _ensureInstanceId(prefsManager),
     onClientVersionTooLow: (message) {
       // Polling loops would otherwise stack the same upgrade prompt.
       final now = DateTime.now();
@@ -290,8 +290,7 @@ final flyNarwhalRemoteDataSourceProvider =
     onAuthCodeRejected: (code, message) {
       final now = DateTime.now();
       if (lastAuthCodeToastAt != null &&
-          now.difference(lastAuthCodeToastAt!) <
-              const Duration(seconds: 15)) {
+          now.difference(lastAuthCodeToastAt!) < const Duration(seconds: 15)) {
         return;
       }
       lastAuthCodeToastAt = now;
@@ -325,16 +324,20 @@ final flyNarwhalRemoteDataSourceProvider =
   );
 });
 
-/// Returns the persisted device id, generating and persisting one on first
+/// Returns the persisted instance id, generating and persisting one on first
 /// use. The player context service does the same lazily, but activation can
 /// happen before any playback, so the auth path must not depend on it.
-String _ensureFallbackDeviceId(PreferencesManager prefsManager) {
-  final existing = prefsManager.getFallbackDeviceId();
+String _ensureInstanceId(PreferencesManager prefsManager) {
+  final existing = prefsManager.getInstanceId();
   if (existing != null && existing.isNotEmpty) {
     return existing;
   }
-  final generated = 'flutter_${const Uuid().v4()}';
-  unawaited(prefsManager.saveFallbackDeviceId(generated));
+  final environment = resolveInstanceIdEnvironment();
+  final generated = generateInstanceId(
+    os: environment.os,
+    arch: environment.arch,
+  );
+  unawaited(prefsManager.saveInstanceId(generated));
   return generated;
 }
 
@@ -354,8 +357,9 @@ Future<void> _refreshClientCodeMeta(Ref ref) async {
   }
 }
 
-final smartSkipConfigControllerProvider = StateNotifierProvider<
-    SmartSkipConfigController, SmartSkipConfigState>((ref) {
+final smartSkipConfigControllerProvider =
+    StateNotifierProvider<SmartSkipConfigController, SmartSkipConfigState>(
+        (ref) {
   return SmartSkipConfigController(
     ref.watch(flyNarwhalRemoteDataSourceProvider),
     getL10n: () => lookupAppLocalizations(
@@ -364,8 +368,9 @@ final smartSkipConfigControllerProvider = StateNotifierProvider<
   );
 });
 
-final danmuSourceConfigControllerProvider = StateNotifierProvider<
-    DanmuSourceConfigController, DanmuSourceConfigState>((ref) {
+final danmuSourceConfigControllerProvider =
+    StateNotifierProvider<DanmuSourceConfigController, DanmuSourceConfigState>(
+        (ref) {
   return DanmuSourceConfigController(
     ref.watch(flyNarwhalRemoteDataSourceProvider),
     getL10n: () => lookupAppLocalizations(

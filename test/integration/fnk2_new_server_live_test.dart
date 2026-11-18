@@ -18,14 +18,14 @@ const String _baseUrl = String.fromEnvironment(
   defaultValue: 'http://192.168.31.73:5367',
 );
 const String _authCode = String.fromEnvironment('NEW_AUTH_CODE');
-const String _deviceId = String.fromEnvironment(
+const String _instanceId = String.fromEnvironment(
   'NEW_DEVICE_ID',
-  defaultValue: 'flutter_live-test',
+  defaultValue: 'macos-arm64-fn-livetest00000000',
 );
 
 FlyNarwhalRemoteDataSource _dataSource({
   String? code,
-  String? deviceId,
+  String? instanceId,
   void Function(int, String)? onAuthCodeRejected,
 }) {
   return FlyNarwhalRemoteDataSource(
@@ -36,7 +36,7 @@ FlyNarwhalRemoteDataSource _dataSource({
     getFlyNarwhalServerEnabled: () => true,
     getAuthCode: () => code ?? _authCode,
     getClientVersion: () => '9.9.9',
-    getDeviceId: () => deviceId ?? _deviceId,
+    getInstanceId: () => instanceId ?? _instanceId,
     onAuthCodeRejected: onAuthCodeRejected,
     dio: Dio(BaseOptions(
       responseType: ResponseType.plain,
@@ -64,21 +64,21 @@ void main() {
     final info = result.dataOrNull?.data;
     expect(info, isNotNull);
     expect(info!.name, isNotEmpty);
-    expect(info.boundDeviceId, _deviceId);
+    expect(info.boundDeviceId, _instanceId);
   });
 
   test('me reflects the bound device and scope', () async {
     final result = await _dataSource().getClientCodeInfo();
     expect(result.isSuccess, isTrue);
     final info = result.dataOrNull?.data;
-    expect(info?.boundDeviceId, _deviceId);
+    expect(info?.boundDeviceId, _instanceId);
     expect(info?.scope, anyOf('READ_WRITE', 'READ_ONLY'));
   });
 
   test('a different device is rejected with 4104', () async {
     int? rejectedCode;
     final result = await _dataSource(
-      deviceId: 'flutter_other-device',
+      instanceId: 'macos-arm64-fn-otherdevice0000',
       onAuthCodeRejected: (code, _) => rejectedCode = code,
     ).getClientCodeInfo();
     expect(result.isSuccess, isFalse);

@@ -32,7 +32,7 @@ class FlyNarwhalRemoteDataSource {
   final bool Function() getFlyNarwhalServerEnabled;
   final String Function() getAuthCode;
   final String Function()? getClientVersion;
-  final String Function()? getDeviceId;
+  final String Function()? getInstanceId;
   final void Function(String message)? onClientVersionTooLow;
 
   /// Called with the business code when a per-client code request is rejected
@@ -62,7 +62,7 @@ class FlyNarwhalRemoteDataSource {
     bool Function()? getFlyNarwhalServerEnabled,
     required this.getAuthCode,
     this.getClientVersion,
-    this.getDeviceId,
+    this.getInstanceId,
     this.onClientVersionTooLow,
     this.onAuthCodeRejected,
     this.onLegacyAuthMode,
@@ -119,7 +119,7 @@ class FlyNarwhalRemoteDataSource {
     return _post(
       ApiEndpoints.flyNarwhalClientActivate,
       data: <String, dynamic>{
-        'deviceId': getDeviceId?.call() ?? '',
+        'instanceId': getInstanceId?.call() ?? '',
         'deviceLabel': deviceLabel,
         'clientVersion': getClientVersion?.call() ?? '',
         'platform': platform,
@@ -194,31 +194,32 @@ class FlyNarwhalRemoteDataSource {
   }) {
     return _get(ApiEndpoints.flyNarwhalSmartSkipConfig,
         parameters: <String, dynamic>{'user_guid': userGuid},
-        fromJsonT: (json) => SmartSkipConfig.fromJson(
-            Map<String, dynamic>.from(json as Map)));
+        fromJsonT: (json) =>
+            SmartSkipConfig.fromJson(Map<String, dynamic>.from(json as Map)));
   }
 
-  Future<ApiResult<SmartAnalysisResult<ThumbnailMetadata>>>
-      generateThumbnails(ThumbnailGenerateRequest request) {
+  Future<ApiResult<SmartAnalysisResult<ThumbnailMetadata>>> generateThumbnails(
+      ThumbnailGenerateRequest request) {
     return _post(ApiEndpoints.flyNarwhalThumbnailGenerate,
         data: request.toJson(),
-        fromJsonT: (json) => ThumbnailMetadata.fromJson(
-            Map<String, dynamic>.from(json as Map)));
+        fromJsonT: (json) =>
+            ThumbnailMetadata.fromJson(Map<String, dynamic>.from(json as Map)));
   }
 
   /// Task state for [guid]. Pass [filePath] (the local NAS path of the media)
   /// when known: on server >= 2.1.0 it lets a status query adopt sprites the
   /// scheduled scan generated for the same file under a synthetic guid, so
   /// playback shows previews the client never explicitly requested.
-  Future<ApiResult<SmartAnalysisResult<ThumbnailMetadata>>>
-      getThumbnailStatus(String guid, {String? filePath}) {
+  Future<ApiResult<SmartAnalysisResult<ThumbnailMetadata>>> getThumbnailStatus(
+      String guid,
+      {String? filePath}) {
     return _get(ApiEndpoints.flyNarwhalThumbnailStatus,
         parameters: <String, dynamic>{
           'guid': guid,
           if (filePath != null && filePath.isNotEmpty) 'file_path': filePath,
         },
-        fromJsonT: (json) => ThumbnailMetadata.fromJson(
-            Map<String, dynamic>.from(json as Map)));
+        fromJsonT: (json) =>
+            ThumbnailMetadata.fromJson(Map<String, dynamic>.from(json as Map)));
   }
 
   /// Scheduled thumbnail scan configuration plus live scan state.
@@ -263,8 +264,8 @@ class FlyNarwhalRemoteDataSource {
 
   /// Status of one scan run, polled by the id the trigger answered with.
   /// Requires server >= 2.1.0.
-  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>> getThumbnailScanRun(
-      int runId) {
+  Future<ApiResult<SmartAnalysisResult<ThumbnailScanConfig>>>
+      getThumbnailScanRun(int runId) {
     return _get(ApiEndpoints.flyNarwhalThumbnailScanRun(runId),
         fromJsonT: (json) => ThumbnailScanConfig.fromJson(
             Map<String, dynamic>.from(json as Map)));
@@ -276,8 +277,8 @@ class FlyNarwhalRemoteDataSource {
       getThumbnailScanRunFailures(int runId) {
     return _get(ApiEndpoints.flyNarwhalThumbnailScanRunFailures(runId),
         fromJsonT: (json) => (json as List<dynamic>? ?? const [])
-            .map((item) =>
-                ThumbnailScanFailure.fromJson(Map<String, dynamic>.from(item as Map)))
+            .map((item) => ThumbnailScanFailure.fromJson(
+                Map<String, dynamic>.from(item as Map)))
             .toList(growable: false));
   }
 
@@ -286,8 +287,8 @@ class FlyNarwhalRemoteDataSource {
       previewThumbnailCron({required String cron, int count = 8}) {
     return _post(ApiEndpoints.flyNarwhalThumbnailScanCronPreview,
         data: <String, dynamic>{'cron': cron, 'count': count},
-        fromJsonT: (json) => CronPreviewResult.fromJson(
-            Map<String, dynamic>.from(json as Map)));
+        fromJsonT: (json) =>
+            CronPreviewResult.fromJson(Map<String, dynamic>.from(json as Map)));
   }
 
   /// Raw sprite sheet bytes. The server answers plain JPEG (not a Result
@@ -351,8 +352,8 @@ class FlyNarwhalRemoteDataSource {
   Future<ApiResult<SmartAnalysisResult<DanmuSourceConfig>>>
       getDanmuSourceConfig() {
     return _get(ApiEndpoints.flyNarwhalDanmuSourceConfig,
-        fromJsonT: (json) => DanmuSourceConfig.fromJson(
-            Map<String, dynamic>.from(json as Map)));
+        fromJsonT: (json) =>
+            DanmuSourceConfig.fromJson(Map<String, dynamic>.from(json as Map)));
   }
 
   /// Upserts the single dandanplay relay. [enabled] is the switch; a blank
@@ -398,13 +399,13 @@ class FlyNarwhalRemoteDataSource {
       testDandanAccount({required DandanAccount account}) {
     return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandanAccountTest,
         data: account.toJson(),
-        fromJsonT: (json) =>
-            json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{});
+        fromJsonT: (json) => json is Map
+            ? Map<String, dynamic>.from(json)
+            : <String, dynamic>{});
   }
 
   Future<ApiResult<SmartAnalysisResult<String>>> deleteFallbackServer(int id) {
-    return _delete(
-        '${ApiEndpoints.flyNarwhalDanmuSourceConfigFallback}/$id',
+    return _delete('${ApiEndpoints.flyNarwhalDanmuSourceConfigFallback}/$id',
         fromJsonT: (json) => json?.toString() ?? '');
   }
 
@@ -496,7 +497,8 @@ class FlyNarwhalRemoteDataSource {
       final url = _buildFullUrl(path);
       final response = await _dio.delete<String>(url,
           options: Options(
-              headers: await _buildHeaders(signaturePath: path, method: 'DELETE'),
+              headers:
+                  await _buildHeaders(signaturePath: path, method: 'DELETE'),
               responseType: ResponseType.plain));
       _noteAuthMode(response.headers);
       return Success(await _decodeSmartResult(
@@ -728,7 +730,7 @@ class FlyNarwhalRemoteDataSource {
         _fnk2Code = fnk2;
         _fnk2SignKey = await fnk2.deriveSignKey().then((k) => k.extractBytes());
       }
-      final deviceId = getDeviceId?.call() ?? '';
+      final instanceId = getInstanceId?.call() ?? '';
       final headers = <String, String>{
         'Accept': isSse ? 'text/event-stream' : 'application/json',
         'User-Agent': AppConstants.userAgent,
@@ -737,11 +739,11 @@ class FlyNarwhalRemoteDataSource {
           url: signaturePath,
           keyIdHex: fnk2.keyIdHex,
           signKey: _fnk2SignKey!,
-          deviceId: deviceId,
+          instanceId: instanceId,
           parameters: parameters,
           data: data,
         ),
-        'X-Fn-Device-Id': deviceId,
+        'X-Fn-Instance-Id': instanceId,
         'Keyx': _crypto.fnk2KeyxBase64Url(),
       };
       final clientVersion = getClientVersion?.call() ?? '';
@@ -871,7 +873,9 @@ class FlyNarwhalRemoteDataSource {
   Map<String, List<Danmaku>> _parseDanmakuPayload(String data) {
     final decoded = jsonDecode(data);
     if (decoded is List) {
-      return <String, List<Danmaku>>{danmakuWholeWorkKey: _parseDanmakuList(decoded)};
+      return <String, List<Danmaku>>{
+        danmakuWholeWorkKey: _parseDanmakuList(decoded)
+      };
     }
     if (decoded is Map) {
       return decoded.map((key, value) {

@@ -10,7 +10,7 @@ import 'package:fly_narwhal/data/storage/preferences_manager.dart';
 import 'package:fly_narwhal/domain/repositories/i_tag_repository.dart';
 import 'package:fly_narwhal/providers/providers.dart';
 import 'package:fly_narwhal/ui/features/player/player_screen.dart';
-import 'package:fly_narwhal/ui/features/player/services/player_device_context_service.dart';
+import 'package:fly_narwhal/ui/features/player/services/player_instance_context_service.dart';
 
 void main() {
   for (final fails in [false, true]) {
@@ -22,11 +22,12 @@ void main() {
       final device = _Device(PreferencesManager(preferences));
       await tester.binding.setSurfaceSize(const Size(1280, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(ProviderScope(overrides: [
-        sharedPreferencesProvider.overrideWithValue(preferences),
-        playerDeviceContextServiceProvider.overrideWithValue(device),
-        iTagRepositoryProvider.overrideWithValue(_Tags()),
-      ],
+      await tester.pumpWidget(ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(preferences),
+            playerInstanceContextServiceProvider.overrideWithValue(device),
+            iTagRepositoryProvider.overrideWithValue(_Tags()),
+          ],
           child: FluentApp(
             localizationsDelegates: const [
               AppLocalizations.delegate,
@@ -56,7 +57,7 @@ void main() {
   }
 }
 
-class _Device extends PlayerDeviceContextService {
+class _Device extends PlayerInstanceContextService {
   _Device(super.preferencesManager);
   final lookup = Completer<List<String>>();
   int calls = 0;

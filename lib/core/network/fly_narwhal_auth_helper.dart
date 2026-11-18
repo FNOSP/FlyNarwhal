@@ -13,14 +13,14 @@ class FlyNarwhalAuthHelper {
 
   /// Generates the Fnauth header for a per-client FNK2 code.
   ///
-  /// `sig = HMAC-SHA256(signKey, "FNK2_method_url_ts_nonce_dataJsonMd5_deviceId")`.
+  /// `sig = HMAC-SHA256(signKey, "FNK2_method_url_ts_nonce_dataJsonMd5_instanceId")`.
   /// The code plaintext never appears in the header — only its SHA-256 keyid.
   static String generateFnauth({
     required String method,
     required String url,
     required String keyIdHex,
     required List<int> signKey,
-    required String deviceId,
+    required String instanceId,
     Map<String, dynamic>? parameters,
     dynamic data,
   }) {
@@ -34,7 +34,7 @@ class FlyNarwhalAuthHelper {
     final ts = DateTime.now().millisecondsSinceEpoch.toString();
     final dataJsonMd5 = buildDataJsonMd5(parameters: parameters, data: data);
     final message =
-        ['FNK2', method.toUpperCase(), url, ts, nonce, dataJsonMd5, deviceId]
+        ['FNK2', method.toUpperCase(), url, ts, nonce, dataJsonMd5, instanceId]
             .join('_');
     final sig = Hmac(sha256, signKey).convert(utf8.encode(message)).toString();
     return 'keyid=$keyIdHex&ts=$ts&nonce=$nonce&sig=$sig';

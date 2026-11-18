@@ -21,7 +21,10 @@ class PreferencesManager {
   // 选集/剧集列表视图：'card' (卡片/海报) | 'button' (序号按钮网格)。
   // 镜像 Web 端 playlist setting 的 view_type，全局记忆。
   static const String _keyEpisodeListViewType = 'episode_list_view_type';
-  static const String _keyFallbackDeviceId = 'fallback_device_id';
+  static const String _keyInstanceId = 'instance_id';
+  // The id the launch-report sends as `deviceId`; kept beside (not inside)
+  // `instance_id` so the report payload never changes shape.
+  static const String _keyReportDeviceId = 'report_device_id';
   static const String _keySmartSkipEnabled = 'smart_skip_enabled';
   static const String _keySkipIntro = 'skip_intro';
   static const String _keySkipCredits = 'skip_credits';
@@ -29,7 +32,8 @@ class PreferencesManager {
   static const String _keySkipPreview = 'skip_preview';
   static const String _keySkipCommercial = 'skip_commercial';
   // 播放详细信息面板样式：true = 带动画的液态玻璃面板，false = 静态毛玻璃面板。
-  static const String _keyPlayerDetailsLiquidGlass = 'player_details_liquid_glass';
+  static const String _keyPlayerDetailsLiquidGlass =
+      'player_details_liquid_glass';
   // 「支持作者」弹框的自动触发状态位：是否已经自动弹出过（首次满阈值那次）。
   static const String _keyDonationSupportPrompted = 'donation_support_prompted';
   // 用户最近一次对「支持作者」弹框的回应是否为「我已赞赏」：
@@ -192,12 +196,20 @@ class PreferencesManager {
     return _writeStringScoped(_keyEpisodeListViewType, userGuid, value);
   }
 
-  String? getFallbackDeviceId() {
-    return _prefs.getString(_keyFallbackDeviceId);
+  String? getInstanceId() {
+    return _prefs.getString(_keyInstanceId);
   }
 
-  Future<void> saveFallbackDeviceId(String value) async {
-    await _prefs.setString(_keyFallbackDeviceId, value);
+  Future<void> saveInstanceId(String value) async {
+    await _prefs.setString(_keyInstanceId, value);
+  }
+
+  String? getLegacyReportDeviceId() {
+    return _prefs.getString(_keyReportDeviceId);
+  }
+
+  Future<void> saveLegacyReportDeviceId(String value) async {
+    await _prefs.setString(_keyReportDeviceId, value);
   }
 
   bool? getSmartSkipEnabledForUser(String userGuid) {
@@ -267,7 +279,8 @@ class PreferencesManager {
 
   // 「支持作者」弹框是否已自动弹出过（观看时长满阈值后的那次自动弹窗）。
   bool isDonationSupportPrompted({String? userGuid}) =>
-      _readBoolScoped(_keyDonationSupportPrompted, userGuid, defaultValue: false);
+      _readBoolScoped(_keyDonationSupportPrompted, userGuid,
+          defaultValue: false);
 
   Future<void> markDonationSupportPrompted({String? userGuid}) =>
       _writeBoolScoped(_keyDonationSupportPrompted, userGuid, true);
@@ -275,14 +288,14 @@ class PreferencesManager {
   // 用户最近一次回应是否为「我已赞赏」：为真则自动弹框间隔为 20 小时观看时长，
   // 为假（含「稍后再说」）则为 10 小时。
   bool isDonationSupportDonated({String? userGuid}) =>
-      _readBoolScoped(_keyDonationSupportDonated, userGuid, defaultValue: false);
+      _readBoolScoped(_keyDonationSupportDonated, userGuid,
+          defaultValue: false);
 
   Future<void> setDonationSupportDonated(bool value, {String? userGuid}) =>
       _writeBoolScoped(_keyDonationSupportDonated, userGuid, value);
 
   // 上次自动弹出「支持作者」弹框时的累计观看秒数（未弹过为 0）。
-  int getDonationSupportLastPromptSeconds({String? userGuid}) =>
-      _readIntScoped(
+  int getDonationSupportLastPromptSeconds({String? userGuid}) => _readIntScoped(
         _keyDonationSupportLastPromptSeconds,
         userGuid,
         defaultValue: 0,
@@ -291,7 +304,8 @@ class PreferencesManager {
   Future<void> setDonationSupportLastPromptSeconds(
     int value, {
     String? userGuid,
-  }) => _writeIntScoped(_keyDonationSupportLastPromptSeconds, userGuid, value);
+  }) =>
+      _writeIntScoped(_keyDonationSupportLastPromptSeconds, userGuid, value);
 
   // 作用域读取：未登录读全局键；登录态只读 <guid>::<key>，无命中返回默认值。
   // 不再做"懒迁移"复制：迁移由 UserSettingsMigrator 统一处理并删除全局值。
