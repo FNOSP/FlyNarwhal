@@ -167,7 +167,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authCodeDisabled => '授权码已被停用，请联系服务端管理员';
 
   @override
-  String get authCodeDeviceMismatch => '授权码已绑定其他设备，请在服务端管理页解绑后重试';
+  String get authCodeDeviceMismatch => '授权码已绑定其他设备，无法更换。请联系管理员为当前设备生成新的授权码';
 
   @override
   String get authCodeRateLimited => '失败次数过多，请稍后再试';
@@ -3544,7 +3544,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get authCodeDisabled => '授權碼已被停用，請聯絡伺服端管理員';
 
   @override
-  String get authCodeDeviceMismatch => '授權碼已綁定其他裝置，請在伺服端管理頁解綁後重試';
+  String get authCodeDeviceMismatch => '授權碼已綁定其他裝置，無法更換。請聯絡管理員為目前裝置產生新的授權碼';
 
   @override
   String get authCodeRateLimited => '失敗次數過多，請稍後再試';

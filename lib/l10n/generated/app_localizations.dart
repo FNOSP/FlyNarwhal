@@ -414,7 +414,7 @@ abstract class AppLocalizations {
   /// Error when the code is bound to another device.
   ///
   /// In zh, this message translates to:
-  /// **'授权码已绑定其他设备，请在服务端管理页解绑后重试'**
+  /// **'授权码已绑定其他设备，无法更换。请联系管理员为当前设备生成新的授权码'**
   String get authCodeDeviceMismatch;
 
   /// Error when auth failures tripped the rate limit.

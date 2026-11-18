@@ -202,7 +202,7 @@
   "@authCodeExpired": { "description": "Error when the per-client code expired." },
   "authCodeDisabled": "授权码已被停用，请联系服务端管理员",
   "@authCodeDisabled": { "description": "Error when the per-client code was disabled." },
-  "authCodeDeviceMismatch": "授权码已绑定其他设备，请在服务端管理页解绑后重试",
+  "authCodeDeviceMismatch": "授权码已绑定其他设备，无法更换。请联系管理员为当前设备生成新的授权码",
   "@authCodeDeviceMismatch": { "description": "Error when the code is bound to another device." },
   "authCodeRateLimited": "失败次数过多，请稍后再试",
   "@authCodeRateLimited": { "description": "Error when auth failures tripped the rate limit." },

@@ -181,7 +181,7 @@
   "@authCodeExpired": { "description": "Error when the per-client code expired." },
   "authCodeDisabled": "This authorization code was disabled; contact the server administrator",
   "@authCodeDisabled": { "description": "Error when the per-client code was disabled." },
-  "authCodeDeviceMismatch": "This code is bound to another device; unbind it in the server admin page and retry",
+  "authCodeDeviceMismatch": "This code is bound to another device and cannot be moved; ask the administrator for a new code for this device",
   "@authCodeDeviceMismatch": { "description": "Error when the code is bound to another device." },
   "authCodeRateLimited": "Too many failed attempts; try again later",
   "@authCodeRateLimited": { "description": "Error when auth failures tripped the rate limit." },

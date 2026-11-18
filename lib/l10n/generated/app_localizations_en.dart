@@ -184,7 +184,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authCodeDeviceMismatch =>
-      'This code is bound to another device; unbind it in the server admin page and retry';
+      'This code is bound to another device and cannot be moved; ask the administrator for a new code for this device';
 
   @override
   String get authCodeRateLimited => 'Too many failed attempts; try again later';

@@ -181,7 +181,7 @@
   "@authCodeExpired": { "description": "Error when the per-client code expired." },
   "authCodeDisabled": "授權碼已被停用，請聯絡伺服端管理員",
   "@authCodeDisabled": { "description": "Error when the per-client code was disabled." },
-  "authCodeDeviceMismatch": "授權碼已綁定其他裝置，請在伺服端管理頁解綁後重試",
+  "authCodeDeviceMismatch": "授權碼已綁定其他裝置，無法更換。請聯絡管理員為目前裝置產生新的授權碼",
   "@authCodeDeviceMismatch": { "description": "Error when the code is bound to another device." },
   "authCodeRateLimited": "失敗次數過多，請稍後再試",
   "@authCodeRateLimited": { "description": "Error when auth failures tripped the rate limit." },
