@@ -5,11 +5,14 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../../../core/config/runtime_configuration.dart';
+import '../../../core/config/wb_signer_bridge_ffi.dart';
+import '../../../core/config/wb_signer_selector.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/fly_narwhal_auth_helper.dart';
 import '../../../core/network/fly_narwhal_client_code.dart';
 import '../../../core/network/fly_narwhal_response_crypto.dart';
+import '../../../core/network/fly_narwhal_wb_helper.dart';
 import '../../../core/network/interceptors/logging_interceptor.dart';
 import '../../../core/network/ssl/ssl_trust_configurator.dart';
 import '../../../core/network/ssl/ssl_trust_persistence.dart';
@@ -43,6 +46,7 @@ class FlyNarwhalRemoteDataSource {
   /// "old FN1 code on a new server" that triggers the deprecation warning.
   final void Function()? onLegacyAuthMode;
   final RuntimeConfiguration? _runtimeConfiguration;
+  final WbSigner? _wbSigner;
   final FlyNarwhalResponseCrypto _crypto;
   final Dio _dio;
 
@@ -67,9 +71,11 @@ class FlyNarwhalRemoteDataSource {
     this.onAuthCodeRejected,
     this.onLegacyAuthMode,
     RuntimeConfiguration? runtimeConfiguration,
+    WbSigner? wbSigner,
     Dio? dio,
     FlyNarwhalResponseCrypto? crypto,
   })  : _runtimeConfiguration = runtimeConfiguration,
+        _wbSigner = wbSigner ?? tryLoadWbSigner(),
         getFlyNarwhalServerEnabled = getFlyNarwhalServerEnabled ?? (() => true),
         _dio = _createDio(dio),
         _crypto = crypto ?? FlyNarwhalResponseCrypto.instance;
@@ -731,21 +737,41 @@ class FlyNarwhalRemoteDataSource {
         _fnk2SignKey = await fnk2.deriveSignKey().then((k) => k.extractBytes());
       }
       final instanceId = getInstanceId?.call() ?? '';
+      final fnauth = FlyNarwhalAuthHelper.generateFnauth(
+        method: method,
+        url: signaturePath,
+        keyIdHex: fnk2.keyIdHex,
+        signKey: _fnk2SignKey!,
+        instanceId: instanceId,
+        parameters: parameters,
+        data: data,
+      );
       final headers = <String, String>{
         'Accept': isSse ? 'text/event-stream' : 'application/json',
         'User-Agent': AppConstants.userAgent,
-        'Fnauth': FlyNarwhalAuthHelper.generateFnauth(
-          method: method,
-          url: signaturePath,
-          keyIdHex: fnk2.keyIdHex,
-          signKey: _fnk2SignKey!,
-          instanceId: instanceId,
-          parameters: parameters,
-          data: data,
-        ),
+        'Fnauth': fnauth,
         'X-Fn-Instance-Id': instanceId,
         'Keyx': _crypto.fnk2KeyxBase64Url(),
       };
+      final wbSigner = _wbSigner;
+      if (wbSigner != null) {
+        // Release bundles ship the white-box signer; a signing failure must
+        // fail the request rather than silently drop the build proof.
+        final fnauthParts = FlyNarwhalWbHelper.parseFnauth(fnauth);
+        final message = FlyNarwhalWbHelper.buildFnwbMessage(
+          method: method,
+          url: signaturePath,
+          ts: fnauthParts['ts'] ?? '',
+          nonce: fnauthParts['nonce'] ?? '',
+          dataJsonMd5: FlyNarwhalAuthHelper.buildDataJsonMd5(
+            parameters: parameters,
+            data: data,
+          ),
+          instanceId: instanceId,
+          fnauthSig: fnauthParts['sig'] ?? '',
+        );
+        headers['Fnwb'] = 'v=2&sig=${wbSigner.sign(message)}';
+      }
       final clientVersion = getClientVersion?.call() ?? '';
       if (clientVersion.isNotEmpty) {
         headers['X-Client-Version'] = clientVersion;

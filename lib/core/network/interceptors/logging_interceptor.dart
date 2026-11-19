@@ -10,6 +10,8 @@ const _hiddenHeaders = {
   'Cookie',
   'Authx',
   'Signx',
+  'Fnauth',
+  'Fnwb',
   'Keyx',
 };
 

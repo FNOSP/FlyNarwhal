@@ -22,6 +22,7 @@ jobs:
             goarch: amd64
             installer-arch: amd64
             libname: fly_narwhal_obfuscator.dll
+            wb-libname: fly_narwhal_wb.dll
             artifact: windows-x64
           - runner: windows-11-arm
             platform: windows
@@ -29,30 +30,35 @@ jobs:
             goarch: arm64
             installer-arch: aarch64
             libname: fly_narwhal_obfuscator.dll
+            wb-libname: fly_narwhal_wb.dll
             artifact: windows-arm64
           - runner: macos-15-intel
             platform: macos
             architecture: x64
             goarch: amd64
             libname: libfly_narwhal_obfuscator.dylib
+            wb-libname: libfly_narwhal_wb.dylib
             artifact: macos-x64
           - runner: macos-15
             platform: macos
             architecture: arm64
             goarch: arm64
             libname: libfly_narwhal_obfuscator.dylib
+            wb-libname: libfly_narwhal_wb.dylib
             artifact: macos-arm64
           - runner: ubuntu-24.04
             platform: linux
             architecture: x64
             goarch: amd64
             libname: libfly_narwhal_obfuscator.so
+            wb-libname: libfly_narwhal_wb.so
             artifact: linux-x64
           - runner: ubuntu-24.04-arm
             platform: linux
             architecture: arm64
             goarch: arm64
             libname: libfly_narwhal_obfuscator.so
+            wb-libname: libfly_narwhal_wb.so
             artifact: linux-arm64
     runs-on: ${{ matrix.runner }}
     environment: release
@@ -220,6 +226,15 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
+      - name: Check out private whitebox signer
+        uses: actions/checkout@v4
+        with:
+          repository: Jankin-Wu/fly-narwhal-whitebox
+          token: ${{ secrets.OBFUSCATOR_REPO_TOKEN }}
+          path: .private/whitebox
+          persist-credentials: false
+          fetch-depth: 1
+
       # - name: Verify private obfuscator revision
       #   shell: bash
       #   run: |
@@ -244,12 +259,16 @@ jobs:
       - name: Build protected release bundle
         env:
           FLY_NARWHAL_API_SECRET: ${{ secrets.FLY_NARWHAL_API_SECRET }}
+          FLY_NARWHAL_API_SECRET_V2: ${{ secrets.FLY_NARWHAL_API_SECRET_V2 }}
           FLY_NARWHAL_SECRET: ${{ secrets.FLY_NARWHAL_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           OBFUSCATOR_TOOL_DIRECTORY: ${{ github.workspace }}/.private/obfuscator
           OBFUSCATOR_GOARCH: ${{ matrix.goarch }}
           OBFUSCATOR_LIBNAME: ${{ matrix.libname }}
+          WHITEBOX_TOOL_DIRECTORY: ${{ github.workspace }}/.private/whitebox
+          WHITEBOX_GOARCH: ${{ matrix.goarch }}
+          WHITEBOX_LIBNAME: ${{ matrix.wb-libname }}
         run: dart run scripts/release/build_desktop.dart ${{ matrix.platform }} ${{ matrix.architecture }}
 
       - name: Upload Windows build logs on failure

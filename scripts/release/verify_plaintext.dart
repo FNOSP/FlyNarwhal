@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 const _configurationKeys = <String>[
   'FLY_NARWHAL_API_SECRET',
+  'FLY_NARWHAL_API_SECRET_V2',
   'FLY_NARWHAL_SECRET',
   'REPORT_URL',
   'REPORT_API_SECRET',

@@ -5,6 +5,7 @@ import 'package:fly_narwhal/tooling/windows_bundle_contract.dart';
 
 const _requiredSecrets = <String>[
   'FLY_NARWHAL_API_SECRET',
+  'FLY_NARWHAL_API_SECRET_V2',
   'FLY_NARWHAL_SECRET',
 ];
 
@@ -20,6 +21,11 @@ Future<void> main(List<String> arguments) async {
   );
   final goArchitecture = _requiredEnvironmentValue('OBFUSCATOR_GOARCH');
   final libraryName = _requiredEnvironmentValue('OBFUSCATOR_LIBNAME');
+  final whiteboxDirectory = _requiredEnvironmentValue(
+    'WHITEBOX_TOOL_DIRECTORY',
+  );
+  final whiteboxGoArchitecture = _requiredEnvironmentValue('WHITEBOX_GOARCH');
+  final whiteboxLibraryName = _requiredEnvironmentValue('WHITEBOX_LIBNAME');
   final dryRun = parsedArguments.dryRun;
   _validateGitHubTagVersion(_packageVersion());
 
@@ -30,10 +36,14 @@ Future<void> main(List<String> arguments) async {
       goArchitecture: goArchitecture,
       libraryName: libraryName,
       obfuscatorDirectory: obfuscatorDirectory,
+      whiteboxDirectory: whiteboxDirectory,
+      whiteboxGoArchitecture: whiteboxGoArchitecture,
+      whiteboxLibraryName: whiteboxLibraryName,
       dryRun: dryRun,
     );
   } finally {
     await _deleteGeneratedSecretSource(obfuscatorDirectory, dryRun: dryRun);
+    await _deleteGeneratedWhiteboxSources(whiteboxDirectory, dryRun: dryRun);
   }
 }
 
@@ -43,6 +53,9 @@ Future<void> _runProtectedBuild({
   required String goArchitecture,
   required String libraryName,
   required String obfuscatorDirectory,
+  required String whiteboxDirectory,
+  required String whiteboxGoArchitecture,
+  required String whiteboxLibraryName,
   required bool dryRun,
 }) async {
   await _runProcess(
@@ -84,6 +97,48 @@ Future<void> _runProtectedBuild({
     dryRun: dryRun,
   );
 
+  // White-box V2 build proof: generate the randomized AES lookup tables from
+  // FLY_NARWHAL_API_SECRET_V2, then compile the c-shared signer. The secret
+  // exists only inside the generated tables, never in the Dart application.
+  await _runProcess(
+    executable: 'go',
+    arguments: const <String>['run', './cmd/genwb'],
+    workingDirectory: whiteboxDirectory,
+    environment: Platform.environment,
+    dryRun: dryRun,
+  );
+
+  final whiteboxLibraryPath = _nativeLibraryPath(
+    obfuscatorDirectory: whiteboxDirectory,
+    platform: platform,
+    goArchitecture: whiteboxGoArchitecture,
+    libraryName: whiteboxLibraryName,
+  );
+  await Directory(whiteboxLibraryPath).parent.create(recursive: true);
+  await _runProcess(
+    executable: 'go',
+    arguments: <String>[
+      'build',
+      '-tags',
+      'wbgen',
+      '-buildmode=c-shared',
+      '-trimpath',
+      '-ldflags',
+      '-s -w',
+      '-o',
+      whiteboxLibraryPath,
+      './cmd/signer',
+    ],
+    workingDirectory: whiteboxDirectory,
+    environment: <String, String>{
+      ...Platform.environment,
+      'CGO_ENABLED': '1',
+      'GOOS': platform == 'macos' ? 'darwin' : platform,
+      'GOARCH': whiteboxGoArchitecture,
+    },
+    dryRun: dryRun,
+  );
+
   final flutterArguments = <String>[
     'build',
     platform,
@@ -104,8 +159,15 @@ Future<void> _runProtectedBuild({
   final bundleDirectory = _bundleDirectory(platform, architecture);
   final bundleLibraryPath =
       '$bundleDirectory${Platform.pathSeparator}$libraryName';
+  final bundleWhiteboxLibraryPath =
+      '$bundleDirectory${Platform.pathSeparator}$whiteboxLibraryName';
   if (dryRun) {
     stdout.writeln('Copy $nativeLibraryPath -> $bundleLibraryPath');
+    stdout.writeln('Copy $whiteboxLibraryPath -> $bundleWhiteboxLibraryPath');
+    stdout.writeln(
+      'Scan $bundleDirectory for plaintext configuration via '
+      'scripts/release/verify_plaintext.dart.',
+    );
     if (platform == 'windows') {
       stdout.writeln(
         'CMake will build $windowsNativeHelperExecutable during flutter build windows.',
@@ -141,11 +203,19 @@ Future<void> _runProtectedBuild({
   if (!await nativeLibrary.exists()) {
     _fail('Native obfuscator library is missing after the Go build');
   }
+  final whiteboxLibrary = File(whiteboxLibraryPath);
+  if (!await whiteboxLibrary.exists()) {
+    _fail('Native white-box signer library is missing after the Go build');
+  }
   final bundle = Directory(bundleDirectory);
   if (!await bundle.exists()) {
     _fail('Desktop release bundle is missing after the Flutter build');
   }
   await nativeLibrary.copy(bundleLibraryPath);
+  // The white-box signer must land in the bundle before the macOS ad-hoc
+  // codesign below so `codesign --force --deep` covers the new dylib.
+  await whiteboxLibrary.copy(bundleWhiteboxLibraryPath);
+  await _runPlaintextVerification(bundleDirectory);
   if (platform == 'linux') {
     await _applyLinuxArm64EnginePatch(
       bundleDirectory: bundleDirectory,
@@ -197,6 +267,42 @@ Future<void> _deleteGeneratedSecretSource(
   if (await sourceFile.exists()) {
     await sourceFile.delete();
   }
+}
+
+/// Removes the genwb-generated table sources so no derived white-box material
+/// outlives the build on the runner.
+Future<void> _deleteGeneratedWhiteboxSources(
+  String whiteboxDirectory, {
+  required bool dryRun,
+}) async {
+  final separator = Platform.pathSeparator;
+  final generatedFiles = <File>[
+    for (final package in const <String>['signertab', 'verifiertab'])
+      for (final name in const <String>['tables_gen.go', 'aux_gen.go'])
+        File('$whiteboxDirectory${separator}internal${separator}tables'
+            '$separator$package$separator$name'),
+  ];
+  for (final file in generatedFiles) {
+    if (dryRun) {
+      stdout.writeln('Delete ${file.path}');
+      continue;
+    }
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+}
+
+Future<void> _runPlaintextVerification(String bundleDirectory) async {
+  await _runProcess(
+    executable: 'dart',
+    arguments: <String>[
+      'run',
+      'scripts/release/verify_plaintext.dart',
+      bundleDirectory,
+    ],
+    dryRun: false,
+  );
 }
 
 Future<void> _runProcess({
